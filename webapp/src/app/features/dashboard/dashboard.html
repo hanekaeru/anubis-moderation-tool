@@ -1,0 +1,156 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Vue d'ensemble</h1>
+      <p class="subtitle">Activite du serveur et de la moderation</p>
+    </div>
+
+    <mat-button-toggle-group
+      [value]="period()"
+      (change)="changePeriod($event.value)"
+      aria-label="Periode analysee"
+    >
+      @for (value of periods; track value) {
+        <mat-button-toggle [value]="value">{{ periodLabels[value] }}</mat-button-toggle>
+      }
+    </mat-button-toggle-group>
+  </header>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  @if (overview(); as data) {
+    <section class="card-grid">
+      <app-stat-card
+        label="Membres"
+        [value]="data.memberCount"
+        [hint]="data.activeMemberCount + ' presents actuellement'"
+        icon="group"
+      />
+      <app-stat-card
+        label="Sanctions en cours"
+        [value]="data.activeSanctionCount"
+        icon="gavel"
+      />
+      <app-stat-card
+        label="Tickets ouverts"
+        [value]="data.openTicketCount"
+        icon="confirmation_number"
+      />
+      <app-stat-card
+        label="Delai median de reponse"
+        [value]="data.medianFirstResponseSeconds | duration"
+        hint="Premiere reponse sur un ticket"
+        icon="schedule"
+      />
+    </section>
+
+    <section class="charts">
+      <app-chart-card
+        title="Arrivees et departs"
+        [subtitle]="'Sur ' + periodLabels[data.period]"
+        [options]="membershipChart()"
+        [hasData]="hasMembershipData()"
+      />
+      <app-chart-card
+        title="Messages par jour"
+        [subtitle]="'Sur ' + periodLabels[data.period]"
+        [options]="messagesChart()"
+        [hasData]="hasMessageData()"
+      />
+      <app-chart-card
+        title="Avertissements"
+        [subtitle]="'Sur ' + periodLabels[data.period]"
+        [options]="warningsChart()"
+        [hasData]="hasWarningData()"
+      />
+      <app-chart-card
+        title="Sanctions par type"
+        [subtitle]="'Sur ' + periodLabels[data.period]"
+        [options]="sanctionsChart()"
+        [hasData]="data.sanctionsByType.length > 0"
+      />
+      <app-chart-card
+        title="Tickets par statut"
+        subtitle="Tous les tickets"
+        [options]="ticketsChart()"
+        [hasData]="data.ticketsByStatus.length > 0"
+      />
+    </section>
+
+    <section class="lists">
+      <mat-card appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>Sanctions recentes</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          @if (data.recentSanctions.length) {
+            <ul class="feed">
+              @for (sanction of data.recentSanctions; track sanction.id) {
+                <li>
+                  <a [routerLink]="['/membres', sanction.member.userId]" class="feed-member">
+                    <app-member-avatar
+                      [username]="sanction.member.username"
+                      [globalName]="sanction.member.globalName"
+                      [avatarUrl]="sanction.member.avatarUrl"
+                      [size]="28"
+                    />
+                  </a>
+                  <div class="feed-body">
+                    <span class="feed-type">{{ sanctionLabels[sanction.type] }}</span>
+                    <span class="feed-reason">{{ sanction.reason }}</span>
+                    <span class="feed-meta">
+                      {{ sanction.issuedByLabel }} · {{ sanction.createdAt | relativeTime }}
+                    </span>
+                  </div>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="empty-state">Aucune sanction sur cette periode.</p>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>Activite de la moderation</mat-card-title>
+          <mat-card-subtitle>Sur {{ periodLabels[data.period] }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          @if (data.moderatorLeaderboard.length) {
+            <div class="table-scroll">
+              <table class="leaderboard">
+                <thead>
+                  <tr>
+                    <th scope="col">Moderateur</th>
+                    <th scope="col">Avert.</th>
+                    <th scope="col">Sanctions</th>
+                    <th scope="col">Tickets</th>
+                    <th scope="col">Notes</th>
+                    <th scope="col">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (entry of data.moderatorLeaderboard; track entry.displayName) {
+                    <tr>
+                      <td>{{ entry.displayName }}</td>
+                      <td>{{ entry.warnings }}</td>
+                      <td>{{ entry.sanctions }}</td>
+                      <td>{{ entry.ticketsClosed }}</td>
+                      <td>{{ entry.notes }}</td>
+                      <td class="total">{{ entry.total }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p class="empty-state">Aucune action enregistree sur cette periode.</p>
+          }
+        </mat-card-content>
+      </mat-card>
+    </section>
+  }
+</div>

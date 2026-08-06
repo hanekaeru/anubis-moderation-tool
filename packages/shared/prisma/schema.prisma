@@ -1,0 +1,598 @@
+// Schema Prisma d'Anubis — source de verite unique de la base.
+//
+// Les enums declares ici sont dupliques en TypeScript dans src/enums.ts, parce
+// que le navigateur ne peut pas importer le client Prisma. Toute modification
+// d'un enum doit etre reportee dans les deux fichiers.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum MemberStatus {
+  ACTIVE
+  LEFT
+  BANNED
+}
+
+enum IdentityEventType {
+  USERNAME_CHANGED
+  GLOBAL_NAME_CHANGED
+  NICKNAME_CHANGED
+  AVATAR_CHANGED
+}
+
+enum RoleEventType {
+  ADDED
+  REMOVED
+}
+
+enum WarningSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum SanctionType {
+  TIMEOUT
+  VOICE_MUTE
+  KICK
+  SOFTBAN
+  BAN
+}
+
+enum SanctionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketEventType {
+  OPENED
+  CLAIMED
+  ASSIGNED
+  MESSAGE
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  INTERNAL_NOTE
+  CLOSED
+  REOPENED
+}
+
+enum AppUserRole {
+  VIEWER
+  MODERATOR
+  ADMIN
+  OWNER
+}
+
+// ---------------------------------------------------------------------------
+// Referentiel Discord
+// ---------------------------------------------------------------------------
+
+model Guild {
+  id        String   @id @db.VarChar(20)
+  name      String
+  iconUrl   String?  @map("icon_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members            Member[]
+  roles              Role[]
+  channels           Channel[]
+  warnings           Warning[]
+  sanctions          Sanction[]
+  notes              MemberNote[]
+  tickets            Ticket[]
+  messageStats       MessageStat[]
+  activityProfiles   MemberActivityProfile[]
+  voiceSessions      VoiceSession[]
+  identityEvents     IdentityEvent[]
+  roleEvents         MemberRoleEvent[]
+  memberRoles        MemberRole[]
+  moderationActivity ModerationActivity[]
+
+  @@map("guilds")
+}
+
+/// Compte Discord global, independant du serveur.
+model DiscordUser {
+  id                String    @id @db.VarChar(20)
+  username          String
+  globalName        String?   @map("global_name")
+  discriminator     String?   @db.VarChar(4)
+  avatarHash        String?   @map("avatar_hash")
+  isBot             Boolean   @default(false) @map("is_bot")
+  accountCreatedAt  DateTime? @map("account_created_at")
+  firstSeenAt       DateTime  @default(now()) @map("first_seen_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  memberships        Member[]
+  identityEvents     IdentityEvent[]
+  warningsReceived   Warning[]            @relation("WarningTarget")
+  warningsIssued     Warning[]            @relation("WarningModerator")
+  sanctionsReceived  Sanction[]           @relation("SanctionTarget")
+  sanctionsIssued    Sanction[]           @relation("SanctionModerator")
+  notes              MemberNote[]
+  ticketsOpened      Ticket[]             @relation("TicketOpener")
+  ticketsAssigned    Ticket[]             @relation("TicketAssignee")
+  ticketEvents       TicketEvent[]
+  messageStats       MessageStat[]
+  activityProfiles   MemberActivityProfile[]
+  voiceSessions      VoiceSession[]
+  memberRoles        MemberRole[]
+  roleEvents         MemberRoleEvent[]    @relation("RoleEventTarget")
+  moderationActivity ModerationActivity[] @relation("ActivityModerator")
+  activityTargets    ModerationActivity[] @relation("ActivityTarget")
+  appUser            AppUser?
+
+  @@index([username])
+  @@map("discord_users")
+}
+
+/// Presence d'un compte Discord sur un serveur donne.
+model Member {
+  guildId    String       @map("guild_id") @db.VarChar(20)
+  userId     String       @map("user_id") @db.VarChar(20)
+  nickname   String?
+  status     MemberStatus @default(ACTIVE)
+  joinedAt   DateTime?    @map("joined_at")
+  leftAt     DateTime?    @map("left_at")
+  /// Nombre d'arrivees successives sur le serveur.
+  joinCount  Int          @default(1) @map("join_count")
+  boostingSince DateTime? @map("boosting_since")
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId])
+  @@index([guildId, status])
+  @@index([guildId, joinedAt])
+  @@map("members")
+}
+
+model Role {
+  id        String    @id @db.VarChar(20)
+  guildId   String    @map("guild_id") @db.VarChar(20)
+  name      String
+  color     Int       @default(0)
+  position  Int       @default(0)
+  /// Role gere par une integration (bot, boost) : non attribuable a la main.
+  managed   Boolean   @default(false)
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  guild       Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  memberRoles MemberRole[]
+  events      MemberRoleEvent[]
+
+  @@index([guildId])
+  @@map("roles")
+}
+
+/// Etat courant : quels roles porte un membre maintenant.
+model MemberRole {
+  guildId    String   @map("guild_id") @db.VarChar(20)
+  userId     String   @map("user_id") @db.VarChar(20)
+  roleId     String   @map("role_id") @db.VarChar(20)
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role  Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId, roleId])
+  @@index([guildId, roleId])
+  @@map("member_roles")
+}
+
+/// Historique : chaque ajout ou retrait de role.
+model MemberRoleEvent {
+  id         BigInt        @id @default(autoincrement())
+  guildId    String        @map("guild_id") @db.VarChar(20)
+  userId     String        @map("user_id") @db.VarChar(20)
+  roleId     String        @map("role_id") @db.VarChar(20)
+  type       RoleEventType
+  /// Auteur du changement quand l'audit log Discord le fournit.
+  actorId    String?       @map("actor_id") @db.VarChar(20)
+  occurredAt DateTime      @default(now()) @map("occurred_at")
+
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation("RoleEventTarget", fields: [userId], references: [id], onDelete: Cascade)
+  role  Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, userId, occurredAt])
+  @@map("member_role_events")
+}
+
+/// Changements de pseudo, de nom global et d'avatar.
+model IdentityEvent {
+  id         BigInt            @id @default(autoincrement())
+  guildId    String?           @map("guild_id") @db.VarChar(20)
+  userId     String            @map("user_id") @db.VarChar(20)
+  type       IdentityEventType
+  oldValue   String?           @map("old_value")
+  newValue   String?           @map("new_value")
+  occurredAt DateTime          @default(now()) @map("occurred_at")
+
+  guild Guild?      @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@index([guildId, occurredAt])
+  @@map("identity_events")
+}
+
+model Channel {
+  id        String    @id @db.VarChar(20)
+  guildId   String    @map("guild_id") @db.VarChar(20)
+  name      String
+  /// Type Discord brut (0 = texte, 2 = vocal, 15 = forum, ...).
+  type      Int       @default(0)
+  parentId  String?   @map("parent_id") @db.VarChar(20)
+  position  Int       @default(0)
+  deletedAt DateTime? @map("deleted_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  guild         Guild          @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  messageStats  MessageStat[]
+  voiceSessions VoiceSession[]
+
+  @@index([guildId])
+  @@map("channels")
+}
+
+// ---------------------------------------------------------------------------
+// Moderation
+// ---------------------------------------------------------------------------
+
+model Warning {
+  id            String          @id @default(uuid()) @db.Uuid
+  guildId       String          @map("guild_id") @db.VarChar(20)
+  userId        String          @map("user_id") @db.VarChar(20)
+  /// Moderateur Discord a l'origine de l'avertissement (commande du bot).
+  moderatorId   String?         @map("moderator_id") @db.VarChar(20)
+  /// Compte dashboard a l'origine de l'avertissement (saisie web).
+  createdById   String?         @map("created_by_id") @db.Uuid
+  reason        String
+  severity      WarningSeverity @default(LOW)
+  /// Poids dans le cumul, pour d'eventuelles regles d'escalade.
+  points        Int             @default(1)
+  expiresAt     DateTime?       @map("expires_at")
+  revokedAt     DateTime?       @map("revoked_at")
+  revokedById   String?         @map("revoked_by_id") @db.Uuid
+  revokeReason  String?         @map("revoke_reason")
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  guild     Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user      DiscordUser  @relation("WarningTarget", fields: [userId], references: [id], onDelete: Cascade)
+  moderator DiscordUser? @relation("WarningModerator", fields: [moderatorId], references: [id], onDelete: SetNull)
+  createdBy AppUser?     @relation("WarningAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  revokedBy AppUser?     @relation("WarningRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  sanctions Sanction[]
+
+  @@index([guildId, userId, createdAt])
+  @@index([guildId, createdAt])
+  @@map("warnings")
+}
+
+model Sanction {
+  id              String         @id @default(uuid()) @db.Uuid
+  guildId         String         @map("guild_id") @db.VarChar(20)
+  userId          String         @map("user_id") @db.VarChar(20)
+  moderatorId     String?        @map("moderator_id") @db.VarChar(20)
+  createdById     String?        @map("created_by_id") @db.Uuid
+  type            SanctionType
+  status          SanctionStatus @default(ACTIVE)
+  reason          String
+  /// Duree demandee ; null = permanent.
+  durationSeconds Int?           @map("duration_seconds")
+  startsAt        DateTime       @default(now()) @map("starts_at")
+  expiresAt       DateTime?      @map("expires_at")
+  revokedAt       DateTime?      @map("revoked_at")
+  revokedById     String?        @map("revoked_by_id") @db.Uuid
+  revokeReason    String?        @map("revoke_reason")
+  /// Avertissement qui a declenche la sanction, le cas echeant.
+  warningId       String?        @map("warning_id") @db.Uuid
+  evidenceUrl     String?        @map("evidence_url")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  guild     Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user      DiscordUser  @relation("SanctionTarget", fields: [userId], references: [id], onDelete: Cascade)
+  moderator DiscordUser? @relation("SanctionModerator", fields: [moderatorId], references: [id], onDelete: SetNull)
+  createdBy AppUser?     @relation("SanctionAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  revokedBy AppUser?     @relation("SanctionRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  warning   Warning?     @relation(fields: [warningId], references: [id], onDelete: SetNull)
+
+  @@index([guildId, userId, createdAt])
+  @@index([guildId, status, expiresAt])
+  @@map("sanctions")
+}
+
+/// Note libre du staff sur un membre.
+model MemberNote {
+  id        String    @id @default(uuid()) @db.Uuid
+  guildId   String    @map("guild_id") @db.VarChar(20)
+  userId    String    @map("user_id") @db.VarChar(20)
+  authorId  String    @map("author_id") @db.Uuid
+  body      String
+  /// Note epinglee : remontee en haut de la fiche membre.
+  pinned    Boolean   @default(false)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  guild  Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user   DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  author AppUser     @relation(fields: [authorId], references: [id])
+
+  @@index([guildId, userId, createdAt])
+  @@map("member_notes")
+}
+
+/// Trace des actions de moderation cote Discord, pour les stats d'equipe.
+model ModerationActivity {
+  id           BigInt   @id @default(autoincrement())
+  guildId      String   @map("guild_id") @db.VarChar(20)
+  moderatorId  String?  @map("moderator_id") @db.VarChar(20)
+  appUserId    String?  @map("app_user_id") @db.Uuid
+  /// Verbe court : "warn", "ban", "ticket.close", "note.create", ...
+  action       String
+  targetUserId String?  @map("target_user_id") @db.VarChar(20)
+  targetType   String?  @map("target_type")
+  targetId     String?  @map("target_id")
+  metadata     Json?
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+
+  guild      Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  moderator  DiscordUser? @relation("ActivityModerator", fields: [moderatorId], references: [id], onDelete: SetNull)
+  targetUser DiscordUser? @relation("ActivityTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  appUser    AppUser?     @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+
+  @@index([guildId, occurredAt])
+  @@index([guildId, moderatorId, occurredAt])
+  @@map("moderation_activity")
+}
+
+// ---------------------------------------------------------------------------
+// Tickets
+// ---------------------------------------------------------------------------
+
+model Ticket {
+  id              String         @id @default(uuid()) @db.Uuid
+  guildId         String         @map("guild_id") @db.VarChar(20)
+  /// Numero lisible, unique par serveur.
+  number          Int
+  channelId       String?        @map("channel_id") @db.VarChar(20)
+  openerId        String         @map("opener_id") @db.VarChar(20)
+  assigneeId      String?        @map("assignee_id") @db.VarChar(20)
+  claimedById     String?        @map("claimed_by_id") @db.Uuid
+  subject         String
+  category        String         @default("general")
+  status          TicketStatus   @default(OPEN)
+  priority        TicketPriority @default(NORMAL)
+  openedAt        DateTime       @default(now()) @map("opened_at")
+  /// Premiere reponse du staff : sert a calculer le delai de prise en charge.
+  firstResponseAt DateTime?      @map("first_response_at")
+  closedAt        DateTime?      @map("closed_at")
+  closedById      String?        @map("closed_by_id") @db.Uuid
+  closeReason     String?        @map("close_reason")
+  /// Satisfaction de 1 a 5, si l'utilisateur la renseigne.
+  rating          Int?
+  messageCount    Int            @default(0) @map("message_count")
+
+  guild    Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  opener   DiscordUser   @relation("TicketOpener", fields: [openerId], references: [id], onDelete: Cascade)
+  assignee DiscordUser?  @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  claimedBy AppUser?     @relation("TicketClaimer", fields: [claimedById], references: [id], onDelete: SetNull)
+  closedBy AppUser?      @relation("TicketCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  events   TicketEvent[]
+
+  @@unique([guildId, number])
+  @@index([guildId, status, openedAt])
+  @@index([guildId, assigneeId])
+  @@map("tickets")
+}
+
+model TicketEvent {
+  id         BigInt          @id @default(autoincrement())
+  ticketId   String          @map("ticket_id") @db.Uuid
+  type       TicketEventType
+  actorId    String?         @map("actor_id") @db.VarChar(20)
+  appUserId  String?         @map("app_user_id") @db.Uuid
+  /// Contenu libre selon le type : texte du message, ancien/nouveau statut, ...
+  payload    Json?
+  occurredAt DateTime        @default(now()) @map("occurred_at")
+
+  ticket  Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor   DiscordUser? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  appUser AppUser?     @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, occurredAt])
+  @@map("ticket_events")
+}
+
+// ---------------------------------------------------------------------------
+// Activite (metadonnees seulement, aucun contenu de message stocke)
+// ---------------------------------------------------------------------------
+
+/// Un agregat par membre, par canal et par jour. Alimente tous les graphiques
+/// d'activite sans jamais conserver le texte des messages.
+model MessageStat {
+  guildId         String   @map("guild_id") @db.VarChar(20)
+  userId          String   @map("user_id") @db.VarChar(20)
+  channelId       String   @map("channel_id") @db.VarChar(20)
+  day             DateTime @db.Date
+  messageCount    Int      @default(0) @map("message_count")
+  attachmentCount Int      @default(0) @map("attachment_count")
+  editedCount     Int      @default(0) @map("edited_count")
+  deletedCount    Int      @default(0) @map("deleted_count")
+  /// Somme des longueurs, pour une moyenne sans stocker les messages.
+  totalCharacters BigInt   @default(0) @map("total_characters")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  guild   Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user    DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId, channelId, day])
+  @@index([guildId, day])
+  @@index([guildId, userId, day])
+  @@map("message_stats")
+}
+
+/// Profil d'activite cumule d'un membre : combien de messages par creneau
+/// (jour de semaine x heure). Au plus 168 lignes par membre, ce qui donne une
+/// carte de chaleur immediate sans stocker l'horodatage de chaque message.
+model MemberActivityProfile {
+  guildId      String   @map("guild_id") @db.VarChar(20)
+  userId       String   @map("user_id") @db.VarChar(20)
+  /// 0 = lundi, 6 = dimanche.
+  weekday      Int
+  /// 0 a 23, en UTC.
+  hour         Int
+  messageCount Int      @default(0) @map("message_count")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId, weekday, hour])
+  @@map("member_activity_profiles")
+}
+
+model VoiceSession {
+  id              BigInt    @id @default(autoincrement())
+  guildId         String    @map("guild_id") @db.VarChar(20)
+  userId          String    @map("user_id") @db.VarChar(20)
+  channelId       String    @map("channel_id") @db.VarChar(20)
+  joinedAt        DateTime  @map("joined_at")
+  leftAt          DateTime? @map("left_at")
+  durationSeconds Int?      @map("duration_seconds")
+
+  guild   Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user    DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, userId, joinedAt])
+  @@map("voice_sessions")
+}
+
+/// Table historique du bot (systeme d'XP). Conservee telle quelle.
+model UserLevel {
+  userId  String @map("user_id") @db.VarChar(20)
+  guildId String @map("guild_id") @db.VarChar(20)
+  xp      BigInt @default(0)
+
+  @@id([userId, guildId])
+  @@map("user_levels")
+}
+
+// ---------------------------------------------------------------------------
+// Comptes du dashboard
+// ---------------------------------------------------------------------------
+
+/// Compte de connexion au dashboard. Cree uniquement par un administrateur :
+/// il n'existe volontairement aucune route publique d'inscription.
+model AppUser {
+  id                String      @id @default(uuid()) @db.Uuid
+  username          String      @unique
+  passwordHash      String      @map("password_hash")
+  displayName       String      @map("display_name")
+  role              AppUserRole @default(VIEWER)
+  isActive          Boolean     @default(true) @map("is_active")
+  mustChangePassword Boolean    @default(true) @map("must_change_password")
+  /// Rattachement facultatif au compte Discord du membre du staff.
+  discordUserId     String?     @unique @map("discord_user_id") @db.VarChar(20)
+  lastLoginAt       DateTime?   @map("last_login_at")
+  failedLoginCount  Int         @default(0) @map("failed_login_count")
+  lockedUntil       DateTime?   @map("locked_until")
+  createdById       String?     @map("created_by_id") @db.Uuid
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  discordUser      DiscordUser?         @relation(fields: [discordUserId], references: [id], onDelete: SetNull)
+  createdBy        AppUser?             @relation("AppUserCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers     AppUser[]            @relation("AppUserCreator")
+  refreshTokens    RefreshToken[]
+  notes            MemberNote[]
+  warningsAuthored Warning[]            @relation("WarningAuthor")
+  warningsRevoked  Warning[]            @relation("WarningRevoker")
+  sanctionsAuthored Sanction[]          @relation("SanctionAuthor")
+  sanctionsRevoked Sanction[]           @relation("SanctionRevoker")
+  ticketsClaimed   Ticket[]             @relation("TicketClaimer")
+  ticketsClosed    Ticket[]             @relation("TicketCloser")
+  ticketEvents     TicketEvent[]
+  auditEntries     AuditLog[]
+  activity         ModerationActivity[]
+
+  @@map("app_users")
+}
+
+/// Refresh tokens, stockes hashes. Une "famille" regroupe les rotations
+/// successives d'une meme session : reutiliser un token revoque revoque
+/// toute la famille.
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  appUserId    String    @map("app_user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  familyId     String    @map("family_id") @db.Uuid
+  issuedAt     DateTime  @default(now()) @map("issued_at")
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+  userAgent    String?   @map("user_agent")
+  ip           String?
+
+  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+
+  @@index([appUserId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+/// Journal des actions effectuees depuis le dashboard (qui a fait quoi, quand).
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  appUserId  String?  @map("app_user_id") @db.Uuid
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  appUser AppUser? @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+
+  @@index([appUserId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_log")
+}

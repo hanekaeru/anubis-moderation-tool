@@ -1,0 +1,53 @@
+{
+  "name": "@anubis/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Contrats et schema de donnees partages entre l'API, le dashboard et le bot",
+  "license": "ISC",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./prisma": {
+      "types": "./generated/client/index.d.ts",
+      "default": "./generated/client/index.js"
+    }
+  },
+  "//typesVersions": "Le champ `exports` ci-dessus n'est lu que par les resolutions node16/bundler. NestJS compile en moduleResolution `Node` (node10), qui l'ignore : cette table indique a TypeScript ou trouver les types du sous-chemin ./prisma. A l'execution, Node lit bien `exports`.",
+  "typesVersions": {
+    "*": {
+      "prisma": [
+        "generated/client/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "generated",
+    "prisma"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "studio": "prisma studio",
+    "//seed": "--env-file explicite : la CLI Prisma charge .env toute seule, pas un script lance via tsx.",
+    "seed": "tsx --env-file=.env prisma/seed.ts",
+    "format": "prisma format"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "argon2": "^0.41.1",
+    "prisma": "^6.3.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

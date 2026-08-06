@@ -1,0 +1,148 @@
+.back {
+  margin-bottom: 8px;
+}
+
+.dot {
+  margin: 0 6px;
+  opacity: 0.5;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: flex;
+    gap: 14px;
+    padding-bottom: 18px;
+    position: relative;
+  }
+
+  li:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 34px;
+    bottom: 0;
+    width: 1px;
+    background: var(--mat-sys-outline-variant);
+  }
+}
+
+.event-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+  z-index: 1;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  &[data-type='CLOSED'] {
+    background: var(--mat-sys-tertiary-container);
+    color: var(--mat-sys-on-tertiary-container);
+  }
+
+  &[data-type='INTERNAL_NOTE'] {
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
+}
+
+.event-body {
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.event-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.event-actor {
+  font-weight: 400;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.event-detail {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
+  white-space: pre-wrap;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.event-meta {
+  margin: 4px 0 0;
+  font-size: 0.76rem;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.note-form {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.full {
+  width: 100%;
+}
+
+.note-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.controls {
+  margin-bottom: 8px;
+}
+
+/* Liste de definitions plutot qu'un tableau : ce sont des paires libelle /
+   valeur, pas des lignes comparables entre elles. */
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+
+  dt {
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mat-sys-on-surface-variant);
+    margin-top: 12px;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+}
+
+.member-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

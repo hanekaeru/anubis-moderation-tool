@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    // CommonJS pour rester consommable a la fois par NestJS (CJS) et par le
+    // bundler d'Angular. Le package n'exporte que des types et des constantes,
+    // donc le format de module n'a aucun cout a l'execution.
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "generated"]
+}

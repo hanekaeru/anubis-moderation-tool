@@ -1,0 +1,112 @@
+@use '@angular/material' as mat;
+
+/**
+ * Theme unique, applique a la racine. L'API `mat.theme` genere les variables
+ * systeme de Material 3 : les composants s'y adaptent seuls, et les styles
+ * maison ci-dessous piochent dans les memes tokens plutot que de redefinir
+ * des couleurs en dur.
+ */
+html {
+  color-scheme: light dark;
+
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$violet-palette,
+        tertiary: mat.$cyan-palette,
+      ),
+      typography: Roboto,
+      density: 0,
+    )
+  );
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* --- Utilitaires partages -------------------------------------------------- */
+
+.page {
+  padding: 24px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+
+  h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 500;
+  }
+
+  .subtitle {
+    margin: 4px 0 0;
+    color: var(--mat-sys-on-surface-variant);
+    font-size: 0.9rem;
+  }
+}
+
+.card-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+/* Une table large doit defiler dans son propre conteneur, jamais faire
+   deborder la page entiere. */
+.table-scroll {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.muted {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.empty-state {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.snack-success {
+  --mdc-snackbar-container-color: var(--mat-sys-tertiary-container);
+  --mdc-snackbar-supporting-text-color: var(--mat-sys-on-tertiary-container);
+}
+
+.snack-error {
+  --mdc-snackbar-container-color: var(--mat-sys-error-container);
+  --mdc-snackbar-supporting-text-color: var(--mat-sys-on-error-container);
+}

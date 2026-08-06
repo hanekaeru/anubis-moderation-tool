@@ -1,0 +1,123 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Sanctions</h1>
+      <p class="subtitle">{{ total() }} sanction(s) enregistree(s)</p>
+    </div>
+  </header>
+
+  <form class="filters" [formGroup]="filters">
+    <mat-form-field>
+      <mat-label>Type</mat-label>
+      <mat-select formControlName="type">
+        <mat-option [value]="null">Tous</mat-option>
+        @for (type of types; track type) {
+          <mat-option [value]="type">{{ typeLabels[type] }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Statut</mat-label>
+      <mat-select formControlName="status">
+        <mat-option [value]="null">Tous</mat-option>
+        @for (status of statuses; track status) {
+          <mat-option [value]="status">{{ statusLabels[status] }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </form>
+
+  <mat-card appearance="outlined">
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
+    <div class="table-scroll">
+      <table mat-table [dataSource]="sanctions()">
+        <ng-container matColumnDef="member">
+          <th mat-header-cell *matHeaderCellDef>Membre</th>
+          <td mat-cell *matCellDef="let sanction">
+            <a [routerLink]="['/membres', sanction.member.userId]" class="member-link">
+              <app-member-avatar
+                [username]="sanction.member.username"
+                [globalName]="sanction.member.globalName"
+                [avatarUrl]="sanction.member.avatarUrl"
+                [size]="28"
+              />
+            </a>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Type</th>
+          <td mat-cell *matCellDef="let sanction">{{ typeLabels[sanction.type] }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="reason">
+          <th mat-header-cell *matHeaderCellDef>Motif</th>
+          <td mat-cell *matCellDef="let sanction" class="reason">
+            <span [matTooltip]="sanction.reason">{{ sanction.reason }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="duration">
+          <th mat-header-cell *matHeaderCellDef>Duree</th>
+          <td mat-cell *matCellDef="let sanction" class="nowrap">
+            {{ sanction.durationSeconds | duration: 'Permanent' }}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="issuedBy">
+          <th mat-header-cell *matHeaderCellDef>Applique par</th>
+          <td mat-cell *matCellDef="let sanction" class="nowrap">
+            {{ sanction.issuedBy.label }}
+            <span class="date" [matTooltip]="sanction.createdAt | frDate">
+              {{ sanction.createdAt | relativeTime }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Statut</th>
+          <td mat-cell *matCellDef="let sanction">
+            <span class="tag" [class.tag-active]="sanction.status === 'ACTIVE'">
+              {{ statusLabels[sanction.status] }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef aria-label="Actions"></th>
+          <td mat-cell *matCellDef="let sanction">
+            @if (sanction.status === 'ACTIVE') {
+              <button
+                matButton
+                *appHasPermission="Permission.SANCTIONS_REVOKE"
+                (click)="revoke(sanction)"
+              >
+                Lever
+              </button>
+            }
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns"></tr>
+      </table>
+    </div>
+
+    @if (!loading() && sanctions().length === 0) {
+      <p class="empty-state">Aucune sanction ne correspond a ces criteres.</p>
+    }
+
+    <mat-paginator
+      [length]="total()"
+      [pageIndex]="pageIndex()"
+      [pageSize]="pageSize()"
+      [pageSizeOptions]="[10, 25, 50, 100]"
+      (page)="onPageChange($event)"
+      showFirstLastButtons
+    />
+  </mat-card>
+</div>

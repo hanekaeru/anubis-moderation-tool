@@ -1,0 +1,90 @@
+.shell {
+  height: 100vh;
+}
+
+.sidenav {
+  width: 260px;
+  border-right: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-low);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 16px;
+}
+
+.brand-icon {
+  color: var(--mat-sys-primary);
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.brand-name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.brand-tag {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* L'entree active porte un fond plein : la couleur seule du texte serait trop
+   discrete sur la surface de la barre laterale. */
+a.active {
+  background: var(--mat-sys-secondary-container);
+
+  mat-icon,
+  span {
+    color: var(--mat-sys-on-secondary-container);
+  }
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--mat-sys-surface);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.account-name {
+  margin-left: 6px;
+}
+
+.menu-header {
+  padding: 12px 16px 8px;
+}
+
+.menu-name {
+  margin: 0;
+  font-weight: 500;
+}
+
+.menu-role {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+main {
+  min-height: calc(100vh - 64px);
+}
+
+@media (max-width: 600px) {
+  .account-name {
+    display: none;
+  }
+}

@@ -1,0 +1,64 @@
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--mat-sys-surface-container-low);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  overflow: hidden;
+}
+
+.brand {
+  text-align: center;
+  margin-bottom: 28px;
+
+  h1 {
+    margin: 8px 0 0;
+    font-size: 1.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+}
+
+.brand-icon {
+  color: var(--mat-sys-primary);
+  font-size: 44px;
+  width: 44px;
+  height: 44px;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.88rem;
+}
+
+.full {
+  width: 100%;
+}
+
+.submit {
+  margin-top: 8px;
+  height: 44px;
+}
+
+.error {
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  font-size: 0.86rem;
+}
+
+.hint {
+  margin: 24px 0 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--mat-sys-on-surface-variant);
+}

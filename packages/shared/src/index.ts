@@ -1,0 +1,19 @@
+/**
+ * @anubis/shared — contrats communs a l'API, au dashboard et au bot.
+ *
+ * Ce point d'entree ne contient que des types et de petites constantes : il est
+ * volontairement sans dependance, donc importable depuis le navigateur. Le
+ * client Prisma, lui, est expose separement sous `@anubis/shared/prisma` et ne
+ * doit jamais etre importe cote Angular.
+ */
+
+export * from './enums';
+export * from './permissions';
+export * from './discord';
+export * from './dto/common';
+export * from './dto/auth';
+export * from './dto/member';
+export * from './dto/moderation';
+export * from './dto/ticket';
+export * from './dto/stats';
+export * from './dto/app-user';

@@ -1,0 +1,153 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Tickets</h1>
+      <p class="subtitle">{{ total() }} ticket(s) correspondant aux filtres</p>
+    </div>
+  </header>
+
+  <form class="filters" [formGroup]="filters">
+    <mat-form-field class="search">
+      <mat-label>Rechercher</mat-label>
+      <input matInput formControlName="search" placeholder="Sujet ou numero" autocomplete="off" />
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Statut</mat-label>
+      <mat-select formControlName="status">
+        <mat-option [value]="null">Tous</mat-option>
+        @for (status of statuses; track status) {
+          <mat-option [value]="status">{{ statusLabels[status] }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Priorite</mat-label>
+      <mat-select formControlName="priority">
+        <mat-option [value]="null">Toutes</mat-option>
+        @for (priority of priorities; track priority) {
+          <mat-option [value]="priority">{{ priorityLabels[priority] }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Categorie</mat-label>
+      <mat-select formControlName="category">
+        <mat-option [value]="null">Toutes</mat-option>
+        @for (category of categories(); track category) {
+          <mat-option [value]="category">{{ category }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </form>
+
+  <mat-card appearance="outlined">
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
+    <div class="table-scroll">
+      <table mat-table [dataSource]="tickets()">
+        <ng-container matColumnDef="number">
+          <th mat-header-cell *matHeaderCellDef>N°</th>
+          <td mat-cell *matCellDef="let ticket" class="numeric">#{{ ticket.number }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="subject">
+          <th mat-header-cell *matHeaderCellDef>Sujet</th>
+          <td mat-cell *matCellDef="let ticket" class="subject">
+            <a [routerLink]="['/tickets', ticket.id]">{{ ticket.subject }}</a>
+            <span class="category">{{ ticket.category }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="opener">
+          <th mat-header-cell *matHeaderCellDef>Ouvert par</th>
+          <td mat-cell *matCellDef="let ticket">
+            <a [routerLink]="['/membres', ticket.opener.userId]" class="member-link">
+              <app-member-avatar
+                [username]="ticket.opener.username"
+                [globalName]="ticket.opener.globalName"
+                [avatarUrl]="ticket.opener.avatarUrl"
+                [size]="28"
+              />
+            </a>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="assignee">
+          <th mat-header-cell *matHeaderCellDef>Assigne a</th>
+          <td mat-cell *matCellDef="let ticket">
+            @if (ticket.assignee) {
+              <app-member-avatar
+                [username]="ticket.assignee.username"
+                [globalName]="ticket.assignee.globalName"
+                [avatarUrl]="ticket.assignee.avatarUrl"
+                [size]="28"
+              />
+            } @else {
+              <span class="muted">Non assigne</span>
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="priority">
+          <th mat-header-cell *matHeaderCellDef>Priorite</th>
+          <td mat-cell *matCellDef="let ticket">
+            <span class="tag" [attr.data-priority]="ticket.priority">
+              {{ priorityLabels[ticket.priority] }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Statut</th>
+          <td mat-cell *matCellDef="let ticket">
+            <span class="tag" [attr.data-status]="ticket.status">
+              {{ statusLabels[ticket.status] }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="firstResponse">
+          <th mat-header-cell *matHeaderCellDef>Premiere reponse</th>
+          <td mat-cell *matCellDef="let ticket" class="numeric">
+            @if (ticket.firstResponseSeconds !== null) {
+              {{ ticket.firstResponseSeconds | duration }}
+            } @else {
+              <span class="muted">En attente</span>
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="openedAt">
+          <th mat-header-cell *matHeaderCellDef>Ouvert</th>
+          <td mat-cell *matCellDef="let ticket" class="numeric">
+            <span [matTooltip]="ticket.openedAt | frDate">
+              {{ ticket.openedAt | relativeTime }}
+            </span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns"></tr>
+      </table>
+    </div>
+
+    @if (!loading() && tickets().length === 0) {
+      <p class="empty-state">Aucun ticket ne correspond a ces criteres.</p>
+    }
+
+    <mat-paginator
+      [length]="total()"
+      [pageIndex]="pageIndex()"
+      [pageSize]="pageSize()"
+      [pageSizeOptions]="[10, 25, 50, 100]"
+      (page)="onPageChange($event)"
+      showFirstLastButtons
+    />
+  </mat-card>
+</div>

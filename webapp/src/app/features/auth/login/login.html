@@ -1,0 +1,75 @@
+<div class="login-page">
+  <mat-card appearance="outlined" class="login-card">
+    @if (submitting()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
+    <mat-card-content>
+      <div class="brand">
+        <mat-icon class="brand-icon">shield</mat-icon>
+        <h1>Anubis</h1>
+        <p class="subtitle">Dashboard de moderation</p>
+      </div>
+
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        <mat-form-field class="full">
+          <mat-label>Identifiant</mat-label>
+          <input
+            matInput
+            formControlName="username"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+            required
+          />
+          @if (form.controls.username.touched && form.controls.username.invalid) {
+            <mat-error>Identifiant requis.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field class="full">
+          <mat-label>Mot de passe</mat-label>
+          <input
+            matInput
+            formControlName="password"
+            [type]="passwordVisible() ? 'text' : 'password'"
+            autocomplete="current-password"
+            required
+          />
+          <button
+            matIconButton
+            matSuffix
+            type="button"
+            [attr.aria-label]="
+              passwordVisible() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
+            "
+            (click)="togglePasswordVisibility()"
+          >
+            <mat-icon>{{ passwordVisible() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          @if (form.controls.password.touched && form.controls.password.invalid) {
+            <mat-error>Mot de passe requis.</mat-error>
+          }
+        </mat-form-field>
+
+        @if (errorMessage(); as message) {
+          <p class="error" role="alert">{{ message }}</p>
+        }
+
+        <button
+          matButton="filled"
+          type="submit"
+          class="full submit"
+          [disabled]="submitting()"
+        >
+          Se connecter
+        </button>
+      </form>
+
+      <p class="hint">
+        Les comptes sont crees par un administrateur. Contactez-en un si vous
+        n'avez pas d'acces.
+      </p>
+    </mat-card-content>
+  </mat-card>
+</div>

@@ -1,0 +1,358 @@
+<div class="page">
+  @if (loading() && !member()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  @if (member(); as data) {
+    <header class="member-header">
+      <a matButton routerLink="/membres" class="back">
+        <mat-icon>arrow_back</mat-icon>
+        Membres
+      </a>
+
+      <div class="identity">
+        <app-member-avatar
+          [username]="data.username"
+          [globalName]="null"
+          [avatarUrl]="data.avatarUrl"
+          [size]="72"
+          [showName]="false"
+        />
+
+        <div class="identity-text">
+          <h1>{{ displayName() }}</h1>
+          <p class="handle">
+            {{ data.username }}
+            <span class="dot">·</span>
+            <span class="id" [matTooltip]="'Identifiant Discord'">{{ data.userId }}</span>
+          </p>
+          <p class="meta">
+            <span class="status" [class.status-left]="data.status !== 'ACTIVE'">
+              {{ statusLabels[data.status] }}
+            </span>
+            <span class="dot">·</span>
+            Arrive le {{ data.joinedAt | frDate }}
+            <span class="dot">·</span>
+            Compte cree le {{ data.accountCreatedAt | frDate }}
+            @if (data.joinCount > 1) {
+              <span class="dot">·</span>
+              {{ data.joinCount }} arrivees successives
+            }
+          </p>
+
+          @if (data.roles.length) {
+            <div class="roles">
+              @for (role of data.roles; track role.id) {
+                <span
+                  class="role-chip"
+                  [style.border-color]="roleColor(role.color) ?? 'currentColor'"
+                >
+                  {{ role.name }}
+                </span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button matButton="outlined" *appHasPermission="Permission.WARNINGS_WRITE" (click)="openWarningDialog()">
+          <mat-icon>flag</mat-icon>
+          Avertir
+        </button>
+        <button matButton="filled" *appHasPermission="Permission.SANCTIONS_WRITE" (click)="openSanctionDialog()">
+          <mat-icon>gavel</mat-icon>
+          Sanctionner
+        </button>
+      </div>
+    </header>
+
+    <section class="card-grid counters">
+      <app-stat-card
+        label="Avertissements"
+        [value]="data.counters.warnings"
+        [hint]="data.counters.activeWarnings + ' en cours'"
+        icon="flag"
+      />
+      <app-stat-card
+        label="Sanctions"
+        [value]="data.counters.sanctions"
+        [hint]="data.counters.activeSanctions + ' en cours'"
+        icon="gavel"
+      />
+      <app-stat-card
+        label="Messages"
+        [value]="data.counters.messagesTotal"
+        hint="Depuis le debut du suivi"
+        icon="chat"
+      />
+      <app-stat-card
+        label="Temps en vocal"
+        [value]="(data.counters.voiceMinutesTotal * 60) | duration"
+        icon="mic"
+      />
+      <app-stat-card label="XP" [value]="data.xp" icon="military_tech" />
+      <app-stat-card
+        label="Tickets ouverts"
+        [value]="data.counters.ticketsOpened"
+        icon="confirmation_number"
+      />
+    </section>
+
+    <mat-tab-group class="tabs" animationDuration="150ms">
+      <mat-tab label="Chronologie">
+        <div class="tab-body">
+          @if (timeline().length) {
+            <ol class="timeline">
+              @for (entry of timeline(); track entry.id) {
+                <li>
+                  <span class="timeline-icon" [attr.data-kind]="entry.kind">
+                    <mat-icon>{{ timelineIcons[entry.kind] ?? 'circle' }}</mat-icon>
+                  </span>
+                  <div class="timeline-body">
+                    <p class="timeline-title">{{ entry.title }}</p>
+                    @if (entry.description) {
+                      <p class="timeline-description">{{ entry.description }}</p>
+                    }
+                    <p class="timeline-meta">
+                      @if (entry.actorLabel) {
+                        {{ entry.actorLabel }} <span class="dot">·</span>
+                      }
+                      <span [matTooltip]="entry.occurredAt | frDate">
+                        {{ entry.occurredAt | relativeTime }}
+                      </span>
+                    </p>
+                  </div>
+                </li>
+              }
+            </ol>
+          } @else {
+            <p class="empty-state">Aucun evenement enregistre pour ce membre.</p>
+          }
+        </div>
+      </mat-tab>
+
+      <mat-tab label="Notes">
+        <div class="tab-body">
+          <div *appHasPermission="Permission.NOTES_WRITE">
+            <form class="note-form" [formGroup]="noteForm" (ngSubmit)="addNote()">
+              <mat-form-field class="full">
+                <mat-label>Nouvelle note</mat-label>
+                <textarea
+                  matInput
+                  rows="3"
+                  formControlName="body"
+                  maxlength="4000"
+                  placeholder="Observation interne, contexte, decision prise..."
+                ></textarea>
+              </mat-form-field>
+
+              <div class="note-form-actions">
+                <mat-slide-toggle formControlName="pinned">Epingler</mat-slide-toggle>
+                <button matButton="filled" type="submit" [disabled]="savingNote()">
+                  Ajouter
+                </button>
+              </div>
+            </form>
+
+            <mat-divider />
+          </div>
+
+          @if (notes().length) {
+            <ul class="notes">
+              @for (note of notes(); track note.id) {
+                <li [class.pinned]="note.pinned">
+                  <div class="note-head">
+                    <span class="note-author">{{ note.author.label }}</span>
+                    <span class="dot">·</span>
+                    <span class="note-date" [matTooltip]="note.createdAt | frDate">
+                      {{ note.createdAt | relativeTime }}
+                    </span>
+                    @if (note.pinned) {
+                      <mat-icon class="pin-icon" matTooltip="Note epinglee">push_pin</mat-icon>
+                    }
+                    <span class="spacer"></span>
+                    @if (note.canEdit) {
+                      <button
+                        matIconButton
+                        [attr.aria-label]="note.pinned ? 'Desepingler' : 'Epingler'"
+                        (click)="togglePin(note)"
+                      >
+                        <mat-icon>push_pin</mat-icon>
+                      </button>
+                      <button matIconButton aria-label="Supprimer" (click)="deleteNote(note)">
+                        <mat-icon>delete</mat-icon>
+                      </button>
+                    }
+                  </div>
+                  <p class="note-body">{{ note.body }}</p>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="empty-state">Aucune note sur ce membre.</p>
+          }
+        </div>
+      </mat-tab>
+
+      <mat-tab [label]="'Avertissements (' + warnings().length + ')'">
+        <div class="tab-body">
+          @if (warnings().length) {
+            <ul class="records">
+              @for (warning of warnings(); track warning.id) {
+                <li [class.inactive]="!warning.isActive">
+                  <div class="record-head">
+                    <span class="record-title">
+                      Gravite : {{ severityLabels[warning.severity] }}
+                      · {{ warning.points }} point(s)
+                    </span>
+                    @if (!warning.isActive) {
+                      <span class="tag">Levee</span>
+                    }
+                    <span class="spacer"></span>
+                    @if (warning.isActive) {
+                      <button
+                        matButton
+                        *appHasPermission="Permission.WARNINGS_REVOKE"
+                        (click)="revokeWarning(warning)"
+                      >
+                        Lever
+                      </button>
+                    }
+                  </div>
+                  <p class="record-reason">{{ warning.reason }}</p>
+                  <p class="record-meta">
+                    {{ warning.issuedBy.label }}
+                    <span class="dot">·</span>
+                    <span [matTooltip]="warning.createdAt | frDate">
+                      {{ warning.createdAt | relativeTime }}
+                    </span>
+                    @if (warning.revokeReason) {
+                      <span class="dot">·</span>
+                      Levee : {{ warning.revokeReason }}
+                    }
+                  </p>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="empty-state">Aucun avertissement.</p>
+          }
+        </div>
+      </mat-tab>
+
+      <mat-tab [label]="'Sanctions (' + sanctions().length + ')'">
+        <div class="tab-body">
+          @if (sanctions().length) {
+            <ul class="records">
+              @for (sanction of sanctions(); track sanction.id) {
+                <li [class.inactive]="sanction.status !== 'ACTIVE'">
+                  <div class="record-head">
+                    <span class="record-title">{{ sanctionLabels[sanction.type] }}</span>
+                    <span class="tag" [class.tag-active]="sanction.status === 'ACTIVE'">
+                      {{ sanction.status === 'ACTIVE' ? 'En cours' : sanction.status === 'REVOKED' ? 'Levee' : 'Terminee' }}
+                    </span>
+                    <span class="spacer"></span>
+                    @if (sanction.status === 'ACTIVE') {
+                      <button
+                        matButton
+                        *appHasPermission="Permission.SANCTIONS_REVOKE"
+                        (click)="revokeSanction(sanction)"
+                      >
+                        Lever
+                      </button>
+                    }
+                  </div>
+                  <p class="record-reason">{{ sanction.reason }}</p>
+                  <p class="record-meta">
+                    {{ sanction.issuedBy.label }}
+                    <span class="dot">·</span>
+                    Duree : {{ sanction.durationSeconds | duration: 'Permanent' }}
+                    <span class="dot">·</span>
+                    <span [matTooltip]="sanction.createdAt | frDate">
+                      {{ sanction.createdAt | relativeTime }}
+                    </span>
+                  </p>
+                  @if (sanction.evidenceUrl) {
+                    <a class="evidence" [href]="sanction.evidenceUrl" target="_blank" rel="noopener">
+                      <mat-icon>link</mat-icon>
+                      Preuve
+                    </a>
+                  }
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="empty-state">Aucune sanction.</p>
+          }
+        </div>
+      </mat-tab>
+
+      <mat-tab label="Activite">
+        <div class="tab-body">
+          <div class="activity-header">
+            <mat-button-toggle-group
+              [value]="activityPeriod()"
+              (change)="changeActivityPeriod($event.value)"
+              aria-label="Periode analysee"
+            >
+              @for (value of periods; track value) {
+                <mat-button-toggle [value]="value">{{ periodLabels[value] }}</mat-button-toggle>
+              }
+            </mat-button-toggle-group>
+          </div>
+
+          @if (activity(); as stats) {
+            <section class="card-grid">
+              <app-stat-card label="Messages" [value]="stats.totals.messages" />
+              <app-stat-card label="Jours actifs" [value]="stats.totals.activeDays" />
+              <app-stat-card
+                label="Moyenne par jour actif"
+                [value]="stats.totals.averageMessagesPerActiveDay"
+              />
+              <app-stat-card
+                label="Longueur moyenne"
+                [value]="stats.totals.averageMessageLength + ' car.'"
+              />
+            </section>
+
+            <section class="charts">
+              <app-chart-card
+                title="Messages par jour"
+                [options]="messagesChart()"
+                [hasData]="hasActivity()"
+              />
+              <app-chart-card
+                title="Temps en vocal"
+                subtitle="Minutes par jour"
+                [options]="voiceChart()"
+                [hasData]="hasVoice()"
+              />
+              <app-chart-card
+                title="Canaux les plus actifs"
+                [options]="channelsChart()"
+                [hasData]="stats.messagesByChannel.length > 0"
+              />
+              <app-chart-card
+                title="Repartition par heure"
+                subtitle="Cumul depuis le debut du suivi (UTC)"
+                [options]="hoursChart()"
+                [hasData]="hasHeatmap()"
+              />
+              <app-chart-card
+                class="wide"
+                title="Rythme hebdomadaire"
+                subtitle="Messages par jour de semaine et par heure (UTC)"
+                [options]="heatmapChart()"
+                [height]="320"
+                [hasData]="hasHeatmap()"
+              />
+            </section>
+          } @else {
+            <p class="empty-state">Aucune donnee d'activite disponible.</p>
+          }
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  }
+</div>

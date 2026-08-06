@@ -1,0 +1,28 @@
+{
+  "name": "anubis",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Anubis — bot Discord et dashboard de moderation",
+  "license": "ISC",
+  "author": "hanekaeru",
+  "workspaces": [
+    "packages/*",
+    "api",
+    "webapp"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web,bot -c cyan,magenta,green \"npm:api:dev\" \"npm:web:dev\" \"npm:bot:dev\"",
+    "api:dev": "npm run start:dev --workspace @anubis/api",
+    "web:dev": "npm run start --workspace @anubis/webapp",
+    "bot:dev": "npm run dev --prefix bot",
+    "build": "npm run build --workspace @anubis/shared && npm run build --workspace @anubis/api && npm run build --workspace @anubis/webapp",
+    "db:generate": "npm run generate --workspace @anubis/shared",
+    "db:migrate": "npm run migrate --workspace @anubis/shared",
+    "db:deploy": "npm run migrate:deploy --workspace @anubis/shared",
+    "db:studio": "npm run studio --workspace @anubis/shared",
+    "db:seed": "npm run seed --workspace @anubis/shared"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
