@@ -5,16 +5,17 @@ ce fichier retient ce qui se redecouvre difficilement.
 
 ## Structure
 
-Monorepo npm workspaces : `packages/*`, `api`, `webapp`. **`bot/` est
-volontairement exclu** — il a ses propres `node_modules` avec des modules
-natifs (`canvas`) qu'une remontee de dependances casserait. Ne pas l'ajouter
-aux workspaces sans verifier que `canvas` se recompile.
+Monorepo npm workspaces : `packages/*`, `api`, `webapp`. **`bot/` reste
+exclu** — il a ses propres `node_modules` et un `package.json` autonome. Il
+consomme malgre tout le package partage, par une dependance `file:` :
+`"@anubis/shared": "file:../packages/shared"`.
 
-Il consomme malgre tout le package partage, par une dependance `file:` :
-`"@anubis/shared": "file:../packages/shared"`. Toute installation dans `bot/`
-doit passer `--ignore-scripts`, sinon npm tente de recompiler `canvas` — qui
-est deja casse (binaire compile pour une autre ABI Node) et ferait echouer
-l'installation entiere. `canvas` n'est utilise nulle part dans le code actuel.
+`canvas` (module natif casse, jamais utilise dans le code) a ete retire des
+dependances lors de la migration TypeScript du bot : `npm install` dans
+`bot/` n'a plus besoin de `--ignore-scripts`. `bot/` est en TypeScript comme
+`api/`/`webapp/` (`tsconfig.json` propre, `npm run build` compile vers
+`dist/`), mais reste hors des workspaces npm — l'integrer est une decision
+separee, non traitee jusqu'ici.
 
 ## Le package partage a deux visages
 
@@ -44,9 +45,10 @@ Consequences pratiques :
   client Prisma reste en retard sur le schema.
 - La CLI Prisma charge `.env` toute seule ; un script lance via `tsx` ou `node`
   ne le fait pas — d'ou le `--env-file=.env` du script `seed`.
-- `DATABASE_URL` doit etre une **URL litterale**. Celle de `bot/.env.dev`
-  utilise des interpolations `${DB_USER}` que dotenvx resout au runtime et que
-  Prisma ne comprend pas.
+- `DATABASE_URL` doit etre une **URL litterale** dans chaque `.env` (`api/`
+  et `bot/` pointent vers la meme base en dev). Pas d'interpolation `${...}` :
+  ni Prisma ni le flag natif `--env-file` de Node (utilise par `bot/`) ne la
+  resolvent.
 - Sous Windows, ne pas ecrire `.env`, `migration_lock.toml` ni les `.sql` avec
   `Set-Content -Encoding utf8` : PowerShell 5.1 ajoute un BOM que Prisma et
   dotenv refusent.
@@ -73,11 +75,13 @@ Consequences pratiques :
 ## Bot
 
 Le bot alimente la base ; il ne lit jamais l'API. Il ecrit via le meme client
-Prisma que l'API (`src/prisma.js`), pas en SQL a la main.
+Prisma que l'API (`src/prisma.ts`), pas en SQL a la main. Comme `api/`, il est
+en TypeScript (`npm run build` compile vers `dist/`, `npm run start:dev` pour
+le dev avec rechargement).
 
-- Deux collecteurs dans `src/collectors/` : `referentiel.js` (serveur, roles,
-  salons, membres, historiques) et `activite.js` (compteurs de messages).
-  `xp.js` expose l'instance unique du systeme d'XP — commandes et evenements
+- Deux collecteurs dans `src/collectors/` : `referentiel.ts` (serveur, roles,
+  salons, membres, historiques) et `activite.ts` (compteurs de messages).
+  `xp.ts` expose l'instance unique du systeme d'XP — commandes et evenements
   doivent partager le meme buffer, sinon `/rank` lit une valeur en retard.
 - **Deux modes complementaires** : une synchronisation complete au demarrage
   (`synchroniserServeur`) et des evenements incrementaux. Le premier est
@@ -86,7 +90,7 @@ Prisma que l'API (`src/prisma.js`), pas en SQL a la main.
 - `message_stats` porte des cles etrangeres vers `guilds`, `discord_users` et
   `channels`. D'ou `garantirContexte()`, appele avant toute ecriture
   d'activite, avec un cache memoire pour ne pas reverifier a chaque message.
-- Les compteurs vivent en memoire entre deux vidages. `index.js` intercepte
+- Les compteurs vivent en memoire entre deux vidages. `index.ts` intercepte
   `SIGINT`/`SIGTERM` pour les ecrire avant de quitter ; retirer ce filet perd
   jusqu'a une quinzaine de secondes d'activite a chaque redemarrage.
 - `GuildMembers` est un **intent privilegie** : sans activation dans le portail

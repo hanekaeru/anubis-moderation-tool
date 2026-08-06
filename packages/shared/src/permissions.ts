@@ -23,6 +23,8 @@ export const Permission = {
   USERS_READ: 'users:read',
   USERS_WRITE: 'users:write',
   AUDIT_READ: 'audit:read',
+  LOGS_READ: 'logs:read',
+  LOGS_WRITE: 'logs:write',
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
@@ -43,6 +45,7 @@ const MODERATOR_PERMISSIONS: Permission[] = [
   Permission.SANCTIONS_WRITE,
   Permission.SANCTIONS_REVOKE,
   Permission.TICKETS_WRITE,
+  Permission.LOGS_READ,
 ];
 
 const ADMIN_PERMISSIONS: Permission[] = [
@@ -51,6 +54,7 @@ const ADMIN_PERMISSIONS: Permission[] = [
   Permission.USERS_READ,
   Permission.USERS_WRITE,
   Permission.AUDIT_READ,
+  Permission.LOGS_WRITE,
 ];
 
 export const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {

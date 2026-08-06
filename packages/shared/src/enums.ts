@@ -133,3 +133,33 @@ export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
   LEFT: 'Parti',
   BANNED: 'Banni',
 };
+
+/**
+ * Cles `config_name` reservees pour les salons de logs, ecrites par
+ * `/create_logs` (bot) et affichees par la page Logs (dashboard).
+ *
+ * Convention d'application, pas un enum Postgres : `config_guild.config_name`
+ * reste un `varchar` libre pour laisser la table accueillir d'autres reglages
+ * plus tard.
+ */
+export const LogChannelKey = {
+  MODERATION: 'LOG_CHANNEL_MODERATION',
+  MEMBERS: 'LOG_CHANNEL_MEMBERS',
+  MESSAGES: 'LOG_CHANNEL_MESSAGES',
+  SERVER: 'LOG_CHANNEL_SERVER',
+} as const;
+export type LogChannelKey = (typeof LogChannelKey)[keyof typeof LogChannelKey];
+
+export const LOG_CHANNEL_LABELS: Record<LogChannelKey, string> = {
+  LOG_CHANNEL_MODERATION: 'Journal de modération',
+  LOG_CHANNEL_MEMBERS: 'Journal des membres',
+  LOG_CHANNEL_MESSAGES: 'Journal des messages',
+  LOG_CHANNEL_SERVER: 'Journal du serveur',
+};
+
+export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
+  LOG_CHANNEL_MODERATION: 'Avertissements, sanctions et actions de modération.',
+  LOG_CHANNEL_MEMBERS: 'Arrivées et départs de membres.',
+  LOG_CHANNEL_MESSAGES: 'Messages édités ou supprimés.',
+  LOG_CHANNEL_SERVER: 'Salons et roles crées, modifiés ou supprimés.',
+};

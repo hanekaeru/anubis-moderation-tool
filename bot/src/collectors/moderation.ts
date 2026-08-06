@@ -1,0 +1,145 @@
+import {
+    INSTANT_SANCTION_TYPES,
+    type SanctionType,
+    type WarningSeverity,
+} from '@anubis/shared';
+import prisma from '../prisma';
+
+/**
+ * Sanctions et avertissements.
+ *
+ * Miroir cote bot de `api/src/moderation/{sanctions,warnings}.service.ts` :
+ * memes regles (statut instantane, calcul d'expiration), mais l'acteur est un
+ * moderateur Discord (`moderatorId`) plutot qu'un compte dashboard
+ * (`createdById`). Contrairement a `activite.ts`, pas de buffer ici — une
+ * sanction s'ecrit immediatement, comme cote API.
+ */
+
+interface CreateSanctionInput {
+    guildId: string;
+    userId: string;
+    moderatorId: string;
+    type: SanctionType;
+    reason: string;
+    durationSeconds?: number | null;
+}
+
+export async function createSanction(input: CreateSanctionInput) {
+    const startsAt = new Date();
+    const isInstant = INSTANT_SANCTION_TYPES.includes(input.type);
+    const durationSeconds = isInstant ? null : (input.durationSeconds ?? null);
+
+    const sanction = await prisma.sanction.create({
+        data: {
+            guildId: input.guildId,
+            userId: input.userId,
+            moderatorId: input.moderatorId,
+            type: input.type,
+            reason: input.reason,
+            durationSeconds,
+            startsAt,
+            expiresAt: durationSeconds
+                ? new Date(startsAt.getTime() + durationSeconds * 1000)
+                : null,
+            // Une expulsion prend effet et se termine dans la foulee : la laisser
+            // ACTIVE la ferait apparaitre indefiniment comme sanction en cours.
+            status: isInstant ? 'EXPIRED' : 'ACTIVE',
+        },
+    });
+
+    await prisma.moderationActivity.create({
+        data: {
+            guildId: input.guildId,
+            moderatorId: input.moderatorId,
+            action: `sanction.${input.type.toLowerCase()}`,
+            targetUserId: input.userId,
+            targetType: 'sanction',
+            targetId: sanction.id,
+            metadata: { type: input.type, durationSeconds },
+        },
+    });
+
+    return sanction;
+}
+
+/**
+ * Revoque la sanction active la plus recente d'un type donne pour ce membre.
+ *
+ * `revokedById` reste `null` : cette colonne pointe vers `AppUser` (compte
+ * dashboard), il n'existe pas d'equivalent pour un moderateur Discord. Le
+ * moderateur reel est trace dans `ModerationActivity`, qui a bien un
+ * `moderatorId` Discord.
+ */
+export async function revokeActiveSanction(
+    guildId: string,
+    userId: string,
+    type: SanctionType,
+    moderatorId: string,
+    reason: string,
+) {
+    const existing = await prisma.sanction.findFirst({
+        where: { guildId, userId, type, status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+    });
+
+    if (!existing) return null;
+
+    const updated = await prisma.sanction.update({
+        where: { id: existing.id },
+        data: {
+            status: 'REVOKED',
+            revokedAt: new Date(),
+            revokeReason: reason,
+        },
+    });
+
+    await prisma.moderationActivity.create({
+        data: {
+            guildId,
+            moderatorId,
+            action: 'sanction.revoke',
+            targetUserId: userId,
+            targetType: 'sanction',
+            targetId: existing.id,
+            metadata: { type },
+        },
+    });
+
+    return updated;
+}
+
+interface CreateWarningInput {
+    guildId: string;
+    userId: string;
+    moderatorId: string;
+    reason: string;
+    severity: WarningSeverity;
+    points?: number;
+}
+
+export async function createWarning(input: CreateWarningInput) {
+    const warning = await prisma.warning.create({
+        data: {
+            guildId: input.guildId,
+            userId: input.userId,
+            moderatorId: input.moderatorId,
+            reason: input.reason,
+            severity: input.severity,
+            points: input.points ?? 1,
+        },
+    });
+
+    await prisma.moderationActivity.create({
+        data: {
+            guildId: input.guildId,
+            moderatorId: input.moderatorId,
+            action: 'warn',
+            targetUserId: input.userId,
+            targetType: 'warning',
+            targetId: warning.id,
+            metadata: { severity: input.severity, points: input.points ?? 1 },
+        },
+    });
+
+    return warning;
+}

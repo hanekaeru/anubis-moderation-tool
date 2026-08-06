@@ -17,3 +17,4 @@ export * from './dto/moderation';
 export * from './dto/ticket';
 export * from './dto/stats';
 export * from './dto/app-user';
+export * from './dto/guild-config';

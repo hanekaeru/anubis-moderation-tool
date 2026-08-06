@@ -99,6 +99,13 @@ export const routes: Routes = [
           ),
         title: 'Comptes du staff — Anubis',
       },
+      {
+        path: 'logs',
+        canActivate: [permissionGuard(Permission.LOGS_READ)],
+        loadComponent: () =>
+          import('./features/admin/logs/logs').then((m) => m.LogsPage),
+        title: 'Logs — Anubis',
+      },
     ],
   },
   { path: '**', redirectTo: '' },

@@ -10,6 +10,7 @@ import { CommonModule } from './common/common.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { loadConfiguration } from './config/configuration';
+import { GuildConfigModule } from './guild-config/guild-config.module';
 import { MembersModule } from './members/members.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -36,6 +37,7 @@ import { TicketsModule } from './tickets/tickets.module';
     TicketsModule,
     StatsModule,
     AppUsersModule,
+    GuildConfigModule,
   ],
   providers: [
     // L'ordre compte : on limite le debit, puis on authentifie, puis on
