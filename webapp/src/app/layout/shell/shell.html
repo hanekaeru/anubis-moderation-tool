@@ -41,6 +41,15 @@
 
       <span class="spacer"></span>
 
+      <button
+        matIconButton
+        [matTooltip]="theme() === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'"
+        aria-label="Changer de theme clair/sombre"
+        (click)="toggleTheme()"
+      >
+        <mat-icon>{{ theme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
+
       @if (user(); as account) {
         <button matButton [matMenuTriggerFor]="accountMenu" class="account">
           <mat-icon>account_circle</mat-icon>

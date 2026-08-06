@@ -8,10 +8,12 @@ import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { map } from 'rxjs';
 import { APP_USER_ROLE_LABELS, Permission } from '@anubis/shared';
 import { AuthService } from '../../core/auth/auth.service';
+import { ThemeService } from '../../core/theme.service';
 
 interface NavEntry {
   path: string;
@@ -41,6 +43,7 @@ const NAV_ENTRIES: NavEntry[] = [
     MatMenuModule,
     MatSidenavModule,
     MatToolbarModule,
+    MatTooltipModule,
     RouterLink,
     RouterLinkActive,
     RouterOutlet,
@@ -52,9 +55,11 @@ const NAV_ENTRIES: NavEntry[] = [
 export class Shell {
   private readonly auth = inject(AuthService);
   private readonly breakpoints = inject(BreakpointObserver);
+  private readonly themeService = inject(ThemeService);
 
   readonly user = this.auth.currentUser;
   readonly roleLabels = APP_USER_ROLE_LABELS;
+  readonly theme = this.themeService.current;
 
   /** Sur petit ecran, la barre laterale devient un tiroir superpose. */
   readonly isHandset = toSignal(
@@ -72,6 +77,10 @@ export class Shell {
 
   toggleDrawer(): void {
     this.drawerOpened.update((opened) => !opened);
+  }
+
+  toggleTheme(): void {
+    this.themeService.toggle();
   }
 
   /** Referme le tiroir apres navigation sur mobile, sinon il masque la page. */

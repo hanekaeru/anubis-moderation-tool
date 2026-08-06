@@ -21,6 +21,17 @@ html {
   );
 }
 
+/* ThemeService pose cet attribut sur <html> pour forcer un mode plutot que de
+   suivre la preference systeme : le theme M3 ci-dessus reagit seul a
+   `color-scheme`, sans palette dupliquee. */
+html[data-theme='light'] {
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
 html,
 body {
   height: 100%;
