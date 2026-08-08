@@ -66,6 +66,9 @@ export async function upsertRole(role: Role): Promise<void> {
         deletedAt: null,
     };
 
+    // `trackHistory` est volontairement absent : c'est un reglage du dashboard,
+    // pas une donnee Discord. L'ajouter ici le remettrait a sa valeur par
+    // defaut a chaque renommage de role et a chaque synchronisation complete.
     await prisma.role.upsert({
         where: { id: role.id },
         update: data,
@@ -177,7 +180,19 @@ export async function synchroniserRoles(
     return { ajoutes, retires };
 }
 
-/** Historise un ajout ou un retrait de role. */
+/**
+ * Historise un ajout ou un retrait de role.
+ *
+ * Les roles marques `trackHistory = false` sont ignores : ce sont les roles
+ * decoratifs (couleurs, badges, roles auto-attribues) dont les mouvements
+ * noieraient la chronologie du membre sans rien apprendre a la moderation.
+ * Le filtre agit ici, a la source, pour ne pas stocker ce bruit ; l'API
+ * l'applique aussi a la lecture, de sorte que decocher un role masque
+ * egalement ce qui a deja ete enregistre.
+ *
+ * `member_roles`, qui porte l'etat courant, n'est pas concerne : un role
+ * decoratif doit continuer d'apparaitre sur la fiche et de servir de filtre.
+ */
 export async function enregistrerEvenementsRoles(
     guildId: string,
     userId: string,
@@ -185,9 +200,25 @@ export async function enregistrerEvenementsRoles(
     retires: string[],
     actorId: string | null = null,
 ): Promise<void> {
+    const concernes = [...new Set([...ajoutes, ...retires])];
+    if (!concernes.length) return;
+
+    const nonSuivis = await prisma.role.findMany({
+        where: { id: { in: concernes }, trackHistory: false },
+        select: { id: true },
+    });
+
+    // Un role absent de la base est historise par defaut : mieux vaut un
+    // evenement en trop qu'un trou silencieux dans la chronologie.
+    const ignores = new Set(nonSuivis.map(role => role.id));
+
     const evenements = [
-        ...ajoutes.map(roleId => ({ guildId, userId, roleId, type: RoleEventType.ADDED, actorId })),
-        ...retires.map(roleId => ({ guildId, userId, roleId, type: RoleEventType.REMOVED, actorId })),
+        ...ajoutes
+            .filter(roleId => !ignores.has(roleId))
+            .map(roleId => ({ guildId, userId, roleId, type: RoleEventType.ADDED, actorId })),
+        ...retires
+            .filter(roleId => !ignores.has(roleId))
+            .map(roleId => ({ guildId, userId, roleId, type: RoleEventType.REMOVED, actorId })),
     ];
 
     if (evenements.length) {

@@ -103,6 +103,12 @@ export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
   SHADOWBAN: 'Shadowban',
 };
 
+export const SANCTION_STATUS_LABELS: Record<SanctionStatus, string> = {
+  ACTIVE: 'En cours',
+  EXPIRED: 'Terminee',
+  REVOKED: 'Levee',
+};
+
 export const WARNING_SEVERITY_LABELS: Record<WarningSeverity, string> = {
   LOW: 'Légère',
   MEDIUM: 'Moyenne',

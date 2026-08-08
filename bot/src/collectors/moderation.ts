@@ -203,3 +203,148 @@ export async function createWarning(input: CreateWarningInput) {
 
     return warning;
 }
+
+// ---------------------------------------------------------------------------
+// Sanctions posees hors du bot (client Discord, autre outil)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fenetre pendant laquelle une sanction identique est consideree comme la meme
+ * action.
+ *
+ * Une commande du bot ecrit la sanction *avant* que Discord ne publie
+ * l'evenement correspondant : sans ce garde, chaque `/ban` produirait deux
+ * lignes, celle de la commande puis celle de l'ingestion.
+ */
+const FENETRE_DOUBLON_MS = 60_000;
+
+interface ExternalSanctionInput {
+    guildId: string;
+    userId: string;
+    /** Auteur reel releve dans l'audit log ; `null` s'il est inconnu. */
+    moderatorId: string | null;
+    type: SanctionType;
+    reason: string;
+    durationSeconds?: number | null;
+    occurredAt?: Date;
+}
+
+async function sanctionDejaEnregistree(
+    guildId: string,
+    userId: string,
+    type: SanctionType,
+): Promise<boolean> {
+    const recente = await prisma.sanction.findFirst({
+        where: {
+            guildId,
+            userId,
+            type,
+            createdAt: { gte: new Date(Date.now() - FENETRE_DOUBLON_MS) },
+        },
+        select: { id: true },
+    });
+
+    return recente !== null;
+}
+
+/**
+ * Enregistre une sanction appliquee directement sur Discord.
+ *
+ * `discordSyncedAt` est pose des la creation : l'effet est deja en place cote
+ * Discord, la tache de synchronisation n'a rien a rejouer.
+ *
+ * Renvoie `null` si l'action avait deja ete enregistree — cas normal quand
+ * elle vient d'une commande du bot.
+ */
+export async function recordExternalSanction(input: ExternalSanctionInput) {
+    if (await sanctionDejaEnregistree(input.guildId, input.userId, input.type)) {
+        return null;
+    }
+
+    const startsAt = input.occurredAt ?? new Date();
+    const isInstant = INSTANT_SANCTION_TYPES.includes(input.type);
+    const durationSeconds = isInstant ? null : (input.durationSeconds ?? null);
+
+    const sanction = await prisma.sanction.create({
+        data: {
+            guildId: input.guildId,
+            userId: input.userId,
+            moderatorId: input.moderatorId,
+            type: input.type,
+            reason: input.reason,
+            durationSeconds,
+            startsAt,
+            expiresAt: durationSeconds
+                ? new Date(startsAt.getTime() + durationSeconds * 1000)
+                : null,
+            status: isInstant ? 'EXPIRED' : 'ACTIVE',
+            discordSyncedAt: new Date(),
+        },
+    });
+
+    await prisma.moderationActivity.create({
+        data: {
+            guildId: input.guildId,
+            moderatorId: input.moderatorId,
+            action: `sanction.${input.type.toLowerCase()}`,
+            targetUserId: input.userId,
+            targetType: 'sanction',
+            targetId: sanction.id,
+            metadata: { type: input.type, durationSeconds, source: 'discord' },
+        },
+    });
+
+    return sanction;
+}
+
+/**
+ * Leve une sanction dont l'effet a ete retire directement sur Discord
+ * (debannissement, exclusion temporaire annulee a la main).
+ *
+ * Renvoie `null` s'il n'y avait rien a lever : un debannissement peut viser
+ * quelqu'un banni avant la mise en service du bot.
+ */
+export async function revokeExternalSanction(input: {
+    guildId: string;
+    userId: string;
+    type: SanctionType;
+    moderatorId: string | null;
+    reason: string;
+}) {
+    const existante = await prisma.sanction.findFirst({
+        where: {
+            guildId: input.guildId,
+            userId: input.userId,
+            type: input.type,
+            status: 'ACTIVE',
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+
+    if (!existante) return null;
+
+    const levee = await prisma.sanction.update({
+        where: { id: existante.id },
+        data: {
+            status: 'REVOKED',
+            revokedAt: new Date(),
+            revokeReason: input.reason,
+            // L'effet a deja ete retire sur Discord par la personne qui a agi.
+            discordSyncedAt: new Date(),
+        },
+    });
+
+    await prisma.moderationActivity.create({
+        data: {
+            guildId: input.guildId,
+            moderatorId: input.moderatorId,
+            action: 'sanction.revoke',
+            targetUserId: input.userId,
+            targetType: 'sanction',
+            targetId: existante.id,
+            metadata: { type: input.type, source: 'discord' },
+        },
+    });
+
+    return levee;
+}

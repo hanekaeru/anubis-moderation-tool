@@ -10,11 +10,8 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        // Intent privilegie : a activer dans le portail developpeur Discord
-        // (Bot > Privileged Gateway Intents > Server Members Intent). Sans lui,
-        // la connexion echoue et ni la liste des membres ni l'historique des
-        // roles ne peuvent etre alimentes.
         GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildModeration,
     ],
 });
 

@@ -9,7 +9,7 @@ import * as colors from '../../utils/constantes';
 export async function notifyMember(user: User, message: string): Promise<void> {
   const messageEmbed = new EmbedBuilder()
     .setColor(colors.danger)
-    .setTitle("Anubis - /mute")
+    .setTitle("Anubis - Nouvelle sanction")
     .setTimestamp()
     .setFooter({ text: "En cas de problème, vous pouvez ouvrir un ticket ou en parler aux administrateurs." })
   try {

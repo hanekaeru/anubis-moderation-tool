@@ -20,6 +20,7 @@ export const Permission = {
   TICKETS_READ: 'tickets:read',
   TICKETS_WRITE: 'tickets:write',
   STATS_READ: 'stats:read',
+  ROLES_MANAGE: 'roles:manage',
   USERS_READ: 'users:read',
   USERS_WRITE: 'users:write',
   AUDIT_READ: 'audit:read',
@@ -51,6 +52,10 @@ const MODERATOR_PERMISSIONS: Permission[] = [
 const ADMIN_PERMISSIONS: Permission[] = [
   ...MODERATOR_PERMISSIONS,
   Permission.NOTES_DELETE,
+  // Regler ce qui est historise releve de la configuration du serveur, pas de
+  // la moderation courante : un moderateur ne doit pas pouvoir faire
+  // disparaitre une categorie entiere d'evenements de la chronologie.
+  Permission.ROLES_MANAGE,
   Permission.USERS_READ,
   Permission.USERS_WRITE,
   Permission.AUDIT_READ,

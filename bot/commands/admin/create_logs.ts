@@ -11,7 +11,7 @@ import * as guildConfig from '../../src/collectors/guildConfig';
 const LOGS_CATEGORY_NAME = 'Logs';
 
 const LOG_CHANNELS: { key: LogChannelKey; channelName: string }[] = [
-    { key: LogChannelKey.MODERATION, channelName: '🛡️-logs-moderation' },
+    { key: LogChannelKey.MODERATION, channelName: '🛡️-logs-modération' },
     { key: LogChannelKey.MEMBERS, channelName: '👤-logs-membres' },
     { key: LogChannelKey.MESSAGES, channelName: '💬-logs-messages' },
     { key: LogChannelKey.SERVER, channelName: '⚙️-logs-serveur' },

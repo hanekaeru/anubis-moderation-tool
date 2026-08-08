@@ -80,15 +80,6 @@ export class AuthService {
       throw new UnauthorizedException('Identifiants invalides.');
     }
 
-    if (account.lockedUntil && account.lockedUntil.getTime() > Date.now()) {
-      const minutes = Math.ceil(
-        (account.lockedUntil.getTime() - Date.now()) / 60_000,
-      );
-      throw new ForbiddenException(
-        `Compte temporairement verrouille. Reessayez dans ${minutes} minute(s).`,
-      );
-    }
-
     const passwordValid = await argon2
       .verify(account.passwordHash, password)
       .catch(() => false);
@@ -98,9 +89,21 @@ export class AuthService {
       throw new UnauthorizedException('Identifiants invalides.');
     }
 
+    // Verrouillage et desactivation ne sont annonces qu'apres un mot de passe
+    // correct. Les annoncer avant permettrait d'enumerer les comptes : cinq
+    // tentatives suffiraient a distinguer un identifiant existant (verrouille,
+    // message specifique) d'un identifiant inconnu (toujours le meme refus) —
+    // ce qui annulerait la mise a niveau du temps de reponse faite plus haut.
+    if (account.lockedUntil && account.lockedUntil.getTime() > Date.now()) {
+      const minutes = Math.ceil(
+        (account.lockedUntil.getTime() - Date.now()) / 60_000,
+      );
+      throw new ForbiddenException(
+        `Compte temporairement verrouille. Reessayez dans ${minutes} minute(s).`,
+      );
+    }
+
     if (!account.isActive) {
-      // Verifie apres le mot de passe : sinon la reponse revelerait qu'un
-      // identifiant existe sans qu'on ait prouve le connaitre.
       throw new UnauthorizedException('Identifiants invalides.');
     }
 
@@ -142,9 +145,13 @@ export class AuthService {
       where: { id: userId },
       data: {
         failedLoginCount: shouldLock ? 0 : failed,
-        lockedUntil: shouldLock
-          ? new Date(Date.now() + this.security.lockoutMinutes * 60_000)
-          : null,
+        // `lockedUntil` n'est touche que pour verrouiller. L'ecrire a `null`
+        // dans le cas contraire levait le verrou a la tentative suivante : il
+        // suffisait d'un mot de passe errone de plus pour rouvrir un compte
+        // qui venait d'etre bloque.
+        ...(shouldLock
+          ? { lockedUntil: new Date(Date.now() + this.security.lockoutMinutes * 60_000) }
+          : {}),
       },
     });
 
@@ -182,16 +189,25 @@ export class AuthService {
     };
   }
 
-  async logout(token: string | undefined, userId: string | undefined, context: RequestContext): Promise<void> {
-    if (token) await this.tokens.revokeToken(token);
-    if (userId) {
-      await this.audit.record({
-        appUserId: userId,
-        action: 'auth.logout',
-        ip: context.ip,
-        userAgent: context.userAgent,
-      });
-    }
+  /**
+   * Deconnexion.
+   *
+   * L'identite vient du cookie, pas de `request.user` : la route est publique
+   * pour qu'une session deja expiree puisse tout de meme nettoyer son cookie,
+   * et le garde JWT n'y renseigne donc jamais l'utilisateur.
+   */
+  async logout(token: string | undefined, context: RequestContext): Promise<void> {
+    if (!token) return;
+
+    const appUserId = await this.tokens.revokeToken(token);
+    if (!appUserId) return;
+
+    await this.audit.record({
+      appUserId,
+      action: 'auth.logout',
+      ip: context.ip,
+      userAgent: context.userAgent,
+    });
   }
 
   /**

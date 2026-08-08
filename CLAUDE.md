@@ -60,6 +60,20 @@ Consequences pratiques :
 
 - Le guard JWT est **global** : toute route est fermee par defaut, l'ouverture
   passe par `@Public()`.
+- Trois gardes globaux s'enchainent dans cet ordre : debit, authentification,
+  mot de passe provisoire, permissions. `PasswordChangeGuard` ferme toute l'API
+  tant que `mustChangePassword` est vrai ; seul `AuthController` porte
+  `@AllowTemporaryPassword()`, sans quoi un compte neuf ne pourrait jamais
+  changer son mot de passe. La redirection Angular n'est qu'un confort.
+- **Le login n'annonce jamais un verrouillage ni une desactivation avant
+  d'avoir valide le mot de passe.** Le faire permettrait d'enumerer les
+  comptes : cinq tentatives suffiraient a distinguer un identifiant existant
+  d'un inconnu, ce qui annulerait le hachage factice pose pour egaliser le
+  temps de reponse.
+- `registerFailedLogin` n'ecrit `lockedUntil` que pour verrouiller. Le remettre
+  a `null` dans le cas contraire levait le verrou a la tentative suivante.
+- Les refresh tokens sont haches en **HMAC-SHA256** avec `JWT_REFRESH_SECRET`.
+  Changer ce secret invalide toutes les sessions.
 - Les permissions se declarent avec `@RequirePermissions(...)`, jamais par un
   `if` sur le role dans un service.
 - `jwt.sign` recoit `expiresIn` **en secondes** (nombre). La forme chaine
@@ -93,14 +107,46 @@ le dev avec rechargement).
 - Les compteurs vivent en memoire entre deux vidages. `index.ts` intercepte
   `SIGINT`/`SIGTERM` pour les ecrire avant de quitter ; retirer ce filet perd
   jusqu'a une quinzaine de secondes d'activite a chaque redemarrage.
+- Les sanctions posees **a la main dans le client Discord** sont ingerees par
+  `src/collectors/discordAudit.ts`. C'est la seule source qui donne l'auteur
+  reel : les evenements de passerelle disent ce qui est arrive, jamais qui l'a
+  fait. Trois pieges y sont traites, et chacun a coute un bug ailleurs :
+  l'audit log est **alimente de facon asynchrone** (d'ou les quatre tentatives
+  espacees) ; une meme entree sert a **deux evenements** pour un bannissement
+  (`guildBanAdd` et `guildMemberRemove`), d'ou le cache d'entrees consommees ;
+  et `MemberUpdate` couvre aussi bien un surnom qu'une exclusion temporaire,
+  d'ou le filtre sur la clef `communication_disabled_until`.
+- Discord n'a **pas d'evenement d'expulsion** : `guildMemberRemove` couvre le
+  depart volontaire, l'expulsion et le bannissement. Seule une entree
+  `MemberKick` dans l'audit log permet de trancher.
+- Quand l'auteur releve est **le bot lui-meme**, l'ingestion s'arrete : la
+  commande a deja enregistre la sanction avec le moderateur reel, la reprendre
+  en attribuerait la paternite au bot. `recordExternalSanction` garde en plus
+  une fenetre de dedoublonnage d'une minute.
+- Le statut `BANNED` n'est **jamais retrograde** en `LEFT` : les deux
+  evenements arrivent sans ordre garanti, le filtre `status: { not: BANNED }`
+  de `guildMemberRemove` fait converger les deux ordres vers le meme resultat.
 - `GuildMembers` est un **intent privilegie** : sans activation dans le portail
-  developpeur Discord, la connexion echoue. `MESSAGE_CONTENT` reste desactive —
+  developpeur Discord, la connexion echoue. `GuildModeration` ne l'est pas,
+  mais sans lui `guildBanAdd`/`guildBanRemove` ne sont **jamais livres** — sans
+  la moindre erreur. La lecture de l'audit log demande en plus la permission
+  Discord « Voir le journal d'audit » ; sans elle, les sanctions sont
+  enregistrees mais sans auteur. `MESSAGE_CONTENT` reste desactive —
   aucun texte n'est stocke, et `totalCharacters` reste donc a zero (la longueur
   moyenne affichee sur la fiche membre aussi). C'est attendu, pas un bug.
 - Les jours sont calcules en **UTC** et `weekday` compte a partir de lundi
   (`(getUTCDay() + 6) % 7`), pas de dimanche comme JavaScript.
 - Les suppressions de roles et de salons sont **logiques** (`deletedAt`) :
   l'historique des membres et les statistiques les referencent encore.
+- `roles.track_history` decide si les mouvements d'un role alimentent la
+  chronologie. C'est un **reglage du dashboard, pas une donnee Discord** : il
+  est volontairement absent du bloc `update` de `upsertRole`, sinon chaque
+  renommage de role et chaque synchronisation complete le remettraient a `true`.
+  Le filtre s'applique deux fois — a l'ecriture dans le bot (pas de bruit
+  stocke) et a la lecture dans `MembersService.timeline` (ce qui rend le
+  reglage retroactif et reversible). `member_roles`, qui porte l'etat courant,
+  n'est jamais filtre : un role decoratif doit rester visible sur la fiche et
+  utilisable comme filtre de recherche.
 
 ## Dashboard
 

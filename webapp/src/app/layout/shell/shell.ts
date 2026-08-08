@@ -30,7 +30,9 @@ const NAV_ENTRIES: NavEntry[] = [
   { path: '/sanctions', label: 'Sanctions', icon: 'gavel', permissions: [Permission.SANCTIONS_READ] },
   { path: '/tickets', label: 'Tickets', icon: 'confirmation_number', permissions: [Permission.TICKETS_READ] },
   { path: '/comptes', label: 'Comptes', icon: 'admin_panel_settings', permissions: [Permission.USERS_READ] },
-  { path: '/logs', label: 'Logs', icon: 'file_copy', permissions: [Permission.LOGS_READ] }
+  { path: '/roles', label: 'Roles suivis', icon: 'label', permissions: [Permission.ROLES_MANAGE] },
+  { path: '/logs', label: 'Logs', icon: 'file_copy', permissions: [Permission.LOGS_READ] },
+  { path: '/journal', label: "Journal d'activite", icon: 'history', permissions: [Permission.AUDIT_READ] }
 ];
 
 /** Cadre de l'application : barre laterale, en-tete, zone de contenu. */

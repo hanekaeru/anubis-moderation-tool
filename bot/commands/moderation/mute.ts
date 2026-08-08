@@ -52,11 +52,13 @@ const command: Command = {
       .setFooter({ text: "En cas de problème, vous pouvez ouvrir un ticket ou en parler aux administrateurs." })
 
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
-      responseEmbed.setDescription(`Tu n'as pas la permission d'exclure temporairement des membres.`),
-        await interaction.reply({
-          embeds: [responseEmbed],
-          flags: MessageFlags.Ephemeral
-        });
+      responseEmbed
+      .setDescription(`Tu n'as pas la permission de mute temporairement des membres.`)
+      .setColor(colors.danger);
+      await interaction.reply({
+        embeds: [responseEmbed],
+        flags: MessageFlags.Ephemeral
+      });
       return;
     }
 

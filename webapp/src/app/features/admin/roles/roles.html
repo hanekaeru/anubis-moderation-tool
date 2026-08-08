@@ -1,0 +1,75 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Roles suivis</h1>
+      <p class="subtitle">
+        {{ trackedCount() }} role(s) historise(s) sur {{ roles().length }}
+      </p>
+    </div>
+  </header>
+
+  <mat-card appearance="outlined" class="explain">
+    <mat-card-content>
+      <mat-icon>info</mat-icon>
+      <p>
+        Un role decoche continue d'apparaitre sur la fiche des membres et reste
+        utilisable comme filtre : seuls ses ajouts et retraits cessent
+        d'alimenter la chronologie. Le reglage est retroactif et reversible —
+        rien n'est supprime, et recocher un role fait reapparaitre son historique.
+      </p>
+    </mat-card-content>
+  </mat-card>
+
+  <div class="filters">
+    <mat-form-field class="search">
+      <mat-label>Rechercher un role</mat-label>
+      <input matInput [formControl]="search" autocomplete="off" />
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+  </div>
+
+  <mat-card appearance="outlined">
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
+    @if (filteredRoles().length) {
+      <ul class="roles">
+        @for (role of filteredRoles(); track role.id) {
+          <li>
+            <span
+              class="swatch"
+              [style.background]="roleColor(role.color) ?? 'transparent'"
+              [class.no-color]="!roleColor(role.color)"
+              aria-hidden="true"
+            ></span>
+
+            <div class="identity">
+              <span class="name">{{ role.name }}</span>
+              <span class="meta">
+                Position {{ role.position }}
+                @if (role.managed) {
+                  <span class="tag" matTooltip="Role gere par une integration Discord">
+                    Automatique
+                  </span>
+                }
+              </span>
+            </div>
+
+            <mat-slide-toggle
+              [checked]="role.trackHistory"
+              [disabled]="isPending(role.id)"
+              (change)="toggle(role, $event.checked)"
+            >
+              <span class="toggle-label">
+                {{ role.trackHistory ? 'Historise' : 'Ignore' }}
+              </span>
+            </mat-slide-toggle>
+          </li>
+        }
+      </ul>
+    } @else if (!loading()) {
+      <p class="empty-state">Aucun role ne correspond a cette recherche.</p>
+    }
+  </mat-card>
+</div>

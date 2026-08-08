@@ -66,3 +66,46 @@ export interface AuditLogQuery extends PaginationQuery {
   from?: IsoDateString;
   to?: IsoDateString;
 }
+
+/**
+ * Libelles des actions journalisees.
+ *
+ * Le journal stocke un verbe technique (`sanction.revoke`) pour rester
+ * filtrable et stable ; l'affichage a besoin d'une phrase. Toute nouvelle
+ * action passee a `AuditService.record` doit etre ajoutee ici, sinon le verbe
+ * brut s'affiche tel quel — degradation acceptable, mais peu lisible.
+ */
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  'auth.login': 'Connexion',
+  'auth.logout': 'Deconnexion',
+  'auth.password_changed': 'Mot de passe change',
+  'warning.create': 'Avertissement emis',
+  'warning.revoke': 'Avertissement leve',
+  'sanction.create': 'Sanction appliquee',
+  'sanction.revoke': 'Sanction levee',
+  'note.create': 'Note ajoutee',
+  'note.update': 'Note modifiee',
+  'note.delete': 'Note supprimee',
+  'ticket.update': 'Ticket mis a jour',
+  'ticket.close': 'Ticket ferme',
+  'ticket.note': 'Note interne sur un ticket',
+  'appuser.create': 'Compte staff cree',
+  'appuser.update': 'Compte staff modifie',
+  'appuser.reset_password': 'Mot de passe reinitialise',
+  'appuser.unlock': 'Compte staff deverrouille',
+  'role.tracking': 'Suivi de role modifie',
+  'guildconfig.create': 'Configuration ajoutee',
+  'guildconfig.update': 'Configuration modifiee',
+  'guildconfig.delete': 'Configuration supprimee',
+};
+
+/** Familles d'actions, pour le filtre de l'ecran de journal. */
+export const AUDIT_ACTION_GROUPS: ReadonlyArray<{ label: string; prefix: string }> = [
+  { label: 'Authentification', prefix: 'auth.' },
+  { label: 'Avertissements', prefix: 'warning.' },
+  { label: 'Sanctions', prefix: 'sanction.' },
+  { label: 'Notes', prefix: 'note.' },
+  { label: 'Tickets', prefix: 'ticket.' },
+  { label: 'Comptes du staff', prefix: 'appuser.' },
+  { label: 'Configuration', prefix: 'guildconfig.' },
+];

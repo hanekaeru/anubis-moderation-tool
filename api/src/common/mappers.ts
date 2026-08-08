@@ -51,6 +51,7 @@ export function toRoleSummary(role: {
   color: number;
   position: number;
   managed: boolean;
+  trackHistory: boolean;
 }): RoleSummary {
   return {
     id: role.id,
@@ -58,6 +59,7 @@ export function toRoleSummary(role: {
     color: role.color,
     position: role.position,
     managed: role.managed,
+    trackHistory: role.trackHistory,
   };
 }
 

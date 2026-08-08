@@ -67,6 +67,11 @@ export class MemberQueryDto extends PaginationDto {
   sortDir: 'asc' | 'desc' = 'asc';
 }
 
+export class UpdateRoleTrackingDto {
+  @IsBoolean()
+  trackHistory!: boolean;
+}
+
 export class TimelineQueryDto extends PaginationDto {
   @IsOptional()
   @IsString({ each: true })

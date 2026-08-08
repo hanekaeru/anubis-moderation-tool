@@ -1,0 +1,94 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Journal d'activite</h1>
+      <p class="subtitle">{{ total() }} action(s) enregistree(s) depuis le dashboard</p>
+    </div>
+  </header>
+
+  <form class="filters" [formGroup]="filters">
+    <mat-form-field class="action">
+      <mat-label>Type d'action</mat-label>
+      <mat-select formControlName="action">
+        <mat-option value="">Toutes</mat-option>
+        @for (group of groups; track group.prefix) {
+          <mat-option [value]="group.prefix">{{ group.label }}</mat-option>
+        }
+      </mat-select>
+      <mat-hint>Filtre sur la famille d'action.</mat-hint>
+    </mat-form-field>
+  </form>
+
+  <mat-card appearance="outlined">
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
+    <div class="table-scroll">
+      <table mat-table [dataSource]="entries()">
+        <ng-container matColumnDef="createdAt">
+          <th mat-header-cell *matHeaderCellDef>Date</th>
+          <td mat-cell *matCellDef="let entry" class="nowrap">
+            <span [matTooltip]="entry.createdAt | frDate">
+              {{ entry.createdAt | relativeTime }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actor">
+          <th mat-header-cell *matHeaderCellDef>Auteur</th>
+          <td mat-cell *matCellDef="let entry" class="nowrap">
+            @if (entry.actorLabel) {
+              {{ entry.actorLabel }}
+            } @else {
+              <span class="muted">Compte supprime</span>
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="action">
+          <th mat-header-cell *matHeaderCellDef>Action</th>
+          <td mat-cell *matCellDef="let entry">
+            <span class="action-label">{{ label(entry.action) }}</span>
+            <span class="action-code">{{ entry.action }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="entity">
+          <th mat-header-cell *matHeaderCellDef>Cible</th>
+          <td mat-cell *matCellDef="let entry">
+            @if (entry.entityType) {
+              <span class="entity-type">{{ entry.entityType }}</span>
+              <span class="entity-id" [matTooltip]="entry.entityId">{{ entry.entityId }}</span>
+            } @else {
+              <span class="muted">—</span>
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="ip">
+          <th mat-header-cell *matHeaderCellDef>Origine</th>
+          <td mat-cell *matCellDef="let entry" class="nowrap">
+            {{ entry.ip ?? '—' }}
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns"></tr>
+      </table>
+    </div>
+
+    @if (!loading() && entries().length === 0) {
+      <p class="empty-state">Aucune action ne correspond a ce filtre.</p>
+    }
+
+    <mat-paginator
+      [length]="total()"
+      [pageIndex]="pageIndex()"
+      [pageSize]="pageSize()"
+      [pageSizeOptions]="[25, 50, 100]"
+      (page)="onPageChange($event)"
+      showFirstLastButtons
+    />
+  </mat-card>
+</div>

@@ -14,6 +14,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { CookieOptions, Request, Response } from 'express';
 import type { LoginResponse, SessionUser } from '@anubis/shared';
 import type { AppConfig } from '../config/configuration';
+import { AllowTemporaryPassword } from '../common/decorators/allow-temporary-password.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import type { AuthenticatedUser } from '../common/types';
@@ -24,7 +25,13 @@ import { ChangePasswordDto, LoginDto } from './dto/login.dto';
 /** Nom du cookie portant le refresh token. */
 const REFRESH_COOKIE = 'anubis_rt';
 
+/**
+ * Seul controleur ouvert a un compte dont le mot de passe est encore
+ * provisoire : sans lui, un tel compte ne pourrait ni lire son etat ni changer
+ * son mot de passe, donc jamais sortir de cet etat.
+ */
 @Controller('auth')
+@AllowTemporaryPassword()
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
@@ -122,15 +129,22 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
     const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
-    await this.auth.logout(token, req.user?.id, this.context(req));
+    await this.auth.logout(token, this.context(req));
     res.clearCookie(REFRESH_COOKIE, this.cookieOptions());
   }
 
   @Get('me')
   async me(@CurrentUser() user: AuthenticatedUser): Promise<SessionUser> {
-    const account = await this.prisma.appUser.findUniqueOrThrow({
+    const account = await this.prisma.appUser.findUnique({
       where: { id: user.id },
     });
+
+    // Le compte peut avoir ete supprime entre la validation du jeton et cette
+    // requete : c'est une session devenue invalide, pas une panne serveur.
+    if (!account) {
+      throw new UnauthorizedException('Compte introuvable.');
+    }
+
     return this.auth.toSessionUser(account);
   }
 

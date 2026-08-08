@@ -53,3 +53,31 @@ export function durationToSeconds(amount: number, unit: DurationUnit): number | 
   if (unit === DurationUnit.PERMANENT) return null;
   return amount * DURATION_UNIT_SECONDS[unit];
 }
+
+/**
+ * Duree stockee (en secondes) vers une forme lisible : `2 j 4 h`, `35 min`.
+ *
+ * L'inverse de `durationToSeconds`, pour reafficher une duree enregistree sans
+ * connaitre l'unite saisie a l'origine. `fallback` couvre l'absence de duree,
+ * qui signifie « permanent » sur une sanction.
+ */
+export function formatDurationSeconds(
+  seconds: number | null | undefined,
+  fallback = 'Permanent',
+): string {
+  if (seconds === null || seconds === undefined) return fallback;
+  if (seconds < 60) return `${Math.round(seconds)} s`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  const resteMinutes = minutes % 60;
+  if (hours < 24) {
+    return resteMinutes ? `${hours} h ${resteMinutes} min` : `${hours} h`;
+  }
+
+  const days = Math.floor(hours / 24);
+  const resteHeures = hours % 24;
+  return resteHeures ? `${days} j ${resteHeures} h` : `${days} j`;
+}

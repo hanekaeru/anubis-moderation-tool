@@ -100,6 +100,20 @@ export const routes: Routes = [
         title: 'Comptes du staff — Anubis',
       },
       {
+        path: 'roles',
+        canActivate: [permissionGuard(Permission.ROLES_MANAGE)],
+        loadComponent: () =>
+          import('./features/admin/roles/roles').then((m) => m.RolesPage),
+        title: 'Roles suivis — Anubis',
+      },
+      {
+        path: 'journal',
+        canActivate: [permissionGuard(Permission.AUDIT_READ)],
+        loadComponent: () =>
+          import('./features/admin/audit/audit').then((m) => m.AuditPage),
+        title: "Journal d'activite — Anubis",
+      },
+      {
         path: 'logs',
         canActivate: [permissionGuard(Permission.LOGS_READ)],
         loadComponent: () =>
