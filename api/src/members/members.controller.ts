@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import {
   Permission,
   type MemberDetail,
@@ -7,9 +7,15 @@ import {
   type RoleSummary,
   type TimelineEntry,
 } from '@anubis/shared';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { SnowflakeParam } from '../common/pipes/snowflake.pipe';
-import { MemberQueryDto, TimelineQueryDto } from './dto/member-query.dto';
+import type { AuthenticatedUser } from '../common/types';
+import {
+  MemberQueryDto,
+  TimelineQueryDto,
+  UpdateRoleTrackingDto,
+} from './dto/member-query.dto';
 import { MembersService } from './members.service';
 
 @Controller('members')
@@ -26,6 +32,23 @@ export class MembersController {
   @Get('roles')
   listRoles(): Promise<RoleSummary[]> {
     return this.members.listRoles();
+  }
+
+  /**
+   * Choisit si les mouvements d'un role sont historises.
+   *
+   * `ROLES_MANAGE` remplace ici la permission de classe : decider ce qui entre
+   * dans la chronologie releve de la configuration, pas de la lecture des
+   * membres.
+   */
+  @Patch('roles/:roleId')
+  @RequirePermissions(Permission.ROLES_MANAGE)
+  setRoleTracking(
+    @Param('roleId', SnowflakeParam) roleId: string,
+    @Body() dto: UpdateRoleTrackingDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<RoleSummary> {
+    return this.members.setRoleTracking(roleId, dto.trackHistory, actor);
   }
 
   @Get(':userId')

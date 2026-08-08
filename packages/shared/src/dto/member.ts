@@ -12,6 +12,18 @@ export interface RoleSummary {
   color: number;
   position: number;
   managed: boolean;
+  /**
+   * Les attributions et retraits de ce role sont-ils historises ?
+   *
+   * A `false` pour les roles decoratifs : le role continue d'apparaitre sur la
+   * fiche du membre et de servir de filtre, mais ses mouvements ne polluent
+   * plus la chronologie.
+   */
+  trackHistory: boolean;
+}
+
+export interface UpdateRoleTrackingRequest {
+  trackHistory: boolean;
 }
 
 /** Ligne de la liste des membres : volontairement legere. */

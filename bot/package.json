@@ -2,30 +2,26 @@
   "name": "divinium-bot",
   "version": "1.0.0",
   "description": "Discord Mod Bot and Utilities",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "dev": "dotenvx run --env-file=.env.dev -- nodemon index.js",
-    "prod": "dotenvx run --env-file=.env.prod -- nodemon index.js",
-    "refresh-dev": "dotenvx run --env-file=.env.dev -- node refresh.js",
-    "refresh-prod": "dotenvx run --env-file=.env.prod -- node refresh.js",
-    "delete": "node delete_command.js",
+    "build": "tsc",
+    "start": "node --env-file=.env dist/index.js",
+    "start:dev": "nodemon",
+    "start:prod": "node dist/index.js",
+    "refresh": "node --env-file=.env -r ts-node/register refresh.ts",
+    "delete": "node --env-file=.env -r ts-node/register delete_command.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "hanekaeru",
   "license": "ISC",
   "dependencies": {
     "@anubis/shared": "file:../packages/shared",
-    "@dotenvx/dotenvx": "^1.49.0",
+    "discord.js": "^14.15.3"
+  },
+  "devDependencies": {
     "@types/node": "^20.14.10",
-    "canvas": "^2.11.2",
-    "discord.js": "^14.15.3",
-    "dotenv": "^16.4.5",
-    "mongoose": "^8.5.0",
     "nodemon": "^3.1.4",
-    "pg": "^8.22.0",
-    "require.js": "^1.0.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.3",
-    "uuid": "^10.0.0"
+    "typescript": "^5.5.3"
   }
 }

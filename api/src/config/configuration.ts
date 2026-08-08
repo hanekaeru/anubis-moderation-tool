@@ -40,9 +40,17 @@ function required(env: NodeJS.ProcessEnv, keys: string[]): void {
   if (missing.length) throw new MissingConfigError(missing);
 }
 
+/**
+ * Entier strictement positif, sinon la valeur de repli.
+ *
+ * Accepter zero ou un negatif ouvrait des comportements absurdes et silencieux :
+ * `MAX_FAILED_LOGINS=0` verrouillait le compte des le premier echec (le test
+ * `echecs >= 0` etant toujours vrai), et un TTL negatif delivrait des jetons
+ * deja expires.
+ */
 function toInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function toBool(value: string | undefined, fallback: boolean): boolean {
@@ -73,10 +81,17 @@ export function loadConfiguration(): AppConfig {
   const nodeEnv = (env.NODE_ENV ?? 'development') as AppConfig['nodeEnv'];
   const isProduction = nodeEnv === 'production';
 
-  if (isProduction && accessSecret.length < 32) {
-    throw new Error(
-      'JWT_ACCESS_SECRET doit faire au moins 32 caracteres en production.',
-    );
+  if (isProduction) {
+    // Les deux secrets sont utilises : l'un signe les access tokens, l'autre
+    // sert de clef HMAC aux refresh tokens. Les deux meritent la meme exigence.
+    for (const [nom, valeur] of [
+      ['JWT_ACCESS_SECRET', accessSecret],
+      ['JWT_REFRESH_SECRET', refreshSecret],
+    ] as const) {
+      if (valeur.length < 32) {
+        throw new Error(`${nom} doit faire au moins 32 caracteres en production.`);
+      }
+    }
   }
 
   return {

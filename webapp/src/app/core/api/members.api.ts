@@ -10,6 +10,7 @@ import type {
   RoleSummary,
   TimelineEntry,
   TimelineQuery,
+  UpdateRoleTrackingRequest,
 } from '@anubis/shared';
 import { toHttpParams } from './query-params';
 
@@ -39,6 +40,17 @@ export class MembersApi {
 
   listRoles(): Observable<RoleSummary[]> {
     return this.http.get<RoleSummary[]>('/api/members/roles');
+  }
+
+  /** Active ou desactive l'historisation des mouvements d'un role. */
+  updateRoleTracking(
+    roleId: string,
+    request: UpdateRoleTrackingRequest,
+  ): Observable<RoleSummary> {
+    return this.http.patch<RoleSummary>(
+      `/api/members/roles/${roleId}`,
+      request,
+    );
   }
 
   notes(userId: string): Observable<NoteDto[]> {

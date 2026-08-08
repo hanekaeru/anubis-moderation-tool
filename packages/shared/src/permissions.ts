@@ -20,9 +20,12 @@ export const Permission = {
   TICKETS_READ: 'tickets:read',
   TICKETS_WRITE: 'tickets:write',
   STATS_READ: 'stats:read',
+  ROLES_MANAGE: 'roles:manage',
   USERS_READ: 'users:read',
   USERS_WRITE: 'users:write',
   AUDIT_READ: 'audit:read',
+  LOGS_READ: 'logs:read',
+  LOGS_WRITE: 'logs:write',
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
@@ -43,14 +46,20 @@ const MODERATOR_PERMISSIONS: Permission[] = [
   Permission.SANCTIONS_WRITE,
   Permission.SANCTIONS_REVOKE,
   Permission.TICKETS_WRITE,
+  Permission.LOGS_READ,
 ];
 
 const ADMIN_PERMISSIONS: Permission[] = [
   ...MODERATOR_PERMISSIONS,
   Permission.NOTES_DELETE,
+  // Regler ce qui est historise releve de la configuration du serveur, pas de
+  // la moderation courante : un moderateur ne doit pas pouvoir faire
+  // disparaitre une categorie entiere d'evenements de la chronologie.
+  Permission.ROLES_MANAGE,
   Permission.USERS_READ,
   Permission.USERS_WRITE,
   Permission.AUDIT_READ,
+  Permission.LOGS_WRITE,
 ];
 
 export const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {

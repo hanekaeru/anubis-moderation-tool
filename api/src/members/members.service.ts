@@ -12,9 +12,11 @@ import {
   type RoleSummary,
   type TimelineEntry,
 } from '@anubis/shared';
+import { AuditService } from '../audit/audit.service';
 import { paginate } from '../common/dto/pagination.dto';
 import { GuildContextService } from '../common/guild-context.service';
 import { sortRoles, toRoleSummary } from '../common/mappers';
+import type { AuthenticatedUser } from '../common/types';
 import { PrismaService } from '../prisma/prisma.service';
 import type { MemberQueryDto, TimelineQueryDto } from './dto/member-query.dto';
 
@@ -55,6 +57,7 @@ export class MembersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly guild: GuildContextService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -413,7 +416,15 @@ export class MembersService {
 
     if (wanted.has(TimelineKind.ROLE)) {
       const rows = await this.prisma.memberRoleEvent.findMany({
-        where: { guildId, userId, ...(hasRange ? { occurredAt: range } : {}) },
+        where: {
+          guildId,
+          userId,
+          // Le bot filtre deja a l'ecriture, mais on refiltre a la lecture :
+          // c'est ce qui rend le reglage retroactif et reversible, sur les
+          // evenements enregistres avant que le role ne soit exclu.
+          role: { trackHistory: true },
+          ...(hasRange ? { occurredAt: range } : {}),
+        },
         orderBy: { occurredAt: 'desc' },
         take: TIMELINE_SOURCE_LIMIT,
         include: { role: true },
@@ -491,12 +502,51 @@ export class MembersService {
     return paginate(page, entries.length, query);
   }
 
-  /** Roles du serveur, pour alimenter les filtres du dashboard. */
+  /**
+   * Roles du serveur, pour alimenter les filtres du dashboard et l'ecran de
+   * reglage. La liste reste complete : un role exclu de l'historique doit
+   * rester filtrable et visible sur les fiches.
+   */
   async listRoles(): Promise<RoleSummary[]> {
     const roles = await this.prisma.role.findMany({
       where: { guildId: this.guild.guildId, deletedAt: null },
       orderBy: { position: 'desc' },
     });
     return roles.map(toRoleSummary);
+  }
+
+  /**
+   * Active ou desactive l'historisation d'un role.
+   *
+   * Le changement est retroactif : les evenements deja enregistres pour ce role
+   * disparaissent des chronologies, et reapparaissent si on le reactive. Rien
+   * n'est supprime en base, seule la lecture est filtree.
+   */
+  async setRoleTracking(
+    roleId: string,
+    trackHistory: boolean,
+    actor: AuthenticatedUser,
+  ): Promise<RoleSummary> {
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, guildId: this.guild.guildId },
+    });
+
+    if (!role) throw new NotFoundException('Role introuvable sur ce serveur.');
+
+    const updated = await this.prisma.role.update({
+      where: { id: roleId },
+      data: { trackHistory },
+    });
+
+    await this.audit.record({
+      appUserId: actor.id,
+      action: 'role.tracking',
+      entityType: 'role',
+      entityId: roleId,
+      before: { trackHistory: role.trackHistory },
+      after: { trackHistory, name: role.name },
+    });
+
+    return toRoleSummary(updated);
   }
 }

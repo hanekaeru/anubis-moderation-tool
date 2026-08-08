@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import type { AppConfig } from '../config/configuration';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -38,12 +38,19 @@ export class TokenService {
   }
 
   /**
-   * SHA-256 et non argon2 : le refresh token est deja une valeur aleatoire de
-   * 256 bits, il n'y a rien a bruteforcer, et un hachage rapide permet de
+   * HMAC-SHA256 et non argon2 : le refresh token est deja une valeur aleatoire
+   * de 256 bits, il n'y a rien a bruteforcer, et un hachage rapide permet de
    * retrouver la ligne par index.
+   *
+   * La clef est `JWT_REFRESH_SECRET`, qui sert enfin a quelque chose : avec un
+   * SHA-256 nu, quiconque obtient une copie de la base peut verifier hors ligne
+   * si un jeton devine correspond a une ligne. Le secret, lui, ne se trouve pas
+   * dans la base.
    */
   private hash(token: string): string {
-    return createHash('sha256').update(token).digest('hex');
+    return createHmac('sha256', this.appConfig.jwt.refreshSecret)
+      .update(token)
+      .digest('hex');
   }
 
   signAccessToken(userId: string, username: string): string {
@@ -141,11 +148,29 @@ export class TokenService {
     return { appUserId: stored.appUserId, refresh };
   }
 
-  async revokeToken(token: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
-      where: { tokenHash: this.hash(token), revokedAt: null },
-      data: { revokedAt: new Date() },
+  /**
+   * Revoque un jeton et renvoie le compte auquel il appartenait.
+   *
+   * La deconnexion est une route publique — le garde JWT ne peuple donc pas
+   * `request.user` — et le cookie est la seule preuve d'identite disponible.
+   * Sans ce retour, le journal d'audit ne saurait jamais qui s'est deconnecte.
+   */
+  async revokeToken(token: string): Promise<string | null> {
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: this.hash(token) },
+      select: { id: true, appUserId: true, revokedAt: true },
     });
+
+    if (!stored) return null;
+
+    if (!stored.revokedAt) {
+      await this.prisma.refreshToken.update({
+        where: { id: stored.id },
+        data: { revokedAt: new Date() },
+      });
+    }
+
+    return stored.appUserId;
   }
 
   async revokeFamily(familyId: string): Promise<void> {
