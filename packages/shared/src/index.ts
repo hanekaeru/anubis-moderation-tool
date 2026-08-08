@@ -10,6 +10,7 @@
 export * from './enums';
 export * from './permissions';
 export * from './discord';
+export * from './duration';
 export * from './dto/common';
 export * from './dto/auth';
 export * from './dto/member';

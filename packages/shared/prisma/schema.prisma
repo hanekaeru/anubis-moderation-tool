@@ -48,6 +48,7 @@ enum SanctionType {
   KICK
   SOFTBAN
   BAN
+  SHADOWBAN
 }
 
 enum SanctionStatus {
@@ -323,6 +324,12 @@ model Sanction {
   warningId       String?        @map("warning_id") @db.Uuid
   evidenceUrl     String?        @map("evidence_url")
   createdAt       DateTime       @default(now()) @map("created_at")
+  /// Renseigne quand le bot a rejoue l'effet Discord (timeout leve, role
+  /// retire) d'une revocation. Une revocation faite par une commande bot
+  /// se pose elle-meme ce champ immediatement ; une revocation faite depuis
+  /// la webapp le laisse `null` jusqu'a ce que la tache periodique du bot
+  /// (bot/src/tasks/sanctionSync.ts) rattrape l'effet Discord correspondant.
+  discordSyncedAt DateTime?      @map("discord_synced_at")
 
   guild     Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
   user      DiscordUser  @relation("SanctionTarget", fields: [userId], references: [id], onDelete: Cascade)

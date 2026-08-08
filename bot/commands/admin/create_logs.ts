@@ -10,7 +10,6 @@ import * as guildConfig from '../../src/collectors/guildConfig';
 
 const LOGS_CATEGORY_NAME = 'Logs';
 
-/** Nom de salon associe a chaque cle de config. */
 const LOG_CHANNELS: { key: LogChannelKey; channelName: string }[] = [
     { key: LogChannelKey.MODERATION, channelName: '🛡️-logs-moderation' },
     { key: LogChannelKey.MEMBERS, channelName: '👤-logs-membres' },

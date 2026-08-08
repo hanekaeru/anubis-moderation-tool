@@ -42,6 +42,7 @@ export const SanctionType = {
   KICK: 'KICK',
   SOFTBAN: 'SOFTBAN',
   BAN: 'BAN',
+  SHADOWBAN: 'SHADOWBAN',
 } as const;
 export type SanctionType = (typeof SanctionType)[keyof typeof SanctionType];
 
@@ -99,10 +100,11 @@ export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
   KICK: 'Expulsion',
   SOFTBAN: 'Softban',
   BAN: 'Bannissement',
+  SHADOWBAN: 'Shadowban',
 };
 
 export const WARNING_SEVERITY_LABELS: Record<WarningSeverity, string> = {
-  LOW: 'Legere',
+  LOW: 'Légère',
   MEDIUM: 'Moyenne',
   HIGH: 'Grave',
 };
@@ -110,8 +112,8 @@ export const WARNING_SEVERITY_LABELS: Record<WarningSeverity, string> = {
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   OPEN: 'Ouvert',
   PENDING: 'En attente',
-  RESOLVED: 'Resolu',
-  CLOSED: 'Ferme',
+  RESOLVED: 'Résolu',
+  CLOSED: 'Fermé',
 };
 
 export const TICKET_PRIORITY_LABELS: Record<TicketPriority, string> = {
@@ -129,9 +131,9 @@ export const APP_USER_ROLE_LABELS: Record<AppUserRole, string> = {
 };
 
 export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
-  ACTIVE: 'Present',
-  LEFT: 'Parti',
-  BANNED: 'Banni',
+  ACTIVE: 'Présent(e)',
+  LEFT: 'Parti(e)',
+  BANNED: 'Banni(e)',
 };
 
 /**
@@ -163,3 +165,9 @@ export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
   LOG_CHANNEL_MESSAGES: 'Messages édités ou supprimés.',
   LOG_CHANNEL_SERVER: 'Salons et roles crées, modifiés ou supprimés.',
 };
+
+/**
+ * Cle `config_name` sous laquelle le bot enregistre l'identifiant du role de
+ * shadowban, cree paresseusement au premier `/shadowban` sur un serveur.
+ */
+export const SHADOWBAN_ROLE_CONFIG_KEY = 'SHADOWBAN_ROLE';

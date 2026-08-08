@@ -90,6 +90,10 @@ export async function revokeActiveSanction(
             status: 'REVOKED',
             revokedAt: new Date(),
             revokeReason: reason,
+            // L'effet Discord vient d'etre rejoue par l'appelant (timeout leve,
+            // role retire) avant cet appel : pas besoin que la tache
+            // periodique de synchronisation le refasse.
+            discordSyncedAt: new Date(),
         },
     });
 
@@ -106,6 +110,62 @@ export async function revokeActiveSanction(
     });
 
     return updated;
+}
+
+/**
+ * Sanctions actives dont l'echeance est deja passee, pour un type donne.
+ *
+ * L'API bascule deja ces lignes en `EXPIRED` en base (cron cote NestJS), mais
+ * ne touche a rien cote Discord. Pour un type dont l'effet est un role
+ * (`SHADOWBAN`) plutot qu'un timeout natif, personne d'autre ne le retire :
+ * le bot doit lire l'echeance lui-meme pour agir avant que l'API ne l'ait
+ * deja marquee expiree.
+ */
+export async function findExpiredActiveSanctions(type: SanctionType) {
+    return prisma.sanction.findMany({
+        where: { type, status: 'ACTIVE', expiresAt: { not: null, lte: new Date() } },
+    });
+}
+
+/**
+ * Sanctions revoquees dont l'effet cote Discord n'a pas encore ete rejoue
+ * par le bot.
+ *
+ * Une revocation faite depuis une commande bot (`/unmute`, `/unshadowban`)
+ * agit sur Discord avant d'ecrire en base, et pose `discordSyncedAt` dans la
+ * meme requete : elle ne remonte jamais ici. Seules les revocations faites
+ * depuis `POST /sanctions/:id/revoke` (webapp), qui ne touche qu'a la base,
+ * ont besoin de ce rattrapage.
+ */
+export async function findUnsyncedRevokedSanctions(types: SanctionType[]) {
+    return prisma.sanction.findMany({
+        where: { type: { in: types }, status: 'REVOKED', discordSyncedAt: null },
+    });
+}
+
+export async function markDiscordSynced(sanctionId: string) {
+    await prisma.sanction.update({
+        where: { id: sanctionId },
+        data: { discordSyncedAt: new Date() },
+    });
+}
+
+export async function markSanctionExpired(sanctionId: string, guildId: string, userId: string, type: SanctionType) {
+    await prisma.sanction.update({
+        where: { id: sanctionId },
+        data: { status: 'EXPIRED' },
+    });
+
+    await prisma.moderationActivity.create({
+        data: {
+            guildId,
+            action: 'sanction.expire',
+            targetUserId: userId,
+            targetType: 'sanction',
+            targetId: sanctionId,
+            metadata: { type },
+        },
+    });
 }
 
 interface CreateWarningInput {

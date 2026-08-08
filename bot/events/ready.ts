@@ -1,6 +1,9 @@
 import { Events } from 'discord.js';
 import type { BotEvent } from '../src/types';
 import * as referentiel from '../src/collectors/referentiel';
+import { checkExpiredShadowbans, checkRevokedSanctions } from '../src/tasks/sanctionSync';
+
+const SANCTION_SYNC_INTERVAL_MS = 30_000;
 
 const event: BotEvent<typeof Events.ClientReady> = {
     name: Events.ClientReady,
@@ -21,6 +24,15 @@ const event: BotEvent<typeof Events.ClientReady> = {
                 console.error(`[Referentiel] Echec sur ${guild.name} :`, err);
             }
         }
+
+        setInterval(() => {
+            checkExpiredShadowbans(client).catch(err => {
+                console.error('[Shadowban] Verification des expirations echouee :', err);
+            });
+            checkRevokedSanctions(client).catch(err => {
+                console.error('[Moderation] Synchronisation des revocations echouee :', err);
+            });
+        }, SANCTION_SYNC_INTERVAL_MS);
     },
 };
 
