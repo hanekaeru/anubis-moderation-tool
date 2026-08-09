@@ -72,3 +72,18 @@ export async function checkRevokedSanctions(client: Client): Promise<void> {
         await moderation.markDiscordSynced(sanction.id);
     }
 }
+
+/**
+ * Fonction qui vérifie en base si une sanction a été appliquée via l'application web et qui n'a pas encore été répercutée sur Discord. Si c'est le
+ * cas, elle applique l'effet correspondant sur Discord.
+ * Cette fonction est appelée toutes les 30 secondes par le bot, et permet de s'assurer que les sanctions appliquées via l'application web sont bien
+ * répercutées sur Discord.
+ */
+export async function checkAppliedSanctions(client: Client): Promise<void> {
+
+  // Récupérer la liste des sanctions actives et avec cette liste, je regarde si elles ne sont pas arrivée à terme
+  // donc si la date d'expiration est supérieure à la date actuelle. Si c'est le cas, on regarde l'utilisateur Discord
+  // et on vérifie si il est toujours sanctionné.
+  const result = await moderation.findActiveSanctions('SHADOWBAN');
+
+}

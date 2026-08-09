@@ -49,11 +49,8 @@ export class DashboardPage {
   readonly period = signal<StatsPeriod>('30d');
   readonly loading = signal(true);
   readonly overview = signal<DashboardOverview | null>(null);
+  readonly recentSanctions = computed(() => this.overview()?.recentSanctions.slice(-5) ?? []);
 
-  /**
-   * Arrivees et departs sur le meme graphique : c'est leur ecart qui informe,
-   * et deux graphes cote a cote obligeraient a comparer deux echelles.
-   */
   readonly membershipChart = computed(() => {
     const data = this.overview();
     const tokens = this.palette.tokens();

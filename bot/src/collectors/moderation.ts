@@ -128,6 +128,16 @@ export async function findExpiredActiveSanctions(type: SanctionType) {
 }
 
 /**
+ * Sanctions qui sont encore active dont l'effet côté Discord n'a pas encore
+ * été ajouté par le bot.
+ */
+export async function findActiveSanctions(type: SanctionType) {
+  return prisma.sanction.findMany({
+    where: { type, status: 'ACTIVE', expiresAt: { not: null, gt: new Date() } },
+  })
+}
+
+/**
  * Sanctions revoquees dont l'effet cote Discord n'a pas encore ete rejoue
  * par le bot.
  *

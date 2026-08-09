@@ -2,13 +2,13 @@
   <header class="page-header">
     <div>
       <h1>Vue d'ensemble</h1>
-      <p class="subtitle">Activite du serveur et de la moderation</p>
+      <p class="subtitle">Activité du serveur et de la modération</p>
     </div>
 
     <mat-button-toggle-group
       [value]="period()"
       (change)="changePeriod($event.value)"
-      aria-label="Periode analysee"
+      aria-label="Période analysée"
     >
       @for (value of periods; track value) {
         <mat-button-toggle [value]="value">{{ periodLabels[value] }}</mat-button-toggle>
@@ -39,7 +39,7 @@
         icon="confirmation_number"
       />
       <app-stat-card
-        label="Delai median de reponse"
+        label="Délai médian de réponse"
         [value]="data.medianFirstResponseSeconds | duration"
         hint="Premiere reponse sur un ticket"
         icon="schedule"
@@ -48,7 +48,7 @@
 
     <section class="charts">
       <app-chart-card
-        title="Arrivees et departs"
+        title="Arrivées et départs"
         [subtitle]="'Sur ' + periodLabels[data.period]"
         [options]="membershipChart()"
         [hasData]="hasMembershipData()"
@@ -82,12 +82,12 @@
     <section class="lists">
       <mat-card appearance="outlined">
         <mat-card-header>
-          <mat-card-title>Sanctions recentes</mat-card-title>
+          <mat-card-title>Sanctions récentes</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           @if (data.recentSanctions.length) {
             <ul class="feed">
-              @for (sanction of data.recentSanctions; track sanction.id) {
+              @for (sanction of recentSanctions(); track sanction.id) {
                 <li>
                   <a [routerLink]="['/membres', sanction.member.userId]" class="feed-member">
                     <app-member-avatar

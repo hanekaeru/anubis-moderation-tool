@@ -17,6 +17,12 @@ const LOG_CHANNELS: { key: LogChannelKey; channelName: string }[] = [
     { key: LogChannelKey.SERVER, channelName: '⚙️-logs-serveur' },
 ];
 
+/**
+ * Commande qui permet de générer les différents salons de logs sur le serveur et
+ * qui permet également de pouvoir récupérer les identifiants de ces nouveaux
+ * salons et de pouvoir les ajoutés comme config propre à la guild. Ces configs
+ * sont accessibles depuis le dashboard web dans le menu "Configurations".
+ */
 const command: Command = {
     data: new SlashCommandBuilder()
         .setName('create_logs')
