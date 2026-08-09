@@ -113,5 +113,5 @@ Angular qui n'apparaissent qu'a la compilation).
 ```bash
 npm run db:studio        # ouvrir Prisma Studio sur la base configuree
 npm run db:deploy        # prisma migrate deploy (production / CI)
-npm run db:seed          # tsx --env-file=.env prisma/seed.ts (le --env-file est obligatoire)
+npm run db:seed          # tsx --env-file-if-exists=.env prisma/seed.ts
 ```

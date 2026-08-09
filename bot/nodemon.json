@@ -1,5 +1,5 @@
 {
   "ext": "ts,json",
-  "exec": "node --env-file=.env -r ts-node/register index.ts",
+  "exec": "node --env-file-if-exists=.env -r ts-node/register index.ts",
   "stdin": false
 }
