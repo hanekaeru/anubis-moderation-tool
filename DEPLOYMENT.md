@@ -228,8 +228,35 @@ Dans Coolify : *New Resource → Database → PostgreSQL*.
 
 Noter la chaîne de connexion **interne** fournie par Coolify (du type
 `postgres://user:pass@<nom-service>:5432/postgres`) : c'est la valeur de
-`DATABASE_URL` pour l'API et le bot. Elle reste interne au réseau Docker de
-Coolify — pas besoin de l'exposer publiquement.
+`DATABASE_URL` pour l'API et le bot. Pas besoin de l'exposer publiquement.
+
+> ⚠️ **Coolify n'a pas un réseau Docker unique.** Chaque ressource a le sien.
+> Cette base étant une ressource *distincte* de la stack applicative, `api` et
+> `bot` ne peuvent pas résoudre son nom d'hôte tant qu'ils ne sont pas
+> rattachés au même réseau. Symptôme : `PrismaClientInitializationError ...
+> P1001 — Can't reach database server at <nom-service>:5432`, sur l'API **et**
+> sur le bot, alors que la webapp démarre normalement.
+>
+> Le `docker-compose.yml` (§ 8.6) rattache donc `api` et `bot` au réseau
+> partagé `coolify`. Vérifier son nom exact sur le VPS avant de déployer :
+>
+> ```bash
+> docker network ls
+> ```
+>
+> S'il ne s'appelle pas `coolify`, corriger le nom dans le compose. Activer
+> aussi *Connect To Predefined Network* dans les réglages de la ressource
+> Coolify si l'option est proposée : les deux mécanismes visent le même but,
+> et l'interface évolue régulièrement.
+>
+> Pour diagnostiquer un cas concret, comparer les réseaux des deux conteneurs :
+>
+> ```bash
+> docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' NOM_CONTENEUR
+> ```
+>
+> S'il n'y a aucun réseau commun entre le conteneur PostgreSQL et le conteneur
+> `api`, c'est exactement ce problème.
 
 ---
 
@@ -381,13 +408,24 @@ CMD ["node", "dist/index.js"]
 C'est ce fichier que Coolify détecte et utilise pour créer les trois services
 d'un coup, comme une seule ressource « Docker Compose ».
 
+Le bloc `networks` est le point qui fait échouer la plupart des premiers
+déploiements : sans lui, `api` et `bot` ne voient pas la base (voir
+l'avertissement de l'étape 7).
+
 ```yaml
+networks:
+  coolify:
+    external: true
+
 services:
   api:
     build:
       context: .
       dockerfile: api/Dockerfile
     restart: unless-stopped
+    # `default` doit rester explicite : des qu'on nomme un reseau, Compose
+    # cesse d'attacher le service au reseau par defaut de la stack.
+    networks: [default, coolify]
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -413,6 +451,7 @@ services:
       context: .
       dockerfile: bot/Dockerfile
     restart: unless-stopped
+    networks: [default, coolify]
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
@@ -420,6 +459,10 @@ services:
       CLIENT_ID: ${CLIENT_ID}
       GUILD_HOST_ID: ${GUILD_HOST_ID}
 ```
+
+`webapp` n'est volontairement pas rattaché au réseau `coolify` : il ne sert
+que des fichiers statiques et ne parle jamais à la base ni à l'API — c'est le
+navigateur qui appelle `/api`, via Traefik.
 
 Les valeurs `${...}` sont injectées par Coolify à partir des variables
 d'environnement définies dans son interface (étape suivante) — rien de secret
@@ -439,9 +482,16 @@ docker build -f bot/Dockerfile -t anubis-bot .
 
 ## 9. Créer la ressource dans Coolify
 
-1. *New Resource → Application → Docker Compose*, sélectionner le repo GitHub
-   `anubis` et la branche `master`.
-2. Coolify détecte `docker-compose.yml` à la racine.
+1. *New Resource* : l'écran propose deux colonnes, **Git Based** (Public
+   repo / Private repo avec GitHub App / Private repo avec Deploy Key) et
+   **Docker Based** (Dockerfile / Docker Compose Empty / Docker Image).
+   Choisir **Git Based → Private Repository (with GitHub App)** — c'est la
+   GitHub App connectée à l'étape 6. Ne pas prendre *Docker Compose Empty* :
+   cette option crée une ressource autonome où le YAML est collé à la main,
+   sans lien avec le repo ni redéploiement automatique au push.
+2. Sélectionner le repo `anubis` et la branche `master`. Coolify détecte
+   `docker-compose.yml` à la racine et bascule automatiquement le build pack
+   sur « Docker Compose ».
 3. **Domaines** (*Configuration → Domains*, un par service exposé) :
    - `webapp` → `https://moderation.tondomaine.com`
    - `api` → `https://moderation.tondomaine.com/api` (Coolify traduit ce
@@ -547,11 +597,16 @@ séparé :
   sur l'API, ajouter dans `docker-compose.yml` :
   ```yaml
   healthcheck:
-    test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api', r => process.exit(r.statusCode < 500 ? 0 : 1))"]
+    test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1))"]
     interval: 30s
     timeout: 5s
     retries: 3
   ```
+
+  `/api/health` est public et vérifie la base : il renvoie 503 quand elle est
+  injoignable. C'est précisément le cas de figure qui fait échouer un premier
+  déploiement — le conteneur serait marqué « unhealthy » au lieu de boucler en
+  redémarrages silencieux.
 - Alerting : Coolify peut notifier par e-mail/Discord/Slack en cas d'échec de
   déploiement (*Notifications* dans les réglages du projet) — utile ici
   puisque le projet a déjà un serveur Discord administré.
