@@ -1,9 +1,21 @@
+# La base PostgreSQL est une ressource Coolify distincte : elle vit sur un
+# autre reseau Docker que cette stack. Sans rattachement explicite, `api` et
+# `bot` ne resolvent pas son nom d'hote et echouent au demarrage (Prisma
+# P1001). `webapp` n'en a pas besoin : il ne sert que des fichiers statiques,
+# le navigateur appelle /api via Traefik.
+networks:
+  coolify:
+    external: true
+
 services:
   api:
     build:
       context: .
       dockerfile: api/Dockerfile
     restart: unless-stopped
+    # `default` doit rester explicite : des qu'on nomme un reseau, Compose
+    # cesse d'attacher le service au reseau par defaut de la stack.
+    networks: [default, coolify]
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -29,6 +41,7 @@ services:
       context: .
       dockerfile: bot/Dockerfile
     restart: unless-stopped
+    networks: [default, coolify]
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
