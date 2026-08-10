@@ -498,6 +498,24 @@ docker build -f bot/Dockerfile -t anubis-bot .
      chemin en règle de routage Traefik `PathPrefix(/api)` ; vérifie ce
      comportement dans l'interface au moment de la config, elle évolue
      régulièrement — sinon un label Traefik personnalisé fait la même chose)
+
+   > ⚠️ **Traefik retire le préfixe `/api` avant de transmettre.** C'est le
+   > comportement normal d'un routage par chemin, mais l'API applique aussi son
+   > propre préfixe : elle attendrait `/api/api/...` et répondrait **404 sur
+   > toutes les routes**. Symptôme : la page de connexion s'affiche
+   > normalement, mais rien ne se passe au chargement ni à la connexion, et la
+   > console du navigateur montre `POST /api/auth/refresh → 404`.
+   >
+   > Pour confirmer, ouvrir `https://ton-domaine/api/health`. Si la réponse est
+   > `{"statusCode":404,"message":"Cannot GET /health","path":"/health"}`,
+   > c'est exactement ce cas : le JSON prouve que l'API répond bien (donc le
+   > routage et la base fonctionnent), et `"path":"/health"` montre que le
+   > préfixe a été retiré en route.
+   >
+   > Le `docker-compose.yml` règle ça avec `API_GLOBAL_PREFIX: ""` sur le
+   > service `api`. En local la variable est absente et le préfixe `api` par
+   > défaut s'applique — le navigateur, lui, appelle `/api/...` dans les deux
+   > cas.
    - `bot` → aucun domaine, aucun port exposé
 4. **Variables d'environnement** (*Configuration → Environment Variables*),
    à saisir une fois, valeurs jamais commitées :

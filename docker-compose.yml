@@ -19,6 +19,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      # Vide, volontairement : Traefik route `/api/*` vers ce conteneur en
+      # retirant le prefixe. Si l'API le remettait, chaque route attendrait
+      # `/api/api/...` et repondrait 404. En local, la variable est absente et
+      # le prefixe `api` par defaut s'applique.
+      API_GLOBAL_PREFIX: ""
       DATABASE_URL: ${DATABASE_URL}
       GUILD_ID: ${GUILD_ID}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
