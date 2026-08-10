@@ -9,6 +9,14 @@ export interface AppConfig {
   nodeEnv: 'development' | 'production' | 'test';
   isProduction: boolean;
   port: number;
+  /**
+   * Prefixe applique a toutes les routes. Vide = aucun prefixe.
+   *
+   * Derriere un reverse proxy qui route par chemin (`/api` -> ce conteneur),
+   * le proxy retire lui-meme le prefixe avant de transmettre. L'API le
+   * remettrait alors une seconde fois et repondrait 404 sur tout.
+   */
+  globalPrefix: string;
   databaseUrl: string;
   guildId: string;
   jwt: {
@@ -98,6 +106,9 @@ export function loadConfiguration(): AppConfig {
     nodeEnv,
     isProduction,
     port: toInt(env.PORT, 3000),
+    // `??` et non `||` : la chaine vide est une valeur voulue (aucun prefixe),
+    // seule une variable absente retombe sur la valeur par defaut.
+    globalPrefix: (env.API_GLOBAL_PREFIX ?? 'api').replace(/^\/+|\/+$/g, ''),
     databaseUrl: env.DATABASE_URL!,
     guildId: env.GUILD_ID!,
     jwt: {

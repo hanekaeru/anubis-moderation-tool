@@ -22,7 +22,12 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService<{ app: AppConfig }, true>);
   const appConfig = config.get('app', { infer: true });
 
-  app.setGlobalPrefix('api');
+  // Vide en production : Traefik route `/api/*` vers ce conteneur en retirant
+  // le prefixe au passage. Le remettre ici le ferait attendre `/api/api/...`
+  // et renverrait 404 sur toutes les routes.
+  if (appConfig.globalPrefix) {
+    app.setGlobalPrefix(appConfig.globalPrefix);
+  }
   app.use(cookieParser());
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
@@ -49,7 +54,10 @@ async function bootstrap(): Promise<void> {
   await app.listen(appConfig.port);
 
   const logger = new Logger('Bootstrap');
-  logger.log(`API demarree sur http://localhost:${appConfig.port}/api`);
+  logger.log(
+    `API demarree sur http://localhost:${appConfig.port}/${appConfig.globalPrefix}`
+    + (appConfig.globalPrefix ? '' : ' (aucun prefixe : il est retire par le proxy)'),
+  );
   logger.log(`Serveur Discord administre : ${appConfig.guildId}`);
 }
 

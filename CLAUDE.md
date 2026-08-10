@@ -62,6 +62,12 @@ Consequences pratiques :
 
 ## API
 
+- Le prefixe global vient de `API_GLOBAL_PREFIX` (`api` par defaut), il n'est
+  plus code en dur. En production il vaut la **chaine vide** : Traefik route
+  `/api/*` vers le conteneur en retirant le prefixe, et le remettre ferait
+  attendre `/api/api/...` — 404 sur toutes les routes, alors que la page de
+  connexion s'affiche normalement. Le navigateur appelle `/api/...` dans les
+  deux environnements ; seul le serveur change.
 - Le guard JWT est **global** : toute route est fermee par defaut, l'ouverture
   passe par `@Public()`.
 - Trois gardes globaux s'enchainent dans cet ordre : debit, authentification,
