@@ -5,11 +5,12 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node --env-file=.env dist/index.js",
+    "//env-file": "`-if-exists` et non `--env-file` sec : en conteneur il n'y a aucun fichier .env, les variables sont injectees directement dans l'environnement. Sans ce suffixe, la commande echoue avant meme de demarrer. Une variable reellement absente reste signalee par `requireEnv`.",
+    "start": "node --env-file-if-exists=.env dist/index.js",
     "start:dev": "nodemon",
     "start:prod": "node dist/index.js",
-    "refresh": "node --env-file=.env -r ts-node/register refresh.ts",
-    "delete": "node --env-file=.env -r ts-node/register delete_command.ts",
+    "refresh": "node --env-file-if-exists=.env -r ts-node/register refresh.ts",
+    "delete": "node --env-file-if-exists=.env -r ts-node/register delete_command.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "hanekaeru",

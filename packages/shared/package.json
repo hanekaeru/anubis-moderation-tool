@@ -36,8 +36,8 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "studio": "prisma studio",
-    "//seed": "--env-file explicite : la CLI Prisma charge .env toute seule, pas un script lance via tsx.",
-    "seed": "tsx --env-file=.env prisma/seed.ts",
+    "//seed": "La CLI Prisma charge .env toute seule, pas un script lance via tsx : d'ou le flag. `-if-exists` et non `--env-file` sec, sinon la commande echoue la ou il n'y a aucun fichier .env — en conteneur, les variables sont injectees directement dans l'environnement.",
+    "seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
     "format": "prisma format"
   },
   "dependencies": {

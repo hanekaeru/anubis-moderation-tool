@@ -44,7 +44,11 @@ Consequences pratiques :
 - `npm run db:generate` apres toute modification de `schema.prisma`, sinon le
   client Prisma reste en retard sur le schema.
 - La CLI Prisma charge `.env` toute seule ; un script lance via `tsx` ou `node`
-  ne le fait pas — d'ou le `--env-file=.env` du script `seed`.
+  ne le fait pas — d'ou le `--env-file-if-exists=.env` du script `seed`.
+  **Le suffixe `-if-exists` est obligatoire** : en conteneur il n'existe aucun
+  fichier `.env` (les variables sont injectees directement dans
+  l'environnement), et `--env-file` sec fait echouer la commande avant meme
+  qu'elle demarre. Meme raison pour les scripts de `bot/`.
 - `DATABASE_URL` doit etre une **URL litterale** dans chaque `.env` (`api/`
   et `bot/` pointent vers la meme base en dev). Pas d'interpolation `${...}` :
   ni Prisma ni le flag natif `--env-file` de Node (utilise par `bot/`) ne la
