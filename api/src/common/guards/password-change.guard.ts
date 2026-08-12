@@ -1,13 +1,13 @@
 import {
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
-import { ALLOW_TEMPORARY_PASSWORD_KEY } from '../decorators/allow-temporary-password.decorator';
-import type { AuthenticatedUser } from '../types';
+	CanActivate,
+	ExecutionContext,
+	ForbiddenException,
+	Injectable,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import type { Request } from "express";
+import { ALLOW_TEMPORARY_PASSWORD_KEY } from "../decorators/allow-temporary-password.decorator";
+import type { AuthenticatedUser } from "../types";
 
 /**
  * Ferme l'API tant qu'un mot de passe provisoire n'a pas ete remplace.
@@ -20,25 +20,25 @@ import type { AuthenticatedUser } from '../types';
  */
 @Injectable()
 export class PasswordChangeGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+	constructor(private readonly reflector: Reflector) {}
 
-  canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<Request>();
-    const user = request.user as AuthenticatedUser | undefined;
+	canActivate(context: ExecutionContext): boolean {
+		const request = context.switchToHttp().getRequest<Request>();
+		const user = request.user as AuthenticatedUser | undefined;
 
-    // Route publique ou non authentifiee : rien a verifier ici, le garde JWT a
-    // deja tranche.
-    if (!user?.mustChangePassword) return true;
+		// Route publique ou non authentifiee : rien a verifier ici, le garde JWT a
+		// deja tranche.
+		if (!user?.mustChangePassword) return true;
 
-    const autorisee = this.reflector.getAllAndOverride<boolean>(
-      ALLOW_TEMPORARY_PASSWORD_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+		const autorisee = this.reflector.getAllAndOverride<boolean>(
+			ALLOW_TEMPORARY_PASSWORD_KEY,
+			[context.getHandler(), context.getClass()],
+		);
 
-    if (autorisee) return true;
+		if (autorisee) return true;
 
-    throw new ForbiddenException(
-      'Mot de passe provisoire : changez-le avant d acceder au reste de l application.',
-    );
-  }
+		throw new ForbiddenException(
+			"Mot de passe provisoire : changez-le avant d acceder au reste de l application.",
+		);
+	}
 }

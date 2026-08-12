@@ -1,10 +1,10 @@
 import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
-import { PrismaClient } from '@anubis/shared/prisma';
+	Injectable,
+	Logger,
+	OnModuleDestroy,
+	OnModuleInit,
+} from "@nestjs/common";
+import { PrismaClient } from "@anubis/shared/prisma";
 
 /**
  * Client Prisma partage. Une seule instance pour toute l'application : ouvrir
@@ -12,26 +12,26 @@ import { PrismaClient } from '@anubis/shared/prisma';
  */
 @Injectable()
 export class PrismaService
-  extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
+	extends PrismaClient
+	implements OnModuleInit, OnModuleDestroy
 {
-  private readonly logger = new Logger(PrismaService.name);
+	private readonly logger = new Logger(PrismaService.name);
 
-  constructor() {
-    super({
-      log:
-        process.env.NODE_ENV === 'development'
-          ? [{ emit: 'event', level: 'query' }, 'warn', 'error']
-          : ['warn', 'error'],
-    });
-  }
+	constructor() {
+		super({
+			log:
+				process.env.NODE_ENV === "development"
+					? [{ emit: "event", level: "query" }, "warn", "error"]
+					: ["warn", "error"],
+		});
+	}
 
-  async onModuleInit(): Promise<void> {
-    await this.$connect();
-    this.logger.log('Connexion PostgreSQL etablie.');
-  }
+	async onModuleInit(): Promise<void> {
+		await this.$connect();
+		this.logger.log("Connexion PostgreSQL etablie.");
+	}
 
-  async onModuleDestroy(): Promise<void> {
-    await this.$disconnect();
-  }
+	async onModuleDestroy(): Promise<void> {
+		await this.$disconnect();
+	}
 }

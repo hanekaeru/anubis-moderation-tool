@@ -1,16 +1,20 @@
-import type { Client, GuildMember } from 'discord.js';
-import type { SanctionType } from '@anubis/shared';
-import * as moderation from '../collectors/moderation';
-import * as shadowbanRole from '../collectors/shadowbanRole';
+import type { Client, GuildMember } from "discord.js";
+import type { SanctionType } from "@anubis/shared";
+import * as moderation from "../collectors/moderation";
+import * as shadowbanRole from "../collectors/shadowbanRole";
 
-const REVOCABLE_TYPES: SanctionType[] = ['TIMEOUT', 'SHADOWBAN'];
+const REVOCABLE_TYPES: SanctionType[] = ["TIMEOUT", "SHADOWBAN"];
 
-async function liftDiscordEffect(member: GuildMember, type: SanctionType, reason: string): Promise<void> {
-    if (type === 'TIMEOUT') {
-        await member.timeout(null, reason);
-    } else if (type === 'SHADOWBAN') {
-        await shadowbanRole.liftShadowban(member, reason);
-    }
+async function liftDiscordEffect(
+	member: GuildMember,
+	type: SanctionType,
+	reason: string,
+): Promise<void> {
+	if (type === "TIMEOUT") {
+		await member.timeout(null, reason);
+	} else if (type === "SHADOWBAN") {
+		await shadowbanRole.liftShadowban(member, reason);
+	}
 }
 
 /**
@@ -22,22 +26,35 @@ async function liftDiscordEffect(member: GuildMember, type: SanctionType, reason
  * verification cote bot, le role resterait attribue indefiniment.
  */
 export async function checkExpiredShadowbans(client: Client): Promise<void> {
-    const expired = await moderation.findExpiredActiveSanctions('SHADOWBAN');
+	const expired = await moderation.findExpiredActiveSanctions("SHADOWBAN");
 
-    for (const sanction of expired) {
-        const guild = client.guilds.cache.get(sanction.guildId);
-        const member = guild ? await guild.members.fetch(sanction.userId).catch(() => null) : null;
+	for (const sanction of expired) {
+		const guild = client.guilds.cache.get(sanction.guildId);
+		const member = guild
+			? await guild.members.fetch(sanction.userId).catch(() => null)
+			: null;
 
-        if (member) {
-            try {
-                await shadowbanRole.liftShadowban(member, 'Expiration automatique du shadowban.');
-            } catch (err) {
-                console.error(`[Shadowban] Levee automatique echouee pour ${sanction.userId} :`, err);
-            }
-        }
+		if (member) {
+			try {
+				await shadowbanRole.liftShadowban(
+					member,
+					"Expiration automatique du shadowban.",
+				);
+			} catch (err) {
+				console.error(
+					`[Shadowban] Levee automatique echouee pour ${sanction.userId} :`,
+					err,
+				);
+			}
+		}
 
-        await moderation.markSanctionExpired(sanction.id, sanction.guildId, sanction.userId, 'SHADOWBAN');
-    }
+		await moderation.markSanctionExpired(
+			sanction.id,
+			sanction.guildId,
+			sanction.userId,
+			"SHADOWBAN",
+		);
+	}
 }
 
 /**
@@ -51,26 +68,33 @@ export async function checkExpiredShadowbans(client: Client): Promise<void> {
  * leve, role Shadowban retire).
  */
 export async function checkRevokedSanctions(client: Client): Promise<void> {
-    const unsynced = await moderation.findUnsyncedRevokedSanctions(REVOCABLE_TYPES);
+	const unsynced =
+		await moderation.findUnsyncedRevokedSanctions(REVOCABLE_TYPES);
 
-    for (const sanction of unsynced) {
-        const guild = client.guilds.cache.get(sanction.guildId);
-        const member = guild ? await guild.members.fetch(sanction.userId).catch(() => null) : null;
+	for (const sanction of unsynced) {
+		const guild = client.guilds.cache.get(sanction.guildId);
+		const member = guild
+			? await guild.members.fetch(sanction.userId).catch(() => null)
+			: null;
 
-        if (member) {
-            try {
-                await liftDiscordEffect(
-                    member,
-                    sanction.type,
-                    sanction.revokeReason ?? 'Sanction levee depuis le dashboard.',
-                );
-            } catch (err) {
-                console.error(`[Moderation] Synchronisation Discord echouee pour la sanction ${sanction.id} :`, err);
-            }
-        }
+		if (member) {
+			try {
+				await liftDiscordEffect(
+					member,
+					sanction.type,
+					sanction.revokeReason ??
+						"Sanction levee depuis le dashboard.",
+				);
+			} catch (err) {
+				console.error(
+					`[Moderation] Synchronisation Discord echouee pour la sanction ${sanction.id} :`,
+					err,
+				);
+			}
+		}
 
-        await moderation.markDiscordSynced(sanction.id);
-    }
+		await moderation.markDiscordSynced(sanction.id);
+	}
 }
 
 /**
@@ -80,10 +104,8 @@ export async function checkRevokedSanctions(client: Client): Promise<void> {
  * répercutées sur Discord.
  */
 export async function checkAppliedSanctions(client: Client): Promise<void> {
-
-  // Récupérer la liste des sanctions actives et avec cette liste, je regarde si elles ne sont pas arrivée à terme
-  // donc si la date d'expiration est supérieure à la date actuelle. Si c'est le cas, on regarde l'utilisateur Discord
-  // et on vérifie si il est toujours sanctionné.
-  const result = await moderation.findActiveSanctions('SHADOWBAN');
-
+	// Récupérer la liste des sanctions actives et avec cette liste, je regarde si elles ne sont pas arrivée à terme
+	// donc si la date d'expiration est supérieure à la date actuelle. Si c'est le cas, on regarde l'utilisateur Discord
+	// et on vérifie si il est toujours sanctionné.
+	const result = await moderation.findActiveSanctions("SHADOWBAN");
 }

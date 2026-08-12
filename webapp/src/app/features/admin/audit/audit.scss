@@ -1,36 +1,36 @@
 .action {
-  min-width: 260px;
+	min-width: 260px;
 }
 
 table {
-  width: 100%;
-  min-width: 860px;
+	width: 100%;
+	min-width: 860px;
 }
 
 .nowrap {
-  white-space: nowrap;
+	white-space: nowrap;
 }
 
 .action-label {
-  display: block;
-  font-weight: 500;
+	display: block;
+	font-weight: 500;
 }
 
 /* Le verbe technique reste visible sous le libelle : c'est lui qui sert de
    critere de recherche et de reference quand on rapproche deux journaux. */
 .action-code,
 .entity-id {
-  display: block;
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-  font-size: 0.72rem;
-  color: var(--mat-sys-on-surface-variant);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 260px;
+	display: block;
+	font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+	font-size: 0.72rem;
+	color: var(--mat-sys-on-surface-variant);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 260px;
 }
 
 .entity-type {
-  display: block;
-  font-size: 0.82rem;
+	display: block;
+	font-size: 0.82rem;
 }

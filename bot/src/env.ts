@@ -1,9 +1,9 @@
 export function requireEnv(name: string): string {
-    const value = process.env[name];
-    if (!value) {
-        throw new Error(`Variable d'environnement manquante : ${name}`);
-    }
-    return value;
+	const value = process.env[name];
+	if (!value) {
+		throw new Error(`Variable d'environnement manquante : ${name}`);
+	}
+	return value;
 }
 
 /**
@@ -13,6 +13,6 @@ export function requireEnv(name: string): string {
  * immediatement.
  */
 export function readInt(name: string, fallback: number): number {
-    const parsed = Number.parseInt(process.env[name] ?? '', 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+	const parsed = Number.parseInt(process.env[name] ?? "", 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }

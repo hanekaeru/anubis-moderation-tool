@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import type { AppConfig } from '../config/configuration';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import type { AppConfig } from "../config/configuration";
 
 /**
  * Le dashboard administre un seul serveur, dont l'identifiant vient de la
@@ -10,9 +10,11 @@ import type { AppConfig } from '../config/configuration';
  */
 @Injectable()
 export class GuildContextService {
-  constructor(private readonly config: ConfigService<{ app: AppConfig }, true>) {}
+	constructor(
+		private readonly config: ConfigService<{ app: AppConfig }, true>,
+	) {}
 
-  get guildId(): string {
-    return this.config.get('app', { infer: true }).guildId;
-  }
+	get guildId(): string {
+		return this.config.get("app", { infer: true }).guildId;
+	}
 }

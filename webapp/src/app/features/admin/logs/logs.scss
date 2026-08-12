@@ -1,38 +1,38 @@
 table {
-  width: 100%;
-  min-width: 700px;
+	width: 100%;
+	min-width: 700px;
 }
 
 .label {
-  display: block;
-  font-weight: 500;
+	display: block;
+	font-weight: 500;
 }
 
 .name {
-  display: block;
-  font-size: 0.78rem;
-  color: var(--mat-sys-on-surface-variant);
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+	display: block;
+	font-size: 0.78rem;
+	color: var(--mat-sys-on-surface-variant);
+	font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
 }
 
 .value {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-  font-size: 0.86rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+	font-size: 0.86rem;
 }
 
 a.value {
-  color: var(--mat-sys-primary);
-  text-decoration: none;
+	color: var(--mat-sys-primary);
+	text-decoration: none;
 }
 
 a.value:hover {
-  text-decoration: underline;
+	text-decoration: underline;
 }
 
 .description {
-  color: var(--mat-sys-on-surface-variant);
-  font-size: 0.86rem;
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.86rem;
 }

@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
-import { isSnowflake } from '@anubis/shared';
+import { BadRequestException, Injectable, PipeTransform } from "@nestjs/common";
+import { isSnowflake } from "@anubis/shared";
 
 /**
  * Valide qu'un parametre de route est bien un identifiant Discord.
@@ -9,14 +9,14 @@ import { isSnowflake } from '@anubis/shared';
  */
 @Injectable()
 export class SnowflakePipe implements PipeTransform<string, string> {
-  transform(value: string): string {
-    if (!isSnowflake(value)) {
-      throw new BadRequestException(
-        `"${value}" n est pas un identifiant Discord valide.`,
-      );
-    }
-    return value;
-  }
+	transform(value: string): string {
+		if (!isSnowflake(value)) {
+			throw new BadRequestException(
+				`"${value}" n est pas un identifiant Discord valide.`,
+			);
+		}
+		return value;
+	}
 }
 
 export const SnowflakeParam = new SnowflakePipe();

@@ -1,7 +1,7 @@
-import { SetMetadata } from '@nestjs/common';
-import type { Permission } from '@anubis/shared';
+import { SetMetadata } from "@nestjs/common";
+import type { Permission } from "@anubis/shared";
 
-export const PERMISSIONS_KEY = 'requiredPermissions';
+export const PERMISSIONS_KEY = "requiredPermissions";
 
 /**
  * Exige une ou plusieurs permissions sur une route. Toutes les permissions
@@ -10,4 +10,4 @@ export const PERMISSIONS_KEY = 'requiredPermissions';
  *   @RequirePermissions(Permission.SANCTIONS_WRITE)
  */
 export const RequirePermissions = (...permissions: Permission[]) =>
-  SetMetadata(PERMISSIONS_KEY, permissions);
+	SetMetadata(PERMISSIONS_KEY, permissions);

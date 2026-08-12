@@ -1,67 +1,67 @@
 .search {
-  min-width: 260px;
-  flex: 1 1 260px;
+	min-width: 260px;
+	flex: 1 1 260px;
 }
 
 table {
-  width: 100%;
-  min-width: 1100px;
+	width: 100%;
+	min-width: 1100px;
 }
 
 .numeric {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
 }
 
 .subject {
-  max-width: 320px;
+	max-width: 320px;
 
-  a {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--mat-sys-primary);
-    text-decoration: none;
-    font-weight: 500;
-  }
+	a {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--mat-sys-primary);
+		text-decoration: none;
+		font-weight: 500;
+	}
 
-  a:hover {
-    text-decoration: underline;
-  }
+	a:hover {
+		text-decoration: underline;
+	}
 }
 
 .category {
-  display: block;
-  font-size: 0.74rem;
-  color: var(--mat-sys-on-surface-variant);
+	display: block;
+	font-size: 0.74rem;
+	color: var(--mat-sys-on-surface-variant);
 }
 
 .member-link {
-  text-decoration: none;
-  color: inherit;
+	text-decoration: none;
+	color: inherit;
 }
 
 /* Le statut et la priorite portent chacun un libelle : la teinte accompagne,
    elle ne remplace pas le mot. */
 .tag {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--mat-sys-surface-container-high);
-  color: var(--mat-sys-on-surface-variant);
-  font-size: 0.74rem;
-  white-space: nowrap;
+	display: inline-block;
+	padding: 2px 10px;
+	border-radius: 999px;
+	background: var(--mat-sys-surface-container-high);
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.74rem;
+	white-space: nowrap;
 
-  &[data-status='OPEN'],
-  &[data-priority='HIGH'] {
-    background: var(--mat-sys-tertiary-container);
-    color: var(--mat-sys-on-tertiary-container);
-  }
+	&[data-status='OPEN'],
+	&[data-priority='HIGH'] {
+		background: var(--mat-sys-tertiary-container);
+		color: var(--mat-sys-on-tertiary-container);
+	}
 
-  &[data-priority='URGENT'] {
-    background: var(--mat-sys-error-container);
-    color: var(--mat-sys-on-error-container);
-    font-weight: 500;
-  }
+	&[data-priority='URGENT'] {
+		background: var(--mat-sys-error-container);
+		color: var(--mat-sys-on-error-container);
+		font-weight: 500;
+	}
 }

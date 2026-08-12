@@ -1,4 +1,4 @@
-import XPManager from '../../utils/xp_manager';
+import XPManager from "../../utils/xp_manager";
 
 /**
  * Instance unique du systeme d'XP.

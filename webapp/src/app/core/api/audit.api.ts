@@ -6,11 +6,11 @@ import { toHttpParams } from './query-params';
 
 @Injectable({ providedIn: 'root' })
 export class AuditApi {
-  private readonly http = inject(HttpClient);
+	private readonly http = inject(HttpClient);
 
-  search(query: AuditLogQuery): Observable<Paginated<AuditLogEntryDto>> {
-    return this.http.get<Paginated<AuditLogEntryDto>>('/api/audit', {
-      params: toHttpParams(query),
-    });
-  }
+	search(query: AuditLogQuery): Observable<Paginated<AuditLogEntryDto>> {
+		return this.http.get<Paginated<AuditLogEntryDto>>('/api/audit', {
+			params: toHttpParams(query),
+		});
+	}
 }

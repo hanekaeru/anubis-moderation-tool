@@ -1,181 +1,178 @@
 <div class="page">
-  @if (loading() && !ticket()) {
-    <mat-progress-bar mode="indeterminate" />
-  }
+	@if (loading() && !ticket()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
 
-  @if (ticket(); as data) {
-    <header class="page-header">
-      <div>
-        <a matButton routerLink="/tickets" class="back">
-          <mat-icon>arrow_back</mat-icon>
-          Tickets
-        </a>
-        <h1>#{{ data.number }} — {{ data.subject }}</h1>
-        <p class="subtitle">
-          Categorie {{ data.category }}
-          <span class="dot">·</span>
-          Ouvert {{ data.openedAt | relativeTime }}
-          @if (data.closedAt) {
-            <span class="dot">·</span>
-            Ferme {{ data.closedAt | relativeTime }}
-          }
-        </p>
-      </div>
-    </header>
+	@if (ticket(); as data) {
+		<header class="page-header">
+			<div>
+				<a matButton routerLink="/tickets" class="back">
+					<mat-icon>arrow_back</mat-icon>
+					Tickets
+				</a>
+				<h1>#{{ data.number }} — {{ data.subject }}</h1>
+				<p class="subtitle">
+					Categorie {{ data.category }}
+					<span class="dot">·</span>
+					Ouvert {{ data.openedAt | relativeTime }}
+					@if (data.closedAt) {
+						<span class="dot">·</span>
+						Ferme {{ data.closedAt | relativeTime }}
+					}
+				</p>
+			</div>
+		</header>
 
-    <div class="layout">
-      <mat-card appearance="outlined" class="thread">
-        <mat-card-header>
-          <mat-card-title>Fil du ticket</mat-card-title>
-          <mat-card-subtitle>{{ data.messageCount }} message(s) echange(s)</mat-card-subtitle>
-        </mat-card-header>
+		<div class="layout">
+			<mat-card appearance="outlined" class="thread">
+				<mat-card-header>
+					<mat-card-title>Fil du ticket</mat-card-title>
+					<mat-card-subtitle>{{ data.messageCount }} message(s) echange(s)</mat-card-subtitle>
+				</mat-card-header>
 
-        <mat-card-content>
-          @if (data.events.length) {
-            <ol class="events">
-              @for (event of data.events; track event.id) {
-                <li>
-                  <span class="event-icon" [attr.data-type]="event.type">
-                    <mat-icon>{{ eventIcons[event.type] ?? 'circle' }}</mat-icon>
-                  </span>
-                  <div class="event-body">
-                    <p class="event-title">
-                      {{ eventLabels[event.type] ?? event.type }}
-                      @if (event.actor) {
-                        <span class="event-actor">— {{ event.actor.label }}</span>
-                      }
-                    </p>
-                    @if (eventDetail(event); as detail) {
-                      <p class="event-detail">{{ detail }}</p>
-                    }
-                    <p class="event-meta" [matTooltip]="event.occurredAt | frDate">
-                      {{ event.occurredAt | relativeTime }}
-                    </p>
-                  </div>
-                </li>
-              }
-            </ol>
-          } @else {
-            <p class="empty-state">Aucun evenement enregistre sur ce ticket.</p>
-          }
+				<mat-card-content>
+					@if (data.events.length) {
+						<ol class="events">
+							@for (event of data.events; track event.id) {
+								<li>
+									<span class="event-icon" [attr.data-type]="event.type">
+										<mat-icon>{{ eventIcons[event.type] ?? 'circle' }}</mat-icon>
+									</span>
+									<div class="event-body">
+										<p class="event-title">
+											{{ eventLabels[event.type] ?? event.type }}
+											@if (event.actor) {
+												<span class="event-actor">— {{ event.actor.label }}</span>
+											}
+										</p>
+										@if (eventDetail(event); as detail) {
+											<p class="event-detail">{{ detail }}</p>
+										}
+										<p class="event-meta" [matTooltip]="event.occurredAt | frDate">
+											{{ event.occurredAt | relativeTime }}
+										</p>
+									</div>
+								</li>
+							}
+						</ol>
+					} @else {
+						<p class="empty-state">Aucun evenement enregistre sur ce ticket.</p>
+					}
 
-          <div *appHasPermission="Permission.TICKETS_WRITE" class="note-form">
-            <form [formGroup]="noteForm" (ngSubmit)="addNote()">
-              <mat-form-field class="full">
-                <mat-label>Note interne</mat-label>
-                <textarea
-                  matInput
-                  rows="3"
-                  formControlName="body"
-                  maxlength="4000"
-                  placeholder="Visible du staff uniquement, jamais envoyee sur Discord"
-                ></textarea>
-              </mat-form-field>
-              <div class="note-actions">
-                <button matButton="filled" type="submit" [disabled]="savingNote()">
-                  Ajouter la note
-                </button>
-              </div>
-            </form>
-          </div>
-        </mat-card-content>
-      </mat-card>
+					<div *appHasPermission="Permission.TICKETS_WRITE" class="note-form">
+						<form [formGroup]="noteForm" (ngSubmit)="addNote()">
+							<mat-form-field class="full">
+								<mat-label>Note interne</mat-label>
+								<textarea
+									matInput
+									rows="3"
+									formControlName="body"
+									maxlength="4000"
+									placeholder="Visible du staff uniquement, jamais envoyee sur Discord"
+								></textarea>
+							</mat-form-field>
+							<div class="note-actions">
+								<button matButton="filled" type="submit" [disabled]="savingNote()">
+									Ajouter la note
+								</button>
+							</div>
+						</form>
+					</div>
+				</mat-card-content>
+			</mat-card>
 
-      <aside class="sidebar">
-        <mat-card appearance="outlined">
-          <mat-card-header>
-            <mat-card-title>Suivi</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div *appHasPermission="Permission.TICKETS_WRITE" class="controls">
-              <mat-form-field class="full">
-                <mat-label>Statut</mat-label>
-                <mat-select
-                  [value]="data.status"
-                  (selectionChange)="changeStatus($event.value)"
-                >
-                  @for (status of statuses; track status) {
-                    <mat-option [value]="status">{{ statusLabels[status] }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
+			<aside class="sidebar">
+				<mat-card appearance="outlined">
+					<mat-card-header>
+						<mat-card-title>Suivi</mat-card-title>
+					</mat-card-header>
+					<mat-card-content>
+						<div *appHasPermission="Permission.TICKETS_WRITE" class="controls">
+							<mat-form-field class="full">
+								<mat-label>Statut</mat-label>
+								<mat-select [value]="data.status" (selectionChange)="changeStatus($event.value)">
+									@for (status of statuses; track status) {
+										<mat-option [value]="status">{{ statusLabels[status] }}</mat-option>
+									}
+								</mat-select>
+							</mat-form-field>
 
-              <mat-form-field class="full">
-                <mat-label>Priorite</mat-label>
-                <mat-select
-                  [value]="data.priority"
-                  (selectionChange)="changePriority($event.value)"
-                >
-                  @for (priority of priorities; track priority) {
-                    <mat-option [value]="priority">{{ priorityLabels[priority] }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-            </div>
+							<mat-form-field class="full">
+								<mat-label>Priorite</mat-label>
+								<mat-select
+									[value]="data.priority"
+									(selectionChange)="changePriority($event.value)"
+								>
+									@for (priority of priorities; track priority) {
+										<mat-option [value]="priority">{{ priorityLabels[priority] }}</mat-option>
+									}
+								</mat-select>
+							</mat-form-field>
+						</div>
 
-            <dl class="facts">
-              <dt>Ouvert par</dt>
-              <dd>
-                <a [routerLink]="['/membres', data.opener.userId]" class="member-link">
-                  <app-member-avatar
-                    [username]="data.opener.username"
-                    [globalName]="data.opener.globalName"
-                    [avatarUrl]="data.opener.avatarUrl"
-                    [size]="28"
-                  />
-                </a>
-              </dd>
+						<dl class="facts">
+							<dt>Ouvert par</dt>
+							<dd>
+								<a [routerLink]="['/membres', data.opener.userId]" class="member-link">
+									<app-member-avatar
+										[username]="data.opener.username"
+										[globalName]="data.opener.globalName"
+										[avatarUrl]="data.opener.avatarUrl"
+										[size]="28"
+									/>
+								</a>
+							</dd>
 
-              <dt>Assigne a</dt>
-              <dd>
-                @if (data.assignee) {
-                  <app-member-avatar
-                    [username]="data.assignee.username"
-                    [globalName]="data.assignee.globalName"
-                    [avatarUrl]="data.assignee.avatarUrl"
-                    [size]="28"
-                  />
-                } @else {
-                  <span class="muted">Non assigne</span>
-                }
-              </dd>
+							<dt>Assigne a</dt>
+							<dd>
+								@if (data.assignee) {
+									<app-member-avatar
+										[username]="data.assignee.username"
+										[globalName]="data.assignee.globalName"
+										[avatarUrl]="data.assignee.avatarUrl"
+										[size]="28"
+									/>
+								} @else {
+									<span class="muted">Non assigne</span>
+								}
+							</dd>
 
-              <dt>Premiere reponse</dt>
-              <dd>
-                @if (data.firstResponseSeconds !== null) {
-                  {{ data.firstResponseSeconds | duration }}
-                } @else {
-                  <span class="muted">En attente</span>
-                }
-              </dd>
+							<dt>Premiere reponse</dt>
+							<dd>
+								@if (data.firstResponseSeconds !== null) {
+									{{ data.firstResponseSeconds | duration }}
+								} @else {
+									<span class="muted">En attente</span>
+								}
+							</dd>
 
-              <dt>Duree de traitement</dt>
-              <dd>
-                @if (resolutionLabel() !== null) {
-                  {{ resolutionLabel() | duration }}
-                } @else {
-                  <span class="muted">Ticket encore ouvert</span>
-                }
-              </dd>
+							<dt>Duree de traitement</dt>
+							<dd>
+								@if (resolutionLabel() !== null) {
+									{{ resolutionLabel() | duration }}
+								} @else {
+									<span class="muted">Ticket encore ouvert</span>
+								}
+							</dd>
 
-              @if (data.closedBy) {
-                <dt>Ferme par</dt>
-                <dd>{{ data.closedBy.label }}</dd>
-              }
+							@if (data.closedBy) {
+								<dt>Ferme par</dt>
+								<dd>{{ data.closedBy.label }}</dd>
+							}
 
-              @if (data.closeReason) {
-                <dt>Motif de fermeture</dt>
-                <dd>{{ data.closeReason }}</dd>
-              }
+							@if (data.closeReason) {
+								<dt>Motif de fermeture</dt>
+								<dd>{{ data.closeReason }}</dd>
+							}
 
-              @if (data.rating !== null) {
-                <dt>Satisfaction</dt>
-                <dd>{{ data.rating }} / 5</dd>
-              }
-            </dl>
-          </mat-card-content>
-        </mat-card>
-      </aside>
-    </div>
-  }
+							@if (data.rating !== null) {
+								<dt>Satisfaction</dt>
+								<dd>{{ data.rating }} / 5</dd>
+							}
+						</dl>
+					</mat-card-content>
+				</mat-card>
+			</aside>
+		</div>
+	}
 </div>

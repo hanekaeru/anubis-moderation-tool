@@ -1,9 +1,9 @@
 import {
-    INSTANT_SANCTION_TYPES,
-    type SanctionType,
-    type WarningSeverity,
-} from '@anubis/shared';
-import prisma from '../prisma';
+	INSTANT_SANCTION_TYPES,
+	type SanctionType,
+	type WarningSeverity,
+} from "@anubis/shared";
+import prisma from "../prisma";
 
 /**
  * Sanctions et avertissements.
@@ -16,50 +16,50 @@ import prisma from '../prisma';
  */
 
 interface CreateSanctionInput {
-    guildId: string;
-    userId: string;
-    moderatorId: string;
-    type: SanctionType;
-    reason: string;
-    durationSeconds?: number | null;
+	guildId: string;
+	userId: string;
+	moderatorId: string;
+	type: SanctionType;
+	reason: string;
+	durationSeconds?: number | null;
 }
 
 export async function createSanction(input: CreateSanctionInput) {
-    const startsAt = new Date();
-    const isInstant = INSTANT_SANCTION_TYPES.includes(input.type);
-    const durationSeconds = isInstant ? null : (input.durationSeconds ?? null);
+	const startsAt = new Date();
+	const isInstant = INSTANT_SANCTION_TYPES.includes(input.type);
+	const durationSeconds = isInstant ? null : (input.durationSeconds ?? null);
 
-    const sanction = await prisma.sanction.create({
-        data: {
-            guildId: input.guildId,
-            userId: input.userId,
-            moderatorId: input.moderatorId,
-            type: input.type,
-            reason: input.reason,
-            durationSeconds,
-            startsAt,
-            expiresAt: durationSeconds
-                ? new Date(startsAt.getTime() + durationSeconds * 1000)
-                : null,
-            // Une expulsion prend effet et se termine dans la foulee : la laisser
-            // ACTIVE la ferait apparaitre indefiniment comme sanction en cours.
-            status: isInstant ? 'EXPIRED' : 'ACTIVE',
-        },
-    });
+	const sanction = await prisma.sanction.create({
+		data: {
+			guildId: input.guildId,
+			userId: input.userId,
+			moderatorId: input.moderatorId,
+			type: input.type,
+			reason: input.reason,
+			durationSeconds,
+			startsAt,
+			expiresAt: durationSeconds
+				? new Date(startsAt.getTime() + durationSeconds * 1000)
+				: null,
+			// Une expulsion prend effet et se termine dans la foulee : la laisser
+			// ACTIVE la ferait apparaitre indefiniment comme sanction en cours.
+			status: isInstant ? "EXPIRED" : "ACTIVE",
+		},
+	});
 
-    await prisma.moderationActivity.create({
-        data: {
-            guildId: input.guildId,
-            moderatorId: input.moderatorId,
-            action: `sanction.${input.type.toLowerCase()}`,
-            targetUserId: input.userId,
-            targetType: 'sanction',
-            targetId: sanction.id,
-            metadata: { type: input.type, durationSeconds },
-        },
-    });
+	await prisma.moderationActivity.create({
+		data: {
+			guildId: input.guildId,
+			moderatorId: input.moderatorId,
+			action: `sanction.${input.type.toLowerCase()}`,
+			targetUserId: input.userId,
+			targetType: "sanction",
+			targetId: sanction.id,
+			metadata: { type: input.type, durationSeconds },
+		},
+	});
 
-    return sanction;
+	return sanction;
 }
 
 /**
@@ -71,45 +71,45 @@ export async function createSanction(input: CreateSanctionInput) {
  * `moderatorId` Discord.
  */
 export async function revokeActiveSanction(
-    guildId: string,
-    userId: string,
-    type: SanctionType,
-    moderatorId: string,
-    reason: string,
+	guildId: string,
+	userId: string,
+	type: SanctionType,
+	moderatorId: string,
+	reason: string,
 ) {
-    const existing = await prisma.sanction.findFirst({
-        where: { guildId, userId, type, status: 'ACTIVE' },
-        orderBy: { createdAt: 'desc' },
-    });
+	const existing = await prisma.sanction.findFirst({
+		where: { guildId, userId, type, status: "ACTIVE" },
+		orderBy: { createdAt: "desc" },
+	});
 
-    if (!existing) return null;
+	if (!existing) return null;
 
-    const updated = await prisma.sanction.update({
-        where: { id: existing.id },
-        data: {
-            status: 'REVOKED',
-            revokedAt: new Date(),
-            revokeReason: reason,
-            // L'effet Discord vient d'etre rejoue par l'appelant (timeout leve,
-            // role retire) avant cet appel : pas besoin que la tache
-            // periodique de synchronisation le refasse.
-            discordSyncedAt: new Date(),
-        },
-    });
+	const updated = await prisma.sanction.update({
+		where: { id: existing.id },
+		data: {
+			status: "REVOKED",
+			revokedAt: new Date(),
+			revokeReason: reason,
+			// L'effet Discord vient d'etre rejoue par l'appelant (timeout leve,
+			// role retire) avant cet appel : pas besoin que la tache
+			// periodique de synchronisation le refasse.
+			discordSyncedAt: new Date(),
+		},
+	});
 
-    await prisma.moderationActivity.create({
-        data: {
-            guildId,
-            moderatorId,
-            action: 'sanction.revoke',
-            targetUserId: userId,
-            targetType: 'sanction',
-            targetId: existing.id,
-            metadata: { type },
-        },
-    });
+	await prisma.moderationActivity.create({
+		data: {
+			guildId,
+			moderatorId,
+			action: "sanction.revoke",
+			targetUserId: userId,
+			targetType: "sanction",
+			targetId: existing.id,
+			metadata: { type },
+		},
+	});
 
-    return updated;
+	return updated;
 }
 
 /**
@@ -122,9 +122,13 @@ export async function revokeActiveSanction(
  * deja marquee expiree.
  */
 export async function findExpiredActiveSanctions(type: SanctionType) {
-    return prisma.sanction.findMany({
-        where: { type, status: 'ACTIVE', expiresAt: { not: null, lte: new Date() } },
-    });
+	return prisma.sanction.findMany({
+		where: {
+			type,
+			status: "ACTIVE",
+			expiresAt: { not: null, lte: new Date() },
+		},
+	});
 }
 
 /**
@@ -132,9 +136,13 @@ export async function findExpiredActiveSanctions(type: SanctionType) {
  * été ajouté par le bot.
  */
 export async function findActiveSanctions(type: SanctionType) {
-  return prisma.sanction.findMany({
-    where: { type, status: 'ACTIVE', expiresAt: { not: null, gt: new Date() } },
-  })
+	return prisma.sanction.findMany({
+		where: {
+			type,
+			status: "ACTIVE",
+			expiresAt: { not: null, gt: new Date() },
+		},
+	});
 }
 
 /**
@@ -148,70 +156,79 @@ export async function findActiveSanctions(type: SanctionType) {
  * ont besoin de ce rattrapage.
  */
 export async function findUnsyncedRevokedSanctions(types: SanctionType[]) {
-    return prisma.sanction.findMany({
-        where: { type: { in: types }, status: 'REVOKED', discordSyncedAt: null },
-    });
+	return prisma.sanction.findMany({
+		where: {
+			type: { in: types },
+			status: "REVOKED",
+			discordSyncedAt: null,
+		},
+	});
 }
 
 export async function markDiscordSynced(sanctionId: string) {
-    await prisma.sanction.update({
-        where: { id: sanctionId },
-        data: { discordSyncedAt: new Date() },
-    });
+	await prisma.sanction.update({
+		where: { id: sanctionId },
+		data: { discordSyncedAt: new Date() },
+	});
 }
 
-export async function markSanctionExpired(sanctionId: string, guildId: string, userId: string, type: SanctionType) {
-    await prisma.sanction.update({
-        where: { id: sanctionId },
-        data: { status: 'EXPIRED' },
-    });
+export async function markSanctionExpired(
+	sanctionId: string,
+	guildId: string,
+	userId: string,
+	type: SanctionType,
+) {
+	await prisma.sanction.update({
+		where: { id: sanctionId },
+		data: { status: "EXPIRED" },
+	});
 
-    await prisma.moderationActivity.create({
-        data: {
-            guildId,
-            action: 'sanction.expire',
-            targetUserId: userId,
-            targetType: 'sanction',
-            targetId: sanctionId,
-            metadata: { type },
-        },
-    });
+	await prisma.moderationActivity.create({
+		data: {
+			guildId,
+			action: "sanction.expire",
+			targetUserId: userId,
+			targetType: "sanction",
+			targetId: sanctionId,
+			metadata: { type },
+		},
+	});
 }
 
 interface CreateWarningInput {
-    guildId: string;
-    userId: string;
-    moderatorId: string;
-    reason: string;
-    severity: WarningSeverity;
-    points?: number;
+	guildId: string;
+	userId: string;
+	moderatorId: string;
+	reason: string;
+	severity: WarningSeverity;
+	points?: number;
 }
 
 export async function createWarning(input: CreateWarningInput) {
-    const warning = await prisma.warning.create({
-        data: {
-            guildId: input.guildId,
-            userId: input.userId,
-            moderatorId: input.moderatorId,
-            reason: input.reason,
-            severity: input.severity,
-            points: input.points ?? 1,
-        },
-    });
+	const warning = await prisma.warning.create({
+		data: {
+			guildId: input.guildId,
+			userId: input.userId,
+			moderatorId: input.moderatorId,
+			reason: input.reason,
+			severity: input.severity,
+			points: input.points ?? 1,
+		},
+	});
 
-    await prisma.moderationActivity.create({
-        data: {
-            guildId: input.guildId,
-            moderatorId: input.moderatorId,
-            action: 'warn',
-            targetUserId: input.userId,
-            targetType: 'warning',
-            targetId: warning.id,
-            metadata: { severity: input.severity, points: input.points ?? 1 },
-        },
-    });
+	await prisma.moderationActivity.create({
+		data: {
+			guildId: input.guildId,
+			moderatorId: input.moderatorId,
+			action: "warn",
+			targetUserId: input.userId,
+			targetType: "warning",
+			targetId: warning.id,
+			metadata: { severity: input.severity, points: input.points ?? 1 },
+		},
+	});
 
-    return warning;
+	return warning;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,32 +246,32 @@ export async function createWarning(input: CreateWarningInput) {
 const FENETRE_DOUBLON_MS = 60_000;
 
 interface ExternalSanctionInput {
-    guildId: string;
-    userId: string;
-    /** Auteur reel releve dans l'audit log ; `null` s'il est inconnu. */
-    moderatorId: string | null;
-    type: SanctionType;
-    reason: string;
-    durationSeconds?: number | null;
-    occurredAt?: Date;
+	guildId: string;
+	userId: string;
+	/** Auteur reel releve dans l'audit log ; `null` s'il est inconnu. */
+	moderatorId: string | null;
+	type: SanctionType;
+	reason: string;
+	durationSeconds?: number | null;
+	occurredAt?: Date;
 }
 
 async function sanctionDejaEnregistree(
-    guildId: string,
-    userId: string,
-    type: SanctionType,
+	guildId: string,
+	userId: string,
+	type: SanctionType,
 ): Promise<boolean> {
-    const recente = await prisma.sanction.findFirst({
-        where: {
-            guildId,
-            userId,
-            type,
-            createdAt: { gte: new Date(Date.now() - FENETRE_DOUBLON_MS) },
-        },
-        select: { id: true },
-    });
+	const recente = await prisma.sanction.findFirst({
+		where: {
+			guildId,
+			userId,
+			type,
+			createdAt: { gte: new Date(Date.now() - FENETRE_DOUBLON_MS) },
+		},
+		select: { id: true },
+	});
 
-    return recente !== null;
+	return recente !== null;
 }
 
 /**
@@ -267,44 +284,46 @@ async function sanctionDejaEnregistree(
  * elle vient d'une commande du bot.
  */
 export async function recordExternalSanction(input: ExternalSanctionInput) {
-    if (await sanctionDejaEnregistree(input.guildId, input.userId, input.type)) {
-        return null;
-    }
+	if (
+		await sanctionDejaEnregistree(input.guildId, input.userId, input.type)
+	) {
+		return null;
+	}
 
-    const startsAt = input.occurredAt ?? new Date();
-    const isInstant = INSTANT_SANCTION_TYPES.includes(input.type);
-    const durationSeconds = isInstant ? null : (input.durationSeconds ?? null);
+	const startsAt = input.occurredAt ?? new Date();
+	const isInstant = INSTANT_SANCTION_TYPES.includes(input.type);
+	const durationSeconds = isInstant ? null : (input.durationSeconds ?? null);
 
-    const sanction = await prisma.sanction.create({
-        data: {
-            guildId: input.guildId,
-            userId: input.userId,
-            moderatorId: input.moderatorId,
-            type: input.type,
-            reason: input.reason,
-            durationSeconds,
-            startsAt,
-            expiresAt: durationSeconds
-                ? new Date(startsAt.getTime() + durationSeconds * 1000)
-                : null,
-            status: isInstant ? 'EXPIRED' : 'ACTIVE',
-            discordSyncedAt: new Date(),
-        },
-    });
+	const sanction = await prisma.sanction.create({
+		data: {
+			guildId: input.guildId,
+			userId: input.userId,
+			moderatorId: input.moderatorId,
+			type: input.type,
+			reason: input.reason,
+			durationSeconds,
+			startsAt,
+			expiresAt: durationSeconds
+				? new Date(startsAt.getTime() + durationSeconds * 1000)
+				: null,
+			status: isInstant ? "EXPIRED" : "ACTIVE",
+			discordSyncedAt: new Date(),
+		},
+	});
 
-    await prisma.moderationActivity.create({
-        data: {
-            guildId: input.guildId,
-            moderatorId: input.moderatorId,
-            action: `sanction.${input.type.toLowerCase()}`,
-            targetUserId: input.userId,
-            targetType: 'sanction',
-            targetId: sanction.id,
-            metadata: { type: input.type, durationSeconds, source: 'discord' },
-        },
-    });
+	await prisma.moderationActivity.create({
+		data: {
+			guildId: input.guildId,
+			moderatorId: input.moderatorId,
+			action: `sanction.${input.type.toLowerCase()}`,
+			targetUserId: input.userId,
+			targetType: "sanction",
+			targetId: sanction.id,
+			metadata: { type: input.type, durationSeconds, source: "discord" },
+		},
+	});
 
-    return sanction;
+	return sanction;
 }
 
 /**
@@ -315,46 +334,46 @@ export async function recordExternalSanction(input: ExternalSanctionInput) {
  * quelqu'un banni avant la mise en service du bot.
  */
 export async function revokeExternalSanction(input: {
-    guildId: string;
-    userId: string;
-    type: SanctionType;
-    moderatorId: string | null;
-    reason: string;
+	guildId: string;
+	userId: string;
+	type: SanctionType;
+	moderatorId: string | null;
+	reason: string;
 }) {
-    const existante = await prisma.sanction.findFirst({
-        where: {
-            guildId: input.guildId,
-            userId: input.userId,
-            type: input.type,
-            status: 'ACTIVE',
-        },
-        orderBy: { createdAt: 'desc' },
-    });
+	const existante = await prisma.sanction.findFirst({
+		where: {
+			guildId: input.guildId,
+			userId: input.userId,
+			type: input.type,
+			status: "ACTIVE",
+		},
+		orderBy: { createdAt: "desc" },
+	});
 
-    if (!existante) return null;
+	if (!existante) return null;
 
-    const levee = await prisma.sanction.update({
-        where: { id: existante.id },
-        data: {
-            status: 'REVOKED',
-            revokedAt: new Date(),
-            revokeReason: input.reason,
-            // L'effet a deja ete retire sur Discord par la personne qui a agi.
-            discordSyncedAt: new Date(),
-        },
-    });
+	const levee = await prisma.sanction.update({
+		where: { id: existante.id },
+		data: {
+			status: "REVOKED",
+			revokedAt: new Date(),
+			revokeReason: input.reason,
+			// L'effet a deja ete retire sur Discord par la personne qui a agi.
+			discordSyncedAt: new Date(),
+		},
+	});
 
-    await prisma.moderationActivity.create({
-        data: {
-            guildId: input.guildId,
-            moderatorId: input.moderatorId,
-            action: 'sanction.revoke',
-            targetUserId: input.userId,
-            targetType: 'sanction',
-            targetId: existante.id,
-            metadata: { type: input.type, source: 'discord' },
-        },
-    });
+	await prisma.moderationActivity.create({
+		data: {
+			guildId: input.guildId,
+			moderatorId: input.moderatorId,
+			action: "sanction.revoke",
+			targetUserId: input.userId,
+			targetType: "sanction",
+			targetId: existante.id,
+			metadata: { type: input.type, source: "discord" },
+		},
+	});
 
-    return levee;
+	return levee;
 }

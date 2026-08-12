@@ -57,7 +57,7 @@ Consequences pratiques :
   `Set-Content -Encoding utf8` : PowerShell 5.1 ajoute un BOM que Prisma et
   dotenv refusent.
 - `user_levels` appartient au bot. Sa creation est en `CREATE TABLE IF NOT
-  EXISTS` dans la migration initiale, pour ne pas ecraser les donnees d'XP
+EXISTS` dans la migration initiale, pour ne pas ecraser les donnees d'XP
   d'une base existante. Garder cette forme si la migration est regeneree.
 
 ## API
@@ -180,6 +180,21 @@ le dev avec rechargement).
 npm run build
 ```
 
-Construit shared, l'API puis le dashboard. C'est le controle qui attrape le
-plus de regressions, notamment les erreurs de template Angular qui
-n'apparaissent qu'a la compilation.
+Genere le client Prisma, puis construit shared, l'API et le dashboard. C'est le
+controle qui attrape le plus de regressions, notamment les erreurs de template
+Angular qui n'apparaissent qu'a la compilation.
+
+La generation vient en premier parce que `packages/shared/generated` est un
+**artefact absent du depot** : sur un clone neuf, l'API ne compile pas sans
+lui — `@anubis/shared/prisma` reste introuvable et tout le typage Prisma
+s'effondre en cascade. C'est ce qui cassait la CI alors que le poste local et
+les images Docker passaient.
+
+`bot/` n'etant pas un workspace, il se construit a part — et donc **apres**
+`npm run build`, dont il consomme la sortie via sa dependance `file:` :
+
+```bash
+npm ci --prefix bot && npm run bot:build
+```
+
+La CI (`.github/workflows/ci.yml`) enchaine exactement ces quatre etapes.

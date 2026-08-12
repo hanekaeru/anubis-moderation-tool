@@ -1,92 +1,92 @@
 <div class="page">
-  <header class="page-header">
-    <div>
-      <h1>Logs</h1>
-      <p class="subtitle">
-        Salons de logs et reglages du serveur. Utilisez /create_logs sur
-        Discord pour creer les salons de logs manquants.
-      </p>
-    </div>
+	<header class="page-header">
+		<div>
+			<h1>Logs</h1>
+			<p class="subtitle">
+				Salons de logs et reglages du serveur. Utilisez /create_logs sur Discord pour creer les
+				salons de logs manquants.
+			</p>
+		</div>
 
-    <button
-      matButton="filled"
-      *appHasPermission="Permission.LOGS_WRITE"
-      (click)="openCreateDialog()"
-    >
-      <mat-icon>add</mat-icon>
-      Nouvelle configuration
-    </button>
-  </header>
+		<button
+			matButton="filled"
+			*appHasPermission="Permission.LOGS_WRITE"
+			(click)="openCreateDialog()"
+		>
+			<mat-icon>add</mat-icon>
+			Nouvelle configuration
+		</button>
+	</header>
 
-  <mat-card appearance="outlined">
-    @if (loading()) {
-      <mat-progress-bar mode="indeterminate" />
-    }
+	<mat-card appearance="outlined">
+		@if (loading()) {
+			<mat-progress-bar mode="indeterminate" />
+		}
 
-    <div class="table-scroll">
-      <table mat-table [dataSource]="configs()">
-        <ng-container matColumnDef="name">
-          <th mat-header-cell *matHeaderCellDef>Cle</th>
-          <td mat-cell *matCellDef="let config">
-            <span class="label">{{ label(config) }}</span>
-            <span class="name">{{ config.configName }}</span>
-          </td>
-        </ng-container>
+		<div class="table-scroll">
+			<table mat-table [dataSource]="configs()">
+				<ng-container matColumnDef="name">
+					<th mat-header-cell *matHeaderCellDef>Cle</th>
+					<td mat-cell *matCellDef="let config">
+						<span class="label">{{ label(config) }}</span>
+						<span class="name">{{ config.configName }}</span>
+					</td>
+				</ng-container>
 
-        <ng-container matColumnDef="value">
-          <th mat-header-cell *matHeaderCellDef>Valeur</th>
-          <td mat-cell *matCellDef="let config">
-            @if (channelLink(config); as link) {
-              <a [href]="link" target="_blank" rel="noopener" class="value">
-                {{ config.configValue }}
-                <mat-icon inline>open_in_new</mat-icon>
-              </a>
-            } @else {
-              <span class="value">{{ config.configValue }}</span>
-            }
-          </td>
-        </ng-container>
+				<ng-container matColumnDef="value">
+					<th mat-header-cell *matHeaderCellDef>Valeur</th>
+					<td mat-cell *matCellDef="let config">
+						@if (channelLink(config); as link) {
+							<a [href]="link" target="_blank" rel="noopener" class="value">
+								{{ config.configValue }}
+								<mat-icon inline>open_in_new</mat-icon>
+							</a>
+						} @else {
+							<span class="value">{{ config.configValue }}</span>
+						}
+					</td>
+				</ng-container>
 
-        <ng-container matColumnDef="description">
-          <th mat-header-cell *matHeaderCellDef>Description</th>
-          <td mat-cell *matCellDef="let config" class="description">
-            {{ config.configDescription }}
-          </td>
-        </ng-container>
+				<ng-container matColumnDef="description">
+					<th mat-header-cell *matHeaderCellDef>Description</th>
+					<td mat-cell *matCellDef="let config" class="description">
+						{{ config.configDescription }}
+					</td>
+				</ng-container>
 
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef aria-label="Actions"></th>
-          <td mat-cell *matCellDef="let config">
-            <div *appHasPermission="Permission.LOGS_WRITE">
-              <button
-                matIconButton
-                [matMenuTriggerFor]="menu"
-                aria-label="Actions sur la configuration"
-              >
-                <mat-icon>more_vert</mat-icon>
-              </button>
+				<ng-container matColumnDef="actions">
+					<th mat-header-cell *matHeaderCellDef aria-label="Actions"></th>
+					<td mat-cell *matCellDef="let config">
+						<div *appHasPermission="Permission.LOGS_WRITE">
+							<button
+								matIconButton
+								[matMenuTriggerFor]="menu"
+								aria-label="Actions sur la configuration"
+							>
+								<mat-icon>more_vert</mat-icon>
+							</button>
 
-              <mat-menu #menu="matMenu">
-                <button mat-menu-item (click)="openEditDialog(config)">
-                  <mat-icon>edit</mat-icon>
-                  <span>Modifier</span>
-                </button>
-                <button mat-menu-item (click)="remove(config)">
-                  <mat-icon>delete</mat-icon>
-                  <span>Supprimer</span>
-                </button>
-              </mat-menu>
-            </div>
-          </td>
-        </ng-container>
+							<mat-menu #menu="matMenu">
+								<button mat-menu-item (click)="openEditDialog(config)">
+									<mat-icon>edit</mat-icon>
+									<span>Modifier</span>
+								</button>
+								<button mat-menu-item (click)="remove(config)">
+									<mat-icon>delete</mat-icon>
+									<span>Supprimer</span>
+								</button>
+							</mat-menu>
+						</div>
+					</td>
+				</ng-container>
 
-        <tr mat-header-row *matHeaderRowDef="columns"></tr>
-        <tr mat-row *matRowDef="let row; columns: columns"></tr>
-      </table>
-    </div>
+				<tr mat-header-row *matHeaderRowDef="columns"></tr>
+				<tr mat-row *matRowDef="let row; columns: columns"></tr>
+			</table>
+		</div>
 
-    @if (!loading() && configs().length === 0) {
-      <p class="empty-state">Aucune configuration enregistree.</p>
-    }
-  </mat-card>
+		@if (!loading() && configs().length === 0) {
+			<p class="empty-state">Aucune configuration enregistree.</p>
+		}
+	</mat-card>
 </div>
