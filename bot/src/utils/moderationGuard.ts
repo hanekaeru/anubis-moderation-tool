@@ -1,4 +1,4 @@
-import type { GuildMember } from 'discord.js';
+import type { GuildMember } from "discord.js";
 
 /**
  * Une permission Discord (KickMembers, BanMembers, ModerateMembers) n'empeche
@@ -8,19 +8,25 @@ import type { GuildMember } from 'discord.js';
  * cible. Sans ce garde-fou, un moderateur pourrait sanctionner un collegue de
  * rang egal ou superieur du moment que le role du bot, lui, est assez haut.
  */
-export function hierarchyIssue(actor: GuildMember, target: GuildMember): string | null {
-    if (target.id === actor.id) {
-        return 'Impossible d\'appliquer cette action a toi-meme.';
-    }
+export function hierarchyIssue(
+	actor: GuildMember,
+	target: GuildMember,
+): string | null {
+	if (target.id === actor.id) {
+		return "Impossible d'appliquer cette action a toi-meme.";
+	}
 
-    if (target.id === actor.guild.ownerId) {
-        return 'Impossible d\'agir sur le proprietaire du serveur.';
-    }
+	if (target.id === actor.guild.ownerId) {
+		return "Impossible d'agir sur le proprietaire du serveur.";
+	}
 
-    const actorIsOwner = actor.id === actor.guild.ownerId;
-    if (!actorIsOwner && target.roles.highest.position >= actor.roles.highest.position) {
-        return 'Ce membre a un role egal ou superieur au tien.';
-    }
+	const actorIsOwner = actor.id === actor.guild.ownerId;
+	if (
+		!actorIsOwner &&
+		target.roles.highest.position >= actor.roles.highest.position
+	) {
+		return "Ce membre a un role egal ou superieur au tien.";
+	}
 
-    return null;
+	return null;
 }

@@ -11,9 +11,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run build
+          # `bot/` a son propre lock : sans cette liste, le cache npm ne serait
+          # invalide que sur les dependances du monorepo.
+          cache-dependency-path: |
+            package-lock.json
+            bot/package-lock.json
+
+      - name: Installer les dependances du monorepo
+        run: npm ci
+
+      # `npm run build` genere d'abord le client Prisma : c'est un artefact
+      # absent du depot, sans lequel l'API ne compile pas sur un clone neuf.
+      - name: Construire shared, l'API et le dashboard
+        run: npm run build
+
+      # `bot/` n'est pas un workspace npm, ses dependances s'installent a part.
+      # L'ordre compte : il consomme `packages/shared` par une dependance
+      # `file:` et a donc besoin du client Prisma genere juste avant.
+      - name: Installer les dependances du bot
+        run: npm ci --prefix bot
+
+      - name: Compiler le bot
+        run: npm run bot:build

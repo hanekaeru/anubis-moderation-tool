@@ -1,20 +1,20 @@
 import {
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    EmbedBuilder,
-    type APIEmbedField,
-    type ColorResolvable,
-    type User,
-} from 'discord.js';
+	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
+	EmbedBuilder,
+	type APIEmbedField,
+	type ColorResolvable,
+	type User,
+} from "discord.js";
 import {
-    SANCTION_STATUS_LABELS,
-    SANCTION_TYPE_LABELS,
-    WARNING_SEVERITY_LABELS,
-    formatDurationSeconds,
-} from '@anubis/shared';
-import type { Casier, CasierEntry } from '../collectors/casier';
-import { danger, info, warning } from '../../utils/constantes';
+	SANCTION_STATUS_LABELS,
+	SANCTION_TYPE_LABELS,
+	WARNING_SEVERITY_LABELS,
+	formatDurationSeconds,
+} from "@anubis/shared";
+import type { Casier, CasierEntry } from "../collectors/casier";
+import { danger, info, warning } from "../../utils/constantes";
 
 /**
  * Rendu du casier : un seul embed par page, une entree par champ.
@@ -51,21 +51,21 @@ const MAX_VALEUR_CHAMP = 1024;
  */
 const PALIERS_COUPE = [300, 180, 100, 50];
 
-const EMOJI: Record<CasierEntry['kind'], string> = {
-    SANCTION: '⛔',
-    WARNING: '⚠️',
-    NOTE: '📝',
+const EMOJI: Record<CasierEntry["kind"], string> = {
+	SANCTION: "⛔",
+	WARNING: "⚠️",
+	NOTE: "📝",
 };
 
 export interface PageRendue {
-    embeds: EmbedBuilder[];
-    components: ActionRowBuilder<ButtonBuilder>[];
+	embeds: EmbedBuilder[];
+	components: ActionRowBuilder<ButtonBuilder>[];
 }
 
 /** Texte libre saisi par un moderateur : mis a plat sur une ligne, puis coupe. */
 function tronquer(texte: string, max: number): string {
-    const propre = texte.replace(/\s+/g, ' ').trim();
-    return propre.length <= max ? propre : `${propre.slice(0, max - 1)}…`;
+	const propre = texte.replace(/\s+/g, " ").trim();
+	return propre.length <= max ? propre : `${propre.slice(0, max - 1)}…`;
 }
 
 /**
@@ -75,12 +75,12 @@ function tronquer(texte: string, max: number): string {
  * est multiligne, et les aplatir collerait toutes les informations ensemble.
  */
 function ecreter(texte: string, max: number): string {
-    return texte.length <= max ? texte : `${texte.slice(0, max - 1)}…`;
+	return texte.length <= max ? texte : `${texte.slice(0, max - 1)}…`;
 }
 
 /** Horodatage rendu dans le fuseau de chaque lecteur, pas celui du serveur. */
-function horodatage(date: Date, style: 'f' | 'R' = 'f'): string {
-    return `<t:${Math.floor(date.getTime() / 1000)}:${style}>`;
+function horodatage(date: Date, style: "f" | "R" = "f"): string {
+	return `<t:${Math.floor(date.getTime() / 1000)}:${style}>`;
 }
 
 /**
@@ -89,146 +89,156 @@ function horodatage(date: Date, style: 'f' | 'R' = 'f'): string {
  * cliquable dans Discord.
  */
 function auteur(
-    moderator: { id: string } | null,
-    createdBy: { displayName: string } | null,
+	moderator: { id: string } | null,
+	createdBy: { displayName: string } | null,
 ): string {
-    if (moderator) return `<@${moderator.id}>`;
-    if (createdBy) return `${createdBy.displayName} *(dashboard)*`;
-    return '*Systeme*';
+	if (moderator) return `<@${moderator.id}>`;
+	if (createdBy) return `${createdBy.displayName} *(dashboard)*`;
+	return "*Systeme*";
 }
 
 /** Date courte, pour le nom du champ ou `<t:>` n'est pas interprete. */
 function dateCourte(date: Date): string {
-    return date.toLocaleDateString('fr-FR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-    });
+	return date.toLocaleDateString("fr-FR", {
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+	});
 }
 
 function champSanction(
-    entry: Extract<CasierEntry, { kind: 'SANCTION' }>,
-    coupe: number,
+	entry: Extract<CasierEntry, { kind: "SANCTION" }>,
+	coupe: number,
 ): APIEmbedField {
-    const s = entry.data;
-    const lignes = [
-        tronquer(s.reason, coupe),
-        `**Par** ${auteur(s.moderator, s.createdBy)} le ${horodatage(s.startsAt)}`
-        + ` · **Duree** ${formatDurationSeconds(s.durationSeconds)}`
-        + (s.expiresAt ? ` · **Echeance** ${horodatage(s.expiresAt)}` : ''),
-    ];
+	const s = entry.data;
+	const lignes = [
+		tronquer(s.reason, coupe),
+		`**Par** ${auteur(s.moderator, s.createdBy)} le ${horodatage(s.startsAt)}` +
+			` · **Duree** ${formatDurationSeconds(s.durationSeconds)}` +
+			(s.expiresAt ? ` · **Echeance** ${horodatage(s.expiresAt)}` : ""),
+	];
 
-    const statut = [`**Statut** ${SANCTION_STATUS_LABELS[s.status]}`];
-    if (s.revokedAt) {
-        statut.push(`levee le ${horodatage(s.revokedAt)}`);
-        if (s.revokedBy) statut.push(`par ${s.revokedBy.displayName}`);
-        if (s.revokeReason) statut.push(`— ${tronquer(s.revokeReason, 100)}`);
-    }
-    lignes.push(statut.join(' '));
+	const statut = [`**Statut** ${SANCTION_STATUS_LABELS[s.status]}`];
+	if (s.revokedAt) {
+		statut.push(`levee le ${horodatage(s.revokedAt)}`);
+		if (s.revokedBy) statut.push(`par ${s.revokedBy.displayName}`);
+		if (s.revokeReason) statut.push(`— ${tronquer(s.revokeReason, 100)}`);
+	}
+	lignes.push(statut.join(" "));
 
-    if (s.evidenceUrl) lignes.push(`**Preuve** ${s.evidenceUrl}`);
+	if (s.evidenceUrl) lignes.push(`**Preuve** ${s.evidenceUrl}`);
 
-    return {
-        name: `${EMOJI.SANCTION} Sanction — ${SANCTION_TYPE_LABELS[s.type]} · ${dateCourte(s.createdAt)}`,
-        value: ecreter(lignes.join('\n'), MAX_VALEUR_CHAMP),
-        inline: false,
-    };
+	return {
+		name: `${EMOJI.SANCTION} Sanction — ${SANCTION_TYPE_LABELS[s.type]} · ${dateCourte(s.createdAt)}`,
+		value: ecreter(lignes.join("\n"), MAX_VALEUR_CHAMP),
+		inline: false,
+	};
 }
 
 function champAvertissement(
-    entry: Extract<CasierEntry, { kind: 'WARNING' }>,
-    coupe: number,
+	entry: Extract<CasierEntry, { kind: "WARNING" }>,
+	coupe: number,
 ): APIEmbedField {
-    const w = entry.data;
-    const actif = !w.revokedAt && (!w.expiresAt || w.expiresAt.getTime() > Date.now());
+	const w = entry.data;
+	const actif =
+		!w.revokedAt && (!w.expiresAt || w.expiresAt.getTime() > Date.now());
 
-    const lignes = [
-        tronquer(w.reason, coupe),
-        `**Par** ${auteur(w.moderator, w.createdBy)} le ${horodatage(w.createdAt)}`
-        + ` · **Poids** ${w.points} pt`
-        + (w.expiresAt ? ` · **Expire** ${horodatage(w.expiresAt)}` : ''),
-    ];
+	const lignes = [
+		tronquer(w.reason, coupe),
+		`**Par** ${auteur(w.moderator, w.createdBy)} le ${horodatage(w.createdAt)}` +
+			` · **Poids** ${w.points} pt` +
+			(w.expiresAt ? ` · **Expire** ${horodatage(w.expiresAt)}` : ""),
+	];
 
-    const statut = [`**Statut** ${actif ? 'En cours' : w.revokedAt ? 'Leve' : 'Expire'}`];
-    if (w.revokedAt) {
-        statut.push(`le ${horodatage(w.revokedAt)}`);
-        if (w.revokedBy) statut.push(`par ${w.revokedBy.displayName}`);
-        if (w.revokeReason) statut.push(`— ${tronquer(w.revokeReason, 100)}`);
-    }
-    lignes.push(statut.join(' '));
+	const statut = [
+		`**Statut** ${actif ? "En cours" : w.revokedAt ? "Leve" : "Expire"}`,
+	];
+	if (w.revokedAt) {
+		statut.push(`le ${horodatage(w.revokedAt)}`);
+		if (w.revokedBy) statut.push(`par ${w.revokedBy.displayName}`);
+		if (w.revokeReason) statut.push(`— ${tronquer(w.revokeReason, 100)}`);
+	}
+	lignes.push(statut.join(" "));
 
-    return {
-        name: `${EMOJI.WARNING} Avertissement — ${WARNING_SEVERITY_LABELS[w.severity]} · ${dateCourte(w.createdAt)}`,
-        value: ecreter(lignes.join('\n'), MAX_VALEUR_CHAMP),
-        inline: false,
-    };
+	return {
+		name: `${EMOJI.WARNING} Avertissement — ${WARNING_SEVERITY_LABELS[w.severity]} · ${dateCourte(w.createdAt)}`,
+		value: ecreter(lignes.join("\n"), MAX_VALEUR_CHAMP),
+		inline: false,
+	};
 }
 
 function champNote(
-    entry: Extract<CasierEntry, { kind: 'NOTE' }>,
-    coupe: number,
+	entry: Extract<CasierEntry, { kind: "NOTE" }>,
+	coupe: number,
 ): APIEmbedField {
-    const n = entry.data;
-    const lignes = [
-        tronquer(n.body, coupe),
-        `**Par** ${n.author.displayName} *(dashboard)* le ${horodatage(n.createdAt)}`
-        // `updatedAt` bouge a chaque ecriture : ne le signaler que s'il s'ecarte
-        // reellement de la creation, sinon toute note paraitrait modifiee.
-        + (n.updatedAt.getTime() - n.createdAt.getTime() > 1000
-            ? ` · **Modifiee** ${horodatage(n.updatedAt)}`
-            : ''),
-    ];
+	const n = entry.data;
+	const lignes = [
+		tronquer(n.body, coupe),
+		`**Par** ${n.author.displayName} *(dashboard)* le ${horodatage(n.createdAt)}` +
+			// `updatedAt` bouge a chaque ecriture : ne le signaler que s'il s'ecarte
+			// reellement de la creation, sinon toute note paraitrait modifiee.
+			(n.updatedAt.getTime() - n.createdAt.getTime() > 1000
+				? ` · **Modifiee** ${horodatage(n.updatedAt)}`
+				: ""),
+	];
 
-    return {
-        name: `${EMOJI.NOTE} Note${n.pinned ? ' epinglee' : ''} · ${dateCourte(n.createdAt)}`,
-        value: ecreter(lignes.join('\n'), MAX_VALEUR_CHAMP),
-        inline: false,
-    };
+	return {
+		name: `${EMOJI.NOTE} Note${n.pinned ? " epinglee" : ""} · ${dateCourte(n.createdAt)}`,
+		value: ecreter(lignes.join("\n"), MAX_VALEUR_CHAMP),
+		inline: false,
+	};
 }
 
 function construireChamp(entry: CasierEntry, coupe: number): APIEmbedField {
-    switch (entry.kind) {
-        case 'SANCTION': return champSanction(entry, coupe);
-        case 'WARNING': return champAvertissement(entry, coupe);
-        case 'NOTE': return champNote(entry, coupe);
-    }
+	switch (entry.kind) {
+		case "SANCTION":
+			return champSanction(entry, coupe);
+		case "WARNING":
+			return champAvertissement(entry, coupe);
+		case "NOTE":
+			return champNote(entry, coupe);
+	}
 }
 
 /** La couleur suit le type le plus grave affiche sur la page. */
 function couleurDeLaPage(entries: CasierEntry[]): ColorResolvable {
-    if (entries.some(entry => entry.kind === 'SANCTION')) return danger;
-    if (entries.some(entry => entry.kind === 'WARNING')) return warning;
-    return info;
+	if (entries.some((entry) => entry.kind === "SANCTION")) return danger;
+	if (entries.some((entry) => entry.kind === "WARNING")) return warning;
+	return info;
 }
 
 export function longueurTotale(embed: EmbedBuilder): number {
-    const json = embed.toJSON();
-    const champs = (json.fields ?? []).reduce(
-        (total, champ) => total + champ.name.length + champ.value.length,
-        0,
-    );
+	const json = embed.toJSON();
+	const champs = (json.fields ?? []).reduce(
+		(total, champ) => total + champ.name.length + champ.value.length,
+		0,
+	);
 
-    return champs
-        + (json.title?.length ?? 0)
-        + (json.description?.length ?? 0)
-        + (json.author?.name.length ?? 0)
-        + (json.footer?.text.length ?? 0);
+	return (
+		champs +
+		(json.title?.length ?? 0) +
+		(json.description?.length ?? 0) +
+		(json.author?.name.length ?? 0) +
+		(json.footer?.text.length ?? 0)
+	);
 }
 
 function enTete(casier: Casier): string {
-    const { sanctions, warnings, notes } = casier.counts;
-    const lignes = [
-        `${EMOJI.SANCTION} **${sanctions}** sanction(s) · `
-        + `${EMOJI.WARNING} **${warnings}** avertissement(s) · `
-        + `${EMOJI.NOTE} **${notes}** note(s)`,
-        `-# ${casier.entries.length} entree(s), de la plus recente a la plus ancienne.`,
-    ];
+	const { sanctions, warnings, notes } = casier.counts;
+	const lignes = [
+		`${EMOJI.SANCTION} **${sanctions}** sanction(s) · ` +
+			`${EMOJI.WARNING} **${warnings}** avertissement(s) · ` +
+			`${EMOJI.NOTE} **${notes}** note(s)`,
+		`-# ${casier.entries.length} entree(s), de la plus recente a la plus ancienne.`,
+	];
 
-    if (casier.truncated) {
-        lignes.push('-# Casier volumineux : seules les entrees les plus recentes sont affichees.');
-    }
+	if (casier.truncated) {
+		lignes.push(
+			"-# Casier volumineux : seules les entrees les plus recentes sont affichees.",
+		);
+	}
 
-    return lignes.join('\n');
+	return lignes.join("\n");
 }
 
 /**
@@ -240,69 +250,86 @@ function enTete(casier: Casier): string {
  * pas — le dernier palier tient toujours, le cout fixe par entree etant borne.
  */
 export function embedDeLaPage(
-    cible: User,
-    casier: Casier,
-    entries: CasierEntry[],
-    page: number,
-    total: number,
+	cible: User,
+	casier: Casier,
+	entries: CasierEntry[],
+	page: number,
+	total: number,
 ): EmbedBuilder {
-    const construire = (coupe: number): EmbedBuilder => new EmbedBuilder()
-        .setColor(couleurDeLaPage(entries))
-        .setAuthor({ name: `Casier de ${cible.tag}`, iconURL: cible.displayAvatarURL() })
-        .setDescription(enTete(casier))
-        .addFields(entries.map(entry => construireChamp(entry, coupe)))
-        .setFooter({ text: `${cible.id} · page ${page + 1} sur ${total}` });
+	const construire = (coupe: number): EmbedBuilder =>
+		new EmbedBuilder()
+			.setColor(couleurDeLaPage(entries))
+			.setAuthor({
+				name: `Casier de ${cible.tag}`,
+				iconURL: cible.displayAvatarURL(),
+			})
+			.setDescription(enTete(casier))
+			.addFields(entries.map((entry) => construireChamp(entry, coupe)))
+			.setFooter({ text: `${cible.id} · page ${page + 1} sur ${total}` });
 
-    let embed = construire(PALIERS_COUPE[0]!);
+	let embed = construire(PALIERS_COUPE[0]!);
 
-    for (const coupe of PALIERS_COUPE.slice(1)) {
-        if (longueurTotale(embed) <= BUDGET_EMBED) break;
-        embed = construire(coupe);
-    }
+	for (const coupe of PALIERS_COUPE.slice(1)) {
+		if (longueurTotale(embed) <= BUDGET_EMBED) break;
+		embed = construire(coupe);
+	}
 
-    return embed;
+	return embed;
 }
 
-export function boutons(page: number, total: number): ActionRowBuilder<ButtonBuilder> {
-    const premierePage = page === 0;
-    const dernierePage = page >= total - 1;
+export function boutons(
+	page: number,
+	total: number,
+): ActionRowBuilder<ButtonBuilder> {
+	const premierePage = page === 0;
+	const dernierePage = page >= total - 1;
 
-    return new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-            .setCustomId('casier:first').setEmoji('⏮').setStyle(ButtonStyle.Secondary)
-            .setDisabled(premierePage),
-        new ButtonBuilder()
-            .setCustomId('casier:prev').setEmoji('◀').setStyle(ButtonStyle.Primary)
-            .setDisabled(premierePage),
-        // Bouton desactive servant d'indicateur : une rangee de composants
-        // Discord n'accepte pas d'element de texte libre.
-        new ButtonBuilder()
-            .setCustomId('casier:page').setLabel(`Page ${page + 1} / ${total}`)
-            .setStyle(ButtonStyle.Secondary).setDisabled(true),
-        new ButtonBuilder()
-            .setCustomId('casier:next').setEmoji('▶').setStyle(ButtonStyle.Primary)
-            .setDisabled(dernierePage),
-        new ButtonBuilder()
-            .setCustomId('casier:last').setEmoji('⏭').setStyle(ButtonStyle.Secondary)
-            .setDisabled(dernierePage),
-    );
+	return new ActionRowBuilder<ButtonBuilder>().addComponents(
+		new ButtonBuilder()
+			.setCustomId("casier:first")
+			.setEmoji("⏮")
+			.setStyle(ButtonStyle.Secondary)
+			.setDisabled(premierePage),
+		new ButtonBuilder()
+			.setCustomId("casier:prev")
+			.setEmoji("◀")
+			.setStyle(ButtonStyle.Primary)
+			.setDisabled(premierePage),
+		// Bouton desactive servant d'indicateur : une rangee de composants
+		// Discord n'accepte pas d'element de texte libre.
+		new ButtonBuilder()
+			.setCustomId("casier:page")
+			.setLabel(`Page ${page + 1} / ${total}`)
+			.setStyle(ButtonStyle.Secondary)
+			.setDisabled(true),
+		new ButtonBuilder()
+			.setCustomId("casier:next")
+			.setEmoji("▶")
+			.setStyle(ButtonStyle.Primary)
+			.setDisabled(dernierePage),
+		new ButtonBuilder()
+			.setCustomId("casier:last")
+			.setEmoji("⏭")
+			.setStyle(ButtonStyle.Secondary)
+			.setDisabled(dernierePage),
+	);
 }
 
 export function nombreDePages(casier: Casier): number {
-    return Math.max(1, Math.ceil(casier.entries.length / PAR_PAGE));
+	return Math.max(1, Math.ceil(casier.entries.length / PAR_PAGE));
 }
 
 export function rendrePage(
-    cible: User,
-    casier: Casier,
-    page: number,
-    total: number,
+	cible: User,
+	casier: Casier,
+	page: number,
+	total: number,
 ): PageRendue {
-    const debut = page * PAR_PAGE;
-    const entries = casier.entries.slice(debut, debut + PAR_PAGE);
+	const debut = page * PAR_PAGE;
+	const entries = casier.entries.slice(debut, debut + PAR_PAGE);
 
-    return {
-        embeds: [embedDeLaPage(cible, casier, entries, page, total)],
-        components: total > 1 ? [boutons(page, total)] : [],
-    };
+	return {
+		embeds: [embedDeLaPage(cible, casier, entries, page, total)],
+		components: total > 1 ? [boutons(page, total)] : [],
+	};
 }

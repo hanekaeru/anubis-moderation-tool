@@ -1,10 +1,4 @@
-import {
-  Directive,
-  Input,
-  TemplateRef,
-  ViewContainerRef,
-  inject,
-} from '@angular/core';
+import { Directive, Input, TemplateRef, ViewContainerRef, inject } from '@angular/core';
 import type { Permission } from '@anubis/shared';
 import { AuthService } from '../../core/auth/auth.service';
 
@@ -19,24 +13,24 @@ import { AuthService } from '../../core/auth/auth.service';
  */
 @Directive({ selector: '[appHasPermission]' })
 export class HasPermissionDirective {
-  private readonly templateRef = inject(TemplateRef<unknown>);
-  private readonly viewContainer = inject(ViewContainerRef);
-  private readonly auth = inject(AuthService);
+	private readonly templateRef = inject(TemplateRef<unknown>);
+	private readonly viewContainer = inject(ViewContainerRef);
+	private readonly auth = inject(AuthService);
 
-  private rendered = false;
+	private rendered = false;
 
-  /** Accepte une permission ou une liste : une seule suffit a afficher. */
-  @Input({ required: true })
-  set appHasPermission(permissions: Permission | Permission[]) {
-    const required = Array.isArray(permissions) ? permissions : [permissions];
-    const allowed = this.auth.hasAnyPermission(required);
+	/** Accepte une permission ou une liste : une seule suffit a afficher. */
+	@Input({ required: true })
+	set appHasPermission(permissions: Permission | Permission[]) {
+		const required = Array.isArray(permissions) ? permissions : [permissions];
+		const allowed = this.auth.hasAnyPermission(required);
 
-    if (allowed && !this.rendered) {
-      this.viewContainer.createEmbeddedView(this.templateRef);
-      this.rendered = true;
-    } else if (!allowed && this.rendered) {
-      this.viewContainer.clear();
-      this.rendered = false;
-    }
-  }
+		if (allowed && !this.rendered) {
+			this.viewContainer.createEmbeddedView(this.templateRef);
+			this.rendered = true;
+		} else if (!allowed && this.rendered) {
+			this.viewContainer.clear();
+			this.rendered = false;
+		}
+	}
 }

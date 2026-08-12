@@ -1,6 +1,6 @@
-import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from "@nestjs/common";
 
-export const ALLOW_TEMPORARY_PASSWORD_KEY = 'allowTemporaryPassword';
+export const ALLOW_TEMPORARY_PASSWORD_KEY = "allowTemporaryPassword";
 
 /**
  * Autorise une route a repondre a un compte dont le mot de passe est encore
@@ -11,4 +11,4 @@ export const ALLOW_TEMPORARY_PASSWORD_KEY = 'allowTemporaryPassword';
  * jamais sortir de cet etat.
  */
 export const AllowTemporaryPassword = () =>
-  SetMetadata(ALLOW_TEMPORARY_PASSWORD_KEY, true);
+	SetMetadata(ALLOW_TEMPORARY_PASSWORD_KEY, true);

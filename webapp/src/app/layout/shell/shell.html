@@ -1,81 +1,81 @@
 <mat-sidenav-container class="shell">
-  <mat-sidenav
-    class="sidenav"
-    [mode]="isHandset() ? 'over' : 'side'"
-    [opened]="isHandset() ? drawerOpened() : true"
-    (closedStart)="drawerOpened.set(false)"
-  >
-    <div class="brand">
-      <mat-icon class="brand-icon">shield</mat-icon>
-      <div>
-        <p class="brand-name">Anubis Bot</p>
-        <p class="brand-tag">Dashboard</p>
-      </div>
-    </div>
+	<mat-sidenav
+		class="sidenav"
+		[mode]="isHandset() ? 'over' : 'side'"
+		[opened]="isHandset() ? drawerOpened() : true"
+		(closedStart)="drawerOpened.set(false)"
+	>
+		<div class="brand">
+			<mat-icon class="brand-icon">shield</mat-icon>
+			<div>
+				<p class="brand-name">Anubis Bot</p>
+				<p class="brand-tag">Dashboard</p>
+			</div>
+		</div>
 
-    <mat-divider />
+		<mat-divider />
 
-    <mat-nav-list>
-      @for (entry of navigation(); track entry.path) {
-        <a
-          mat-list-item
-          [routerLink]="entry.path"
-          routerLinkActive="active"
-          [routerLinkActiveOptions]="{ exact: entry.path === '/' }"
-          (click)="onNavigate()"
-        >
-          <mat-icon matListItemIcon>{{ entry.icon }}</mat-icon>
-          <span matListItemTitle>{{ entry.label }}</span>
-        </a>
-      }
-    </mat-nav-list>
-  </mat-sidenav>
+		<mat-nav-list>
+			@for (entry of navigation(); track entry.path) {
+				<a
+					mat-list-item
+					[routerLink]="entry.path"
+					routerLinkActive="active"
+					[routerLinkActiveOptions]="{ exact: entry.path === '/' }"
+					(click)="onNavigate()"
+				>
+					<mat-icon matListItemIcon>{{ entry.icon }}</mat-icon>
+					<span matListItemTitle>{{ entry.label }}</span>
+				</a>
+			}
+		</mat-nav-list>
+	</mat-sidenav>
 
-  <mat-sidenav-content>
-    <mat-toolbar class="topbar">
-      @if (isHandset()) {
-        <button matIconButton aria-label="Ouvrir le menu" (click)="toggleDrawer()">
-          <mat-icon>menu</mat-icon>
-        </button>
-      }
+	<mat-sidenav-content>
+		<mat-toolbar class="topbar">
+			@if (isHandset()) {
+				<button matIconButton aria-label="Ouvrir le menu" (click)="toggleDrawer()">
+					<mat-icon>menu</mat-icon>
+				</button>
+			}
 
-      <span class="spacer"></span>
+			<span class="spacer"></span>
 
-      <button
-        matIconButton
-        [matTooltip]="theme() === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'"
-        aria-label="Changer de theme clair/sombre"
-        (click)="toggleTheme()"
-      >
-        <mat-icon>{{ theme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
-      </button>
+			<button
+				matIconButton
+				[matTooltip]="theme() === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'"
+				aria-label="Changer de theme clair/sombre"
+				(click)="toggleTheme()"
+			>
+				<mat-icon>{{ theme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+			</button>
 
-      @if (user(); as account) {
-        <button matButton [matMenuTriggerFor]="accountMenu" class="account">
-          <mat-icon>account_circle</mat-icon>
-          <span class="account-name">{{ account.displayName }}</span>
-        </button>
+			@if (user(); as account) {
+				<button matButton [matMenuTriggerFor]="accountMenu" class="account">
+					<mat-icon>account_circle</mat-icon>
+					<span class="account-name">{{ account.displayName }}</span>
+				</button>
 
-        <mat-menu #accountMenu="matMenu">
-          <div class="menu-header">
-            <p class="menu-name">{{ account.displayName }}</p>
-            <p class="menu-role">{{ roleLabels[account.role] }}</p>
-          </div>
-          <mat-divider />
-          <a mat-menu-item routerLink="/mot-de-passe">
-            <mat-icon>password</mat-icon>
-            <span>Changer le mot de passe</span>
-          </a>
-          <button mat-menu-item (click)="logout()">
-            <mat-icon>logout</mat-icon>
-            <span>Se deconnecter</span>
-          </button>
-        </mat-menu>
-      }
-    </mat-toolbar>
+				<mat-menu #accountMenu="matMenu">
+					<div class="menu-header">
+						<p class="menu-name">{{ account.displayName }}</p>
+						<p class="menu-role">{{ roleLabels[account.role] }}</p>
+					</div>
+					<mat-divider />
+					<a mat-menu-item routerLink="/mot-de-passe">
+						<mat-icon>password</mat-icon>
+						<span>Changer le mot de passe</span>
+					</a>
+					<button mat-menu-item (click)="logout()">
+						<mat-icon>logout</mat-icon>
+						<span>Se deconnecter</span>
+					</button>
+				</mat-menu>
+			}
+		</mat-toolbar>
 
-    <main>
-      <router-outlet />
-    </main>
-  </mat-sidenav-content>
+		<main>
+			<router-outlet />
+		</main>
+	</mat-sidenav-content>
 </mat-sidenav-container>

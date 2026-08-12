@@ -7,15 +7,15 @@
  * doit jamais etre importe cote Angular.
  */
 
-export * from './enums';
-export * from './permissions';
-export * from './discord';
-export * from './duration';
-export * from './dto/common';
-export * from './dto/auth';
-export * from './dto/member';
-export * from './dto/moderation';
-export * from './dto/ticket';
-export * from './dto/stats';
-export * from './dto/app-user';
-export * from './dto/guild-config';
+export * from "./enums";
+export * from "./permissions";
+export * from "./discord";
+export * from "./duration";
+export * from "./dto/common";
+export * from "./dto/auth";
+export * from "./dto/member";
+export * from "./dto/moderation";
+export * from "./dto/ticket";
+export * from "./dto/stats";
+export * from "./dto/app-user";
+export * from "./dto/guild-config";

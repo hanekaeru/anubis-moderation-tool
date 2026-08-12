@@ -1,17 +1,17 @@
 {
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "webapp",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start", "--workspace", "@anubis/webapp"],
-      "port": 4200
-    },
-    {
-      "name": "api",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start:dev", "--workspace", "@anubis/api"],
-      "port": 3000
-    }
-  ]
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "webapp",
+			"runtimeExecutable": "npm",
+			"runtimeArgs": ["run", "start", "--workspace", "@anubis/webapp"],
+			"port": 4200
+		},
+		{
+			"name": "api",
+			"runtimeExecutable": "npm",
+			"runtimeArgs": ["run", "start:dev", "--workspace", "@anubis/api"],
+			"port": 3000
+		}
+	]
 }

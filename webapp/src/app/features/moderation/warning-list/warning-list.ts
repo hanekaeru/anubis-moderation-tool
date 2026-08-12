@@ -15,132 +15,127 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { debounceTime } from 'rxjs';
 import {
-  DEFAULT_PAGE_SIZE,
-  Permission,
-  WARNING_SEVERITY_LABELS,
-  WarningSeverity,
-  type WarningDto,
+	DEFAULT_PAGE_SIZE,
+	Permission,
+	WARNING_SEVERITY_LABELS,
+	WarningSeverity,
+	type WarningDto,
 } from '@anubis/shared';
 import { ModerationApi } from '../../../core/api/moderation.api';
 import { NotificationService } from '../../../core/notification.service';
-import {
-  ConfirmDialog,
-  type ConfirmDialogData,
-} from '../../../shared/components/confirm-dialog';
+import { ConfirmDialog, type ConfirmDialogData } from '../../../shared/components/confirm-dialog';
 import { MemberAvatar } from '../../../shared/components/member-avatar';
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
 import { FrDatePipe, RelativeTimePipe } from '../../../shared/pipes/format.pipes';
 
 @Component({
-  selector: 'app-warning-list',
-  imports: [
-    FrDatePipe,
-    HasPermissionDirective,
-    MatButtonModule,
-    MatCardModule,
-    MatCheckboxModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatPaginatorModule,
-    MatProgressBarModule,
-    MatSelectModule,
-    MatTableModule,
-    MatTooltipModule,
-    MemberAvatar,
-    ReactiveFormsModule,
-    RelativeTimePipe,
-    RouterLink,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './warning-list.html',
-  styleUrl: './warning-list.scss',
+	selector: 'app-warning-list',
+	imports: [
+		FrDatePipe,
+		HasPermissionDirective,
+		MatButtonModule,
+		MatCardModule,
+		MatCheckboxModule,
+		MatFormFieldModule,
+		MatIconModule,
+		MatPaginatorModule,
+		MatProgressBarModule,
+		MatSelectModule,
+		MatTableModule,
+		MatTooltipModule,
+		MemberAvatar,
+		ReactiveFormsModule,
+		RelativeTimePipe,
+		RouterLink,
+	],
+	changeDetection: ChangeDetectionStrategy.OnPush,
+	templateUrl: './warning-list.html',
+	styleUrl: './warning-list.scss',
 })
 export class WarningListPage {
-  private readonly moderationApi = inject(ModerationApi);
-  private readonly dialog = inject(MatDialog);
-  private readonly notifications = inject(NotificationService);
-  private readonly formBuilder = inject(FormBuilder);
+	private readonly moderationApi = inject(ModerationApi);
+	private readonly dialog = inject(MatDialog);
+	private readonly notifications = inject(NotificationService);
+	private readonly formBuilder = inject(FormBuilder);
 
-  readonly Permission = Permission;
-  // `Record<string, string>` et non `Record<WarningSeverity, string>` : les
-  // lignes de `mat-table` arrivent en `any` dans le template, un index typé
-  // strictement serait refuse a la compilation.
-  readonly severityLabels: Record<string, string> = WARNING_SEVERITY_LABELS;
-  readonly severities = Object.values(WarningSeverity);
+	readonly Permission = Permission;
+	// `Record<string, string>` et non `Record<WarningSeverity, string>` : les
+	// lignes de `mat-table` arrivent en `any` dans le template, un index typé
+	// strictement serait refuse a la compilation.
+	readonly severityLabels: Record<string, string> = WARNING_SEVERITY_LABELS;
+	readonly severities = Object.values(WarningSeverity);
 
-  readonly columns = ['member', 'severity', 'reason', 'issuedBy', 'status', 'actions'];
+	readonly columns = ['member', 'severity', 'reason', 'issuedBy', 'status', 'actions'];
 
-  readonly loading = signal(false);
-  readonly warnings = signal<WarningDto[]>([]);
-  readonly total = signal(0);
-  readonly pageIndex = signal(0);
-  readonly pageSize = signal(DEFAULT_PAGE_SIZE);
+	readonly loading = signal(false);
+	readonly warnings = signal<WarningDto[]>([]);
+	readonly total = signal(0);
+	readonly pageIndex = signal(0);
+	readonly pageSize = signal(DEFAULT_PAGE_SIZE);
 
-  readonly filters = this.formBuilder.group({
-    severity: [null as WarningSeverity | null],
-    activeOnly: [false],
-  });
+	readonly filters = this.formBuilder.group({
+		severity: [null as WarningSeverity | null],
+		activeOnly: [false],
+	});
 
-  constructor() {
-    this.filters.valueChanges
-      .pipe(debounceTime(200), takeUntilDestroyed())
-      .subscribe(() => {
-        this.pageIndex.set(0);
-        this.load();
-      });
+	constructor() {
+		this.filters.valueChanges.pipe(debounceTime(200), takeUntilDestroyed()).subscribe(() => {
+			this.pageIndex.set(0);
+			this.load();
+		});
 
-    this.load();
-  }
+		this.load();
+	}
 
-  onPageChange(event: PageEvent): void {
-    this.pageIndex.set(event.pageIndex);
-    this.pageSize.set(event.pageSize);
-    this.load();
-  }
+	onPageChange(event: PageEvent): void {
+		this.pageIndex.set(event.pageIndex);
+		this.pageSize.set(event.pageSize);
+		this.load();
+	}
 
-  revoke(warning: WarningDto): void {
-    const data: ConfirmDialogData = {
-      title: "Lever l'avertissement",
-      message: `Avertissement visant ${warning.member.username} : ${warning.reason}`,
-      confirmLabel: 'Lever',
-      reasonLabel: 'Motif de la levee',
-    };
+	revoke(warning: WarningDto): void {
+		const data: ConfirmDialogData = {
+			title: "Lever l'avertissement",
+			message: `Avertissement visant ${warning.member.username} : ${warning.reason}`,
+			confirmLabel: 'Lever',
+			reasonLabel: 'Motif de la levee',
+		};
 
-    this.dialog
-      .open(ConfirmDialog, { data })
-      .afterClosed()
-      .subscribe((reason) => {
-        if (typeof reason !== 'string') return;
+		this.dialog
+			.open(ConfirmDialog, { data })
+			.afterClosed()
+			.subscribe((reason) => {
+				if (typeof reason !== 'string') return;
 
-        this.moderationApi.revokeWarning(warning.id, { reason }).subscribe({
-          next: () => {
-            this.notifications.success('Avertissement leve.');
-            this.load();
-          },
-        });
-      });
-  }
+				this.moderationApi.revokeWarning(warning.id, { reason }).subscribe({
+					next: () => {
+						this.notifications.success('Avertissement leve.');
+						this.load();
+					},
+				});
+			});
+	}
 
-  private load(): void {
-    this.loading.set(true);
-    const raw = this.filters.getRawValue();
+	private load(): void {
+		this.loading.set(true);
+		const raw = this.filters.getRawValue();
 
-    this.moderationApi
-      .searchWarnings({
-        page: this.pageIndex() + 1,
-        pageSize: this.pageSize(),
-        severity: raw.severity ?? undefined,
-        // `false` n'est pas un filtre : ne pas l'envoyer evite de demander
-        // explicitement les avertissements inactifs.
-        activeOnly: raw.activeOnly ? true : undefined,
-      })
-      .subscribe({
-        next: (page) => {
-          this.warnings.set(page.items);
-          this.total.set(page.total);
-          this.loading.set(false);
-        },
-        error: () => this.loading.set(false),
-      });
-  }
+		this.moderationApi
+			.searchWarnings({
+				page: this.pageIndex() + 1,
+				pageSize: this.pageSize(),
+				severity: raw.severity ?? undefined,
+				// `false` n'est pas un filtre : ne pas l'envoyer evite de demander
+				// explicitement les avertissements inactifs.
+				activeOnly: raw.activeOnly ? true : undefined,
+			})
+			.subscribe({
+				next: (page) => {
+					this.warnings.set(page.items);
+					this.total.set(page.total);
+					this.loading.set(false);
+				},
+				error: () => this.loading.set(false),
+			});
+	}
 }

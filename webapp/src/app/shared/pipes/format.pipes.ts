@@ -12,32 +12,32 @@ import { Pipe, PipeTransform } from '@angular/core';
  */
 @Pipe({ name: 'duration' })
 export class DurationPipe implements PipeTransform {
-  transform(seconds: number | null | undefined, emptyLabel = '—'): string {
-    if (seconds === null || seconds === undefined) return emptyLabel;
-    if (seconds < 60) return `${Math.round(seconds)} s`;
+	transform(seconds: number | null | undefined, emptyLabel = '—'): string {
+		if (seconds === null || seconds === undefined) return emptyLabel;
+		if (seconds < 60) return `${Math.round(seconds)} s`;
 
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes} min`;
+		const minutes = Math.floor(seconds / 60);
+		if (minutes < 60) return `${minutes} min`;
 
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    if (hours < 24) {
-      return remainingMinutes ? `${hours} h ${remainingMinutes} min` : `${hours} h`;
-    }
+		const hours = Math.floor(minutes / 60);
+		const remainingMinutes = minutes % 60;
+		if (hours < 24) {
+			return remainingMinutes ? `${hours} h ${remainingMinutes} min` : `${hours} h`;
+		}
 
-    const days = Math.floor(hours / 24);
-    const remainingHours = hours % 24;
-    return remainingHours ? `${days} j ${remainingHours} h` : `${days} j`;
-  }
+		const days = Math.floor(hours / 24);
+		const remainingHours = hours % 24;
+		return remainingHours ? `${days} j ${remainingHours} h` : `${days} j`;
+	}
 }
 
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ['year', 365 * 86_400_000],
-  ['month', 30 * 86_400_000],
-  ['week', 7 * 86_400_000],
-  ['day', 86_400_000],
-  ['hour', 3_600_000],
-  ['minute', 60_000],
+	['year', 365 * 86_400_000],
+	['month', 30 * 86_400_000],
+	['week', 7 * 86_400_000],
+	['day', 86_400_000],
+	['hour', 3_600_000],
+	['minute', 60_000],
 ];
 
 /**
@@ -48,36 +48,36 @@ const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
  */
 @Pipe({ name: 'relativeTime', pure: false })
 export class RelativeTimePipe implements PipeTransform {
-  private readonly formatter = new Intl.RelativeTimeFormat('fr', {
-    numeric: 'auto',
-  });
+	private readonly formatter = new Intl.RelativeTimeFormat('fr', {
+		numeric: 'auto',
+	});
 
-  transform(value: string | null | undefined): string {
-    if (!value) return '—';
+	transform(value: string | null | undefined): string {
+		if (!value) return '—';
 
-    const elapsed = new Date(value).getTime() - Date.now();
-    const absolute = Math.abs(elapsed);
+		const elapsed = new Date(value).getTime() - Date.now();
+		const absolute = Math.abs(elapsed);
 
-    for (const [unit, milliseconds] of RELATIVE_UNITS) {
-      if (absolute >= milliseconds) {
-        return this.formatter.format(Math.round(elapsed / milliseconds), unit);
-      }
-    }
+		for (const [unit, milliseconds] of RELATIVE_UNITS) {
+			if (absolute >= milliseconds) {
+				return this.formatter.format(Math.round(elapsed / milliseconds), unit);
+			}
+		}
 
-    return "a l'instant";
-  }
+		return "a l'instant";
+	}
 }
 
 /** Date ISO vers date lisible complete. */
 @Pipe({ name: 'frDate' })
 export class FrDatePipe implements PipeTransform {
-  private readonly formatter = new Intl.DateTimeFormat('fr-FR', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
+	private readonly formatter = new Intl.DateTimeFormat('fr-FR', {
+		dateStyle: 'medium',
+		timeStyle: 'short',
+	});
 
-  transform(value: string | null | undefined): string {
-    if (!value) return '—';
-    return this.formatter.format(new Date(value));
-  }
+	transform(value: string | null | undefined): string {
+		if (!value) return '—';
+		return this.formatter.format(new Date(value));
+	}
 }

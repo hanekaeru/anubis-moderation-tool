@@ -6,30 +6,30 @@ import { AuthService } from './auth.service';
 
 /** Bloque l'acces aux pages du dashboard tant que la session n'est pas etablie. */
 export const authGuard: CanActivateFn = (_route, state) => {
-  const auth = inject(AuthService);
-  const router = inject(Router);
+	const auth = inject(AuthService);
+	const router = inject(Router);
 
-  if (!auth.isAuthenticated()) {
-    // L'URL demandee est conservee pour y revenir apres connexion.
-    return router.createUrlTree(['/connexion'], {
-      queryParams: { redirect: state.url },
-    });
-  }
+	if (!auth.isAuthenticated()) {
+		// L'URL demandee est conservee pour y revenir apres connexion.
+		return router.createUrlTree(['/connexion'], {
+			queryParams: { redirect: state.url },
+		});
+	}
 
-  // Un mot de passe provisoire doit etre change avant toute autre action.
-  if (auth.mustChangePassword() && !state.url.startsWith('/mot-de-passe')) {
-    return router.createUrlTree(['/mot-de-passe']);
-  }
+	// Un mot de passe provisoire doit etre change avant toute autre action.
+	if (auth.mustChangePassword() && !state.url.startsWith('/mot-de-passe')) {
+		return router.createUrlTree(['/mot-de-passe']);
+	}
 
-  return true;
+	return true;
 };
 
 /** Empeche un compte connecte de revenir sur l'ecran de connexion. */
 export const guestGuard: CanActivateFn = () => {
-  const auth = inject(AuthService);
-  const router = inject(Router);
+	const auth = inject(AuthService);
+	const router = inject(Router);
 
-  return auth.isAuthenticated() ? router.createUrlTree(['/']) : true;
+	return auth.isAuthenticated() ? router.createUrlTree(['/']) : true;
 };
 
 /**
@@ -40,16 +40,16 @@ export const guestGuard: CanActivateFn = () => {
  * mais aucune donnee.
  */
 export function permissionGuard(...required: Permission[]): CanActivateFn {
-  return () => {
-    const auth = inject(AuthService);
-    const router = inject(Router);
-    const notifications = inject(NotificationService);
+	return () => {
+		const auth = inject(AuthService);
+		const router = inject(Router);
+		const notifications = inject(NotificationService);
 
-    if (required.every((permission) => auth.hasPermission(permission))) {
-      return true;
-    }
+		if (required.every((permission) => auth.hasPermission(permission))) {
+			return true;
+		}
 
-    notifications.error("Vous n'avez pas acces a cette section.");
-    return router.createUrlTree(['/']);
-  };
+		notifications.error("Vous n'avez pas acces a cette section.");
+		return router.createUrlTree(['/']);
+	};
 }

@@ -11,12 +11,12 @@ du "pourquoi" est dans `CLAUDE.md`.
       Prisma ne genere pas ce fichier).
 - [ ] Si un modele existant est cense preexister en base sans etre ecrase
       (ex. `user_levels`, gere par le bot) : garder un `CREATE TABLE IF NOT
-      EXISTS` dans la migration correspondante si elle est regeneree.
+    EXISTS` dans la migration correspondante si elle est regeneree.
 - [ ] Formater le schema :
 
-  ```bash
-  npm run format --workspace @anubis/shared
-  ```
+    ```bash
+    npm run format --workspace @anubis/shared
+    ```
 
 ## 2. Generer la migration + le client Prisma
 
@@ -73,13 +73,13 @@ SQL brut.
 - [ ] Reinstaller les dependances du bot si `@anubis/shared` a change de
       forme (nouveaux champs generes, etc.) :
 
-  ```bash
-  npm install --prefix bot --ignore-scripts
-  ```
+    ```bash
+    npm install --prefix bot --ignore-scripts
+    ```
 
-  `--ignore-scripts` est **obligatoire** : sans lui, npm tente de recompiler
-  `canvas` (module natif casse, ABI incompatible) et l'installation entiere
-  echoue. `canvas` n'est utilise nulle part dans le code actuel.
+    `--ignore-scripts` est **obligatoire** : sans lui, npm tente de recompiler
+    `canvas` (module natif casse, ABI incompatible) et l'installation entiere
+    echoue. `canvas` n'est utilise nulle part dans le code actuel.
 
 ## 6. Repercuter le changement cote Dashboard (Angular)
 

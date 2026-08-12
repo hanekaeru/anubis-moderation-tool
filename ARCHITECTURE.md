@@ -16,7 +16,7 @@ pièges connus du dépôt, voir [`CLAUDE.md`](./CLAUDE.md).
 ## 1. Vue d'ensemble
 
 Le projet est composé de **quatre briques**, dans un seul dépôt (on appelle
-ça un *monorepo*) :
+ça un _monorepo_) :
 
 ```
 anubis/
@@ -72,10 +72,10 @@ C'est la brique la plus particulière du projet : elle a **deux portes
 d'entrée séparées**, parce qu'une partie de son contenu ne doit jamais
 atteindre le navigateur.
 
-| Point d'entrée | Contenu | Qui peut l'importer |
-|---|---|---|
-| `@anubis/shared` | Types TypeScript, enums, permissions — **aucune dépendance** | Bot, API **et** dashboard (navigateur inclus) |
-| `@anubis/shared/prisma` | Le client de base de données généré par Prisma | Bot et API **uniquement**, jamais le navigateur |
+| Point d'entrée          | Contenu                                                      | Qui peut l'importer                             |
+| ----------------------- | ------------------------------------------------------------ | ----------------------------------------------- |
+| `@anubis/shared`        | Types TypeScript, enums, permissions — **aucune dépendance** | Bot, API **et** dashboard (navigateur inclus)   |
+| `@anubis/shared/prisma` | Le client de base de données généré par Prisma               | Bot et API **uniquement**, jamais le navigateur |
 
 ```
 packages/shared/
@@ -121,12 +121,12 @@ api/src/
 
 Chaque dossier (« module ») suit toujours le même trio de fichiers :
 
-| Fichier | Rôle |
-|---|---|
-| `*.controller.ts` | Reçoit la requête HTTP, appelle le service, renvoie la réponse |
-| `*.service.ts` | Contient la vraie logique (règles métier, accès base) |
-| `*.module.ts` | Déclare quel controller va avec quel service |
-| `dto/*.ts` | Décrit la forme attendue d'une requête entrante (validée automatiquement) |
+| Fichier           | Rôle                                                                      |
+| ----------------- | ------------------------------------------------------------------------- |
+| `*.controller.ts` | Reçoit la requête HTTP, appelle le service, renvoie la réponse            |
+| `*.service.ts`    | Contient la vraie logique (règles métier, accès base)                     |
+| `*.module.ts`     | Déclare quel controller va avec quel service                              |
+| `dto/*.ts`        | Décrit la forme attendue d'une requête entrante (validée automatiquement) |
 
 ### 2.3 `webapp/` — le site web consulté par l'équipe
 
@@ -409,17 +409,17 @@ modifier pour ajouter un droit, jamais un `if` isolé dans un service.
 Un même dépôt mélange plusieurs langages et formats. Voici comment les
 reconnaître :
 
-| Extension / fichier | Signification | Où on le trouve |
-|---|---|---|
-| `.ts` | TypeScript (JavaScript + vérification de types) | `api/`, `webapp/`, `packages/shared/` |
-| `.js` | JavaScript pur, sans vérification de types | `bot/` uniquement |
-| `.html` | Modèle visuel d'un écran (template Angular) | `webapp/src/app/**` |
-| `.scss` | Feuille de style (CSS avec des variables et fonctions) | `webapp/src/app/**` |
-| `.prisma` | Plan de la base de données (tables, colonnes, relations) | `packages/shared/prisma/schema.prisma` |
-| `migration.sql` | Instructions SQL générées pour faire évoluer la base | `packages/shared/prisma/migrations/**` |
-| `.json` | Configuration (dépendances, compilateur, outils) | `package.json`, `tsconfig.json`, `angular.json`... |
-| `.env` / `.env.example` | Variables sensibles (mots de passe, clés) — jamais commité pour `.env` | racine de chaque brique |
-| `.md` | Documentation lisible par un humain | ce fichier, `README.md`, `CLAUDE.md` |
+| Extension / fichier     | Signification                                                          | Où on le trouve                                    |
+| ----------------------- | ---------------------------------------------------------------------- | -------------------------------------------------- |
+| `.ts`                   | TypeScript (JavaScript + vérification de types)                        | `api/`, `webapp/`, `packages/shared/`              |
+| `.js`                   | JavaScript pur, sans vérification de types                             | `bot/` uniquement                                  |
+| `.html`                 | Modèle visuel d'un écran (template Angular)                            | `webapp/src/app/**`                                |
+| `.scss`                 | Feuille de style (CSS avec des variables et fonctions)                 | `webapp/src/app/**`                                |
+| `.prisma`               | Plan de la base de données (tables, colonnes, relations)               | `packages/shared/prisma/schema.prisma`             |
+| `migration.sql`         | Instructions SQL générées pour faire évoluer la base                   | `packages/shared/prisma/migrations/**`             |
+| `.json`                 | Configuration (dépendances, compilateur, outils)                       | `package.json`, `tsconfig.json`, `angular.json`... |
+| `.env` / `.env.example` | Variables sensibles (mots de passe, clés) — jamais commité pour `.env` | racine de chaque brique                            |
+| `.md`                   | Documentation lisible par un humain                                    | ce fichier, `README.md`, `CLAUDE.md`               |
 
 Conventions de nommage à connaître côté `api/` (NestJS) :
 
@@ -437,28 +437,28 @@ de fichiers portant le même nom : `xxx.ts` (logique), `xxx.html` (visuel),
 
 ## 7. Commandes utiles
 
-| Commande | Effet |
-|---|---|
-| `npm run dev` | Démarre l'API et le dashboard en parallèle |
-| `npm run build` | Compile `packages/shared`, puis `api/`, puis `webapp/` — la meilleure façon de détecter une erreur avant de livrer |
-| `npm run db:generate` | Régénère le client de base de données après une modification de `schema.prisma` |
-| `npm run db:migrate` | Crée une migration à partir du schéma (développement) |
-| `npm run db:deploy` | Applique les migrations existantes à la base |
-| `npm run db:seed` | Crée le compte propriétaire (`-- --demo` pour des données d'exemple) |
-| `npm run db:studio` | Ouvre un explorateur visuel de la base de données |
+| Commande              | Effet                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `npm run dev`         | Démarre l'API et le dashboard en parallèle                                                                         |
+| `npm run build`       | Compile `packages/shared`, puis `api/`, puis `webapp/` — la meilleure façon de détecter une erreur avant de livrer |
+| `npm run db:generate` | Régénère le client de base de données après une modification de `schema.prisma`                                    |
+| `npm run db:migrate`  | Crée une migration à partir du schéma (développement)                                                              |
+| `npm run db:deploy`   | Applique les migrations existantes à la base                                                                       |
+| `npm run db:seed`     | Crée le compte propriétaire (`-- --demo` pour des données d'exemple)                                               |
+| `npm run db:studio`   | Ouvre un explorateur visuel de la base de données                                                                  |
 
 ---
 
 ## 8. Glossaire
 
-| Terme | Signification |
-|---|---|
-| **Monorepo** | Un seul dépôt Git qui contient plusieurs projets liés entre eux |
-| **API (Application Programming Interface)** | Le programme qui répond aux requêtes du dashboard et qui seul parle à la base |
-| **ORM** | Un outil qui traduit des tables de base de données en objets manipulables dans le code (ici : **Prisma**) |
-| **Migration** | Un fichier qui décrit un changement à appliquer à la structure de la base de données |
-| **DTO (Data Transfer Object)** | La forme exacte attendue ou renvoyée par une requête (ex : "un avertissement a une raison en texte et une sévérité") |
-| **Enum** | Une liste fermée de valeurs possibles (ex : un statut de ticket ne peut être que OPEN, PENDING, RESOLVED ou CLOSED) |
-| **Guard** | Un contrôle exécuté avant qu'une requête n'atteigne son traitement (ex : vérifier le jeton de connexion) |
-| **Jeton (token)** | Une chaîne de caractères qui prouve qu'un utilisateur est connecté, sans renvoyer son mot de passe à chaque requête |
-| **Standalone component / signal** | Deux mécanismes récents d'Angular pour organiser l'interface sans configuration superflue |
+| Terme                                       | Signification                                                                                                        |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Monorepo**                                | Un seul dépôt Git qui contient plusieurs projets liés entre eux                                                      |
+| **API (Application Programming Interface)** | Le programme qui répond aux requêtes du dashboard et qui seul parle à la base                                        |
+| **ORM**                                     | Un outil qui traduit des tables de base de données en objets manipulables dans le code (ici : **Prisma**)            |
+| **Migration**                               | Un fichier qui décrit un changement à appliquer à la structure de la base de données                                 |
+| **DTO (Data Transfer Object)**              | La forme exacte attendue ou renvoyée par une requête (ex : "un avertissement a une raison en texte et une sévérité") |
+| **Enum**                                    | Une liste fermée de valeurs possibles (ex : un statut de ticket ne peut être que OPEN, PENDING, RESOLVED ou CLOSED)  |
+| **Guard**                                   | Un contrôle exécuté avant qu'une requête n'atteigne son traitement (ex : vérifier le jeton de connexion)             |
+| **Jeton (token)**                           | Une chaîne de caractères qui prouve qu'un utilisateur est connecté, sans renvoyer son mot de passe à chaque requête  |
+| **Standalone component / signal**           | Deux mécanismes récents d'Angular pour organiser l'interface sans configuration superflue                            |

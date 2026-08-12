@@ -90,12 +90,12 @@ PostgreSQL + API + bot tournent en même temps sur la même machine.
 
 1. Créer un compte chez l'hébergeur choisi.
 2. Générer une paire de clés SSH si tu n'en as pas :
-   ```bash
-   ssh-keygen -t ed25519 -C "anubis-deploy"
-   ```
+    ```bash
+    ssh-keygen -t ed25519 -C "anubis-deploy"
+    ```
 3. Créer le serveur avec :
-   - Image : **Ubuntu 24.04 LTS**
-   - Ta clé SSH publique ajoutée à la création (pas de mot de passe)
+    - Image : **Ubuntu 24.04 LTS**
+    - Ta clé SSH publique ajoutée à la création (pas de mot de passe)
 4. Noter l'adresse IP publique du serveur.
 
 ---
@@ -106,18 +106,18 @@ PostgreSQL + API + bot tournent en même temps sur la même machine.
    n'importe lequel convient, aucune contrainte technique ici).
 2. Chez le fournisseur DNS (souvent le registrar lui-même, ou Cloudflare si tu
    veux profiter de son DNS gratuit), créer un enregistrement :
-   ```
-   Type: A
-   Nom:  moderation            (ou le sous-domaine de ton choix)
-   Valeur: <IP publique du VPS>
-   TTL: automatique
-   ```
-   Résultat : `moderation.tondomaine.com` pointe vers le VPS.
+    ```
+    Type: A
+    Nom:  moderation            (ou le sous-domaine de ton choix)
+    Valeur: <IP publique du VPS>
+    TTL: automatique
+    ```
+    Résultat : `moderation.tondomaine.com` pointe vers le VPS.
 3. Vérifier la propagation (peut prendre de quelques minutes à quelques
    heures) :
-   ```bash
-   nslookup moderation.tondomaine.com
-   ```
+    ```bash
+    nslookup moderation.tondomaine.com
+    ```
 
 ---
 
@@ -200,7 +200,7 @@ premier accès.
 
 Optionnel mais recommandé : donner un sous-domaine à Coolify lui-même (ex.
 `coolify.tondomaine.com`, même principe DNS qu'à l'étape 2) et l'activer dans
-*Settings → Domain* pour y accéder en HTTPS plutôt que par IP:8000. Une fois
+_Settings → Domain_ pour y accéder en HTTPS plutôt que par IP:8000. Une fois
 fait, retirer la règle `ufw allow 8000/tcp` : seul le port 443 restera
 nécessaire.
 
@@ -208,7 +208,7 @@ nécessaire.
 
 ## 6. Connecter GitHub à Coolify
 
-Dans Coolify : *Sources → Add → GitHub App*. Suivre l'assistant : il crée une
+Dans Coolify : _Sources → Add → GitHub App_. Suivre l'assistant : il crée une
 GitHub App sur ton compte/organisation, à installer sur le repo `anubis`
 (ou tous tes repos). C'est la méthode recommandée par Coolify — elle gère les
 webhooks et les permissions automatiquement (par opposition à une simple clé
@@ -218,11 +218,11 @@ de déploiement, qu'il faudrait recréer manuellement pour l'auto-déploiement).
 
 ## 7. Créer la base PostgreSQL
 
-Dans Coolify : *New Resource → Database → PostgreSQL*.
+Dans Coolify : _New Resource → Database → PostgreSQL_.
 
 - Version : 16 (ou la version installée en local — cohérence avec `schema.prisma`)
 - Générer un mot de passe fort (Coolify le propose automatiquement)
-- Activer les **sauvegardes automatiques** (*Backups* → planifier une
+- Activer les **sauvegardes automatiques** (_Backups_ → planifier une
   fréquence quotidienne, cible S3-compatible si tu en as une, sinon stockage
   local sur le VPS en attendant)
 
@@ -231,10 +231,10 @@ Noter la chaîne de connexion **interne** fournie par Coolify (du type
 `DATABASE_URL` pour l'API et le bot. Pas besoin de l'exposer publiquement.
 
 > ⚠️ **Coolify n'a pas un réseau Docker unique.** Chaque ressource a le sien.
-> Cette base étant une ressource *distincte* de la stack applicative, `api` et
+> Cette base étant une ressource _distincte_ de la stack applicative, `api` et
 > `bot` ne peuvent pas résoudre son nom d'hôte tant qu'ils ne sont pas
 > rattachés au même réseau. Symptôme : `PrismaClientInitializationError ...
-> P1001 — Can't reach database server at <nom-service>:5432`, sur l'API **et**
+P1001 — Can't reach database server at <nom-service>:5432`, sur l'API **et**
 > sur le bot, alors que la webapp démarre normalement.
 >
 > Le `docker-compose.yml` (§ 8.6) rattache donc `api` et `bot` au réseau
@@ -245,7 +245,7 @@ Noter la chaîne de connexion **interne** fournie par Coolify (du type
 > ```
 >
 > S'il ne s'appelle pas `coolify`, corriger le nom dans le compose. Activer
-> aussi *Connect To Predefined Network* dans les réglages de la ressource
+> aussi _Connect To Predefined Network_ dans les réglages de la ressource
 > Coolify si l'option est proposée : les deux mécanismes visent le même but,
 > et l'interface évolue régulièrement.
 >
@@ -414,50 +414,50 @@ l'avertissement de l'étape 7).
 
 ```yaml
 networks:
-  coolify:
-    external: true
+    coolify:
+        external: true
 
 services:
-  api:
-    build:
-      context: .
-      dockerfile: api/Dockerfile
-    restart: unless-stopped
-    # `default` doit rester explicite : des qu'on nomme un reseau, Compose
-    # cesse d'attacher le service au reseau par defaut de la stack.
-    networks: [default, coolify]
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      DATABASE_URL: ${DATABASE_URL}
-      GUILD_ID: ${GUILD_ID}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      ACCESS_TOKEN_TTL: 15m
-      REFRESH_TOKEN_TTL_DAYS: 7
-      CORS_ORIGINS: https://${APP_DOMAIN}
-      COOKIE_SECURE: "true"
-      MAX_FAILED_LOGINS: 5
-      LOCKOUT_MINUTES: 15
+    api:
+        build:
+            context: .
+            dockerfile: api/Dockerfile
+        restart: unless-stopped
+        # `default` doit rester explicite : des qu'on nomme un reseau, Compose
+        # cesse d'attacher le service au reseau par defaut de la stack.
+        networks: [default, coolify]
+        environment:
+            NODE_ENV: production
+            PORT: 3000
+            DATABASE_URL: ${DATABASE_URL}
+            GUILD_ID: ${GUILD_ID}
+            JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+            JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+            ACCESS_TOKEN_TTL: 15m
+            REFRESH_TOKEN_TTL_DAYS: 7
+            CORS_ORIGINS: https://${APP_DOMAIN}
+            COOKIE_SECURE: "true"
+            MAX_FAILED_LOGINS: 5
+            LOCKOUT_MINUTES: 15
 
-  webapp:
-    build:
-      context: .
-      dockerfile: webapp/Dockerfile
-    restart: unless-stopped
+    webapp:
+        build:
+            context: .
+            dockerfile: webapp/Dockerfile
+        restart: unless-stopped
 
-  bot:
-    build:
-      context: .
-      dockerfile: bot/Dockerfile
-    restart: unless-stopped
-    networks: [default, coolify]
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-      BOT_TOKEN: ${BOT_TOKEN}
-      CLIENT_ID: ${CLIENT_ID}
-      GUILD_HOST_ID: ${GUILD_HOST_ID}
+    bot:
+        build:
+            context: .
+            dockerfile: bot/Dockerfile
+        restart: unless-stopped
+        networks: [default, coolify]
+        environment:
+            NODE_ENV: production
+            DATABASE_URL: ${DATABASE_URL}
+            BOT_TOKEN: ${BOT_TOKEN}
+            CLIENT_ID: ${CLIENT_ID}
+            GUILD_HOST_ID: ${GUILD_HOST_ID}
 ```
 
 `webapp` n'est volontairement pas rattaché au réseau `coolify` : il ne sert
@@ -482,62 +482,63 @@ docker build -f bot/Dockerfile -t anubis-bot .
 
 ## 9. Créer la ressource dans Coolify
 
-1. *New Resource* : l'écran propose deux colonnes, **Git Based** (Public
+1. _New Resource_ : l'écran propose deux colonnes, **Git Based** (Public
    repo / Private repo avec GitHub App / Private repo avec Deploy Key) et
    **Docker Based** (Dockerfile / Docker Compose Empty / Docker Image).
    Choisir **Git Based → Private Repository (with GitHub App)** — c'est la
-   GitHub App connectée à l'étape 6. Ne pas prendre *Docker Compose Empty* :
+   GitHub App connectée à l'étape 6. Ne pas prendre _Docker Compose Empty_ :
    cette option crée une ressource autonome où le YAML est collé à la main,
    sans lien avec le repo ni redéploiement automatique au push.
 2. Sélectionner le repo `anubis` et la branche `master`. Coolify détecte
    `docker-compose.yml` à la racine et bascule automatiquement le build pack
    sur « Docker Compose ».
-3. **Domaines** (*Configuration → Domains*, un par service exposé) :
-   - `webapp` → `https://moderation.tondomaine.com`
-   - `api` → `https://moderation.tondomaine.com/api` (Coolify traduit ce
-     chemin en règle de routage Traefik `PathPrefix(/api)` ; vérifie ce
-     comportement dans l'interface au moment de la config, elle évolue
-     régulièrement — sinon un label Traefik personnalisé fait la même chose)
+3. **Domaines** (_Configuration → Domains_, un par service exposé) :
+    - `webapp` → `https://moderation.tondomaine.com`
+    - `api` → `https://moderation.tondomaine.com/api` (Coolify traduit ce
+      chemin en règle de routage Traefik `PathPrefix(/api)` ; vérifie ce
+      comportement dans l'interface au moment de la config, elle évolue
+      régulièrement — sinon un label Traefik personnalisé fait la même chose)
 
-   > ⚠️ **Traefik retire le préfixe `/api` avant de transmettre.** C'est le
-   > comportement normal d'un routage par chemin, mais l'API applique aussi son
-   > propre préfixe : elle attendrait `/api/api/...` et répondrait **404 sur
-   > toutes les routes**. Symptôme : la page de connexion s'affiche
-   > normalement, mais rien ne se passe au chargement ni à la connexion, et la
-   > console du navigateur montre `POST /api/auth/refresh → 404`.
-   >
-   > Pour confirmer, ouvrir `https://ton-domaine/api/health`. Si la réponse est
-   > `{"statusCode":404,"message":"Cannot GET /health","path":"/health"}`,
-   > c'est exactement ce cas : le JSON prouve que l'API répond bien (donc le
-   > routage et la base fonctionnent), et `"path":"/health"` montre que le
-   > préfixe a été retiré en route.
-   >
-   > Le `docker-compose.yml` règle ça avec `API_GLOBAL_PREFIX: ""` sur le
-   > service `api`. En local la variable est absente et le préfixe `api` par
-   > défaut s'applique — le navigateur, lui, appelle `/api/...` dans les deux
-   > cas.
-   - `bot` → aucun domaine, aucun port exposé
-4. **Variables d'environnement** (*Configuration → Environment Variables*),
+    > ⚠️ **Traefik retire le préfixe `/api` avant de transmettre.** C'est le
+    > comportement normal d'un routage par chemin, mais l'API applique aussi son
+    > propre préfixe : elle attendrait `/api/api/...` et répondrait **404 sur
+    > toutes les routes**. Symptôme : la page de connexion s'affiche
+    > normalement, mais rien ne se passe au chargement ni à la connexion, et la
+    > console du navigateur montre `POST /api/auth/refresh → 404`.
+    >
+    > Pour confirmer, ouvrir `https://ton-domaine/api/health`. Si la réponse est
+    > `{"statusCode":404,"message":"Cannot GET /health","path":"/health"}`,
+    > c'est exactement ce cas : le JSON prouve que l'API répond bien (donc le
+    > routage et la base fonctionnent), et `"path":"/health"` montre que le
+    > préfixe a été retiré en route.
+    >
+    > Le `docker-compose.yml` règle ça avec `API_GLOBAL_PREFIX: ""` sur le
+    > service `api`. En local la variable est absente et le préfixe `api` par
+    > défaut s'applique — le navigateur, lui, appelle `/api/...` dans les deux
+    > cas.
+    - `bot` → aucun domaine, aucun port exposé
+
+4. **Variables d'environnement** (_Configuration → Environment Variables_),
    à saisir une fois, valeurs jamais commitées :
-   - `DATABASE_URL` (fournie par la ressource PostgreSQL créée à l'étape 7)
-   - `GUILD_ID`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (générer avec la
-     commande du README), `APP_DOMAIN=moderation.tondomaine.com`
-   - `BOT_TOKEN`, `CLIENT_ID`, `GUILD_HOST_ID` (les identifiants Discord et
-     la base de prod du bot — memes noms que dans `bot/.env.example`, jamais
-     committes)
+    - `DATABASE_URL` (fournie par la ressource PostgreSQL créée à l'étape 7)
+    - `GUILD_ID`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (générer avec la
+      commande du README), `APP_DOMAIN=moderation.tondomaine.com`
+    - `BOT_TOKEN`, `CLIENT_ID`, `GUILD_HOST_ID` (les identifiants Discord et
+      la base de prod du bot — memes noms que dans `bot/.env.example`, jamais
+      committes)
 5. **Webhook** : Coolify l'a déjà enregistré côté GitHub via la GitHub App de
    l'étape 6 — chaque push sur `master` redéploiera automatiquement.
-6. **Commande post-déploiement** sur le service `api` (*Configuration →
-   Post-deployment Command*) :
-   ```
-   npm run db:deploy
-   ```
-   Applique les migrations Prisma en attente après chaque déploiement, avant
-   de basculer le trafic. `npm run db:seed` n'est **volontairement pas**
-   automatisé (il ne doit tourner qu'une fois) — à lancer manuellement via le
-   terminal intégré de Coolify sur le conteneur `api` lors de la toute
-   première mise en production.
-7. Lancer le premier déploiement manuellement (*Deploy*), puis vérifier les
+6. **Commande post-déploiement** sur le service `api` (_Configuration →
+   Post-deployment Command_) :
+    ```
+    npm run db:deploy
+    ```
+    Applique les migrations Prisma en attente après chaque déploiement, avant
+    de basculer le trafic. `npm run db:seed` n'est **volontairement pas**
+    automatisé (il ne doit tourner qu'une fois) — à lancer manuellement via le
+    terminal intégré de Coolify sur le conteneur `api` lors de la toute
+    première mise en production.
+7. Lancer le premier déploiement manuellement (_Deploy_), puis vérifier les
    logs de chaque service dans l'onglet correspondant.
 
 ---
@@ -552,27 +553,27 @@ pour qu'aucun code cassé n'atteigne `master`. À créer dans
 name: CI
 
 on:
-  pull_request:
-    branches: [master]
-  push:
-    branches: [master]
+    pull_request:
+        branches: [master]
+    push:
+        branches: [master]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run build
 ```
 
-Puis, dans les réglages GitHub du repo (*Settings → Branches → Branch
-protection rules* sur `master`), cocher *Require status checks to pass before
-merging* et sélectionner ce workflow. Résultat : tout ce qui atteint `master`
+Puis, dans les réglages GitHub du repo (_Settings → Branches → Branch
+protection rules_ sur `master`), cocher _Require status checks to pass before
+merging_ et sélectionner ce workflow. Résultat : tout ce qui atteint `master`
 a déjà été buildé avec succès, et Coolify ne fait que déployer du code déjà
 validé.
 
@@ -585,7 +586,7 @@ dans Coolify, **une ressource = une branche**. Pour un environnement de test
 séparé :
 
 1. Créer une branche `staging` sur le repo.
-2. *New Resource → Application → Docker Compose*, même repo, branche
+2. _New Resource → Application → Docker Compose_, même repo, branche
    `staging` cette fois.
 3. Lui donner un autre sous-domaine (`staging.tondomaine.com`) et une base
    PostgreSQL distincte (nouvelle ressource, ou schéma séparé).
@@ -597,36 +598,44 @@ séparé :
 ## 12. Sauvegardes et restauration
 
 - Sauvegardes automatiques déjà activées à l'étape 7 (Coolify → ressource
-  PostgreSQL → *Backups*). Vérifier régulièrement qu'une restauration
-  fonctionne réellement (*Backups → Restore* sur un environnement de test) —
+  PostgreSQL → _Backups_). Vérifier régulièrement qu'une restauration
+  fonctionne réellement (_Backups → Restore_ sur un environnement de test) —
   une sauvegarde jamais restaurée n'est qu'une hypothèse.
 - Pour une sauvegarde manuelle ponctuelle :
-  ```bash
-  docker exec <container_postgres> pg_dump -U <user> <db> > backup.sql
-  ```
+    ```bash
+    docker exec <container_postgres> pg_dump -U <user> <db> > backup.sql
+    ```
 
 ---
 
 ## 13. Observabilité minimale
 
-- Logs : onglet *Logs* de chaque service dans Coolify (streaming en direct).
+- Logs : onglet _Logs_ de chaque service dans Coolify (streaming en direct).
 - Healthcheck : Coolify redémarre automatiquement un conteneur qui plante
   (`restart: unless-stopped` dans le compose). Pour un healthcheck HTTP actif
   sur l'API, ajouter dans `docker-compose.yml` :
-  ```yaml
-  healthcheck:
-    test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1))"]
-    interval: 30s
-    timeout: 5s
-    retries: 3
-  ```
 
-  `/api/health` est public et vérifie la base : il renvoie 503 quand elle est
-  injoignable. C'est précisément le cas de figure qui fait échouer un premier
-  déploiement — le conteneur serait marqué « unhealthy » au lieu de boucler en
-  redémarrages silencieux.
+    ```yaml
+    healthcheck:
+        test:
+            [
+                "CMD",
+                "node",
+                "-e",
+                "require('http').get('http://localhost:3000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1))",
+            ]
+        interval: 30s
+        timeout: 5s
+        retries: 3
+    ```
+
+    `/api/health` est public et vérifie la base : il renvoie 503 quand elle est
+    injoignable. C'est précisément le cas de figure qui fait échouer un premier
+    déploiement — le conteneur serait marqué « unhealthy » au lieu de boucler en
+    redémarrages silencieux.
+
 - Alerting : Coolify peut notifier par e-mail/Discord/Slack en cas d'échec de
-  déploiement (*Notifications* dans les réglages du projet) — utile ici
+  déploiement (_Notifications_ dans les réglages du projet) — utile ici
   puisque le projet a déjà un serveur Discord administré.
 
 ---

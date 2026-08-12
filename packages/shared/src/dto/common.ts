@@ -11,25 +11,25 @@ export type IsoDateString = string;
 export type Snowflake = string;
 
 export interface PaginationQuery {
-  page?: number;
-  pageSize?: number;
+	page?: number;
+	pageSize?: number;
 }
 
 export interface Paginated<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  pageCount: number;
+	items: T[];
+	total: number;
+	page: number;
+	pageSize: number;
+	pageCount: number;
 }
 
 export interface ApiErrorBody {
-  statusCode: number;
-  message: string;
-  /** Erreurs de validation champ par champ, quand il y en a. */
-  details?: Record<string, string[]>;
-  timestamp: IsoDateString;
-  path: string;
+	statusCode: number;
+	message: string;
+	/** Erreurs de validation champ par champ, quand il y en a. */
+	details?: Record<string, string[]>;
+	timestamp: IsoDateString;
+	path: string;
 }
 
 export const DEFAULT_PAGE_SIZE = 25;

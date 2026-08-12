@@ -67,21 +67,21 @@ npm run web:dev
 
 ## Scripts
 
-| Commande | Effet |
-|---|---|
-| `npm run dev` | API et dashboard en parallele |
-| `npm run build` | Construit shared, puis l'API, puis le dashboard |
-| `npm run db:generate` | Regenere le client Prisma apres modification du schema |
-| `npm run db:migrate` | Cree une migration a partir du schema (developpement) |
-| `npm run db:deploy` | Applique les migrations existantes |
-| `npm run db:seed` | Compte proprietaire (`-- --demo` pour les donnees de demo) |
-| `npm run db:studio` | Explorateur de base Prisma |
+| Commande              | Effet                                                      |
+| --------------------- | ---------------------------------------------------------- |
+| `npm run dev`         | API et dashboard en parallele                              |
+| `npm run build`       | Construit shared, puis l'API, puis le dashboard            |
+| `npm run db:generate` | Regenere le client Prisma apres modification du schema     |
+| `npm run db:migrate`  | Cree une migration a partir du schema (developpement)      |
+| `npm run db:deploy`   | Applique les migrations existantes                         |
+| `npm run db:seed`     | Compte proprietaire (`-- --demo` pour les donnees de demo) |
+| `npm run db:studio`   | Explorateur de base Prisma                                 |
 
 ## Comptes
 
 Il n'y a **pas d'inscription publique**, par construction : aucune route de
 l'API ne cree de compte sans authentification. Les acces se creent depuis
-*Comptes du staff*, qui genere un mot de passe provisoire affiche une seule
+_Comptes du staff_, qui genere un mot de passe provisoire affiche une seule
 fois. Son titulaire doit le remplacer a sa premiere connexion.
 
 Quatre roles, du plus restreint au plus large : `VIEWER` (lecture),

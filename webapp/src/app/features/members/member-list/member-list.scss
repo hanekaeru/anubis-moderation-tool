@@ -1,54 +1,54 @@
 .search {
-  min-width: 280px;
-  flex: 1 1 280px;
+	min-width: 280px;
+	flex: 1 1 280px;
 }
 
 table {
-  width: 100%;
-  min-width: 900px;
+	width: 100%;
+	min-width: 900px;
 }
 
 .numeric {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
 }
 
 .roles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	align-items: center;
 }
 
 /* Bordure coloree plutot que fond colore : la couleur d'un role Discord n'est
    pas choisie pour porter du texte lisible. */
 .role-chip {
-  display: inline-block;
-  padding: 1px 8px;
-  border: 1px solid;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  white-space: nowrap;
+	display: inline-block;
+	padding: 1px 8px;
+	border: 1px solid;
+	border-radius: 999px;
+	font-size: 0.74rem;
+	white-space: nowrap;
 }
 
 .role-more {
-  font-size: 0.74rem;
-  color: var(--mat-sys-on-surface-variant);
-  cursor: default;
+	font-size: 0.74rem;
+	color: var(--mat-sys-on-surface-variant);
+	cursor: default;
 }
 
 .badge {
-  display: inline-block;
-  min-width: 24px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--mat-sys-secondary-container);
-  color: var(--mat-sys-on-secondary-container);
-  font-size: 0.8rem;
-  font-weight: 500;
+	display: inline-block;
+	min-width: 24px;
+	padding: 1px 8px;
+	border-radius: 999px;
+	background: var(--mat-sys-secondary-container);
+	color: var(--mat-sys-on-secondary-container);
+	font-size: 0.8rem;
+	font-weight: 500;
 }
 
 .badge-alert {
-  background: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
+	background: var(--mat-sys-error-container);
+	color: var(--mat-sys-on-error-container);
 }

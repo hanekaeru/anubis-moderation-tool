@@ -1,113 +1,113 @@
 <div class="page">
-  <header class="page-header">
-    <div>
-      <h1>Avertissements</h1>
-      <p class="subtitle">{{ total() }} avertissement(s) enregistre(s)</p>
-    </div>
-  </header>
+	<header class="page-header">
+		<div>
+			<h1>Avertissements</h1>
+			<p class="subtitle">{{ total() }} avertissement(s) enregistre(s)</p>
+		</div>
+	</header>
 
-  <form class="filters" [formGroup]="filters">
-    <mat-form-field>
-      <mat-label>Gravite</mat-label>
-      <mat-select formControlName="severity">
-        <mat-option [value]="null">Toutes</mat-option>
-        @for (severity of severities; track severity) {
-          <mat-option [value]="severity">{{ severityLabels[severity] }}</mat-option>
-        }
-      </mat-select>
-    </mat-form-field>
+	<form class="filters" [formGroup]="filters">
+		<mat-form-field>
+			<mat-label>Gravite</mat-label>
+			<mat-select formControlName="severity">
+				<mat-option [value]="null">Toutes</mat-option>
+				@for (severity of severities; track severity) {
+					<mat-option [value]="severity">{{ severityLabels[severity] }}</mat-option>
+				}
+			</mat-select>
+		</mat-form-field>
 
-    <mat-checkbox formControlName="activeOnly" class="checkbox">
-      Uniquement les avertissements en cours
-    </mat-checkbox>
-  </form>
+		<mat-checkbox formControlName="activeOnly" class="checkbox">
+			Uniquement les avertissements en cours
+		</mat-checkbox>
+	</form>
 
-  <mat-card appearance="outlined">
-    @if (loading()) {
-      <mat-progress-bar mode="indeterminate" />
-    }
+	<mat-card appearance="outlined">
+		@if (loading()) {
+			<mat-progress-bar mode="indeterminate" />
+		}
 
-    <div class="table-scroll">
-      <table mat-table [dataSource]="warnings()">
-        <ng-container matColumnDef="member">
-          <th mat-header-cell *matHeaderCellDef>Membre</th>
-          <td mat-cell *matCellDef="let warning">
-            <a [routerLink]="['/membres', warning.member.userId]" class="member-link">
-              <app-member-avatar
-                [username]="warning.member.username"
-                [globalName]="warning.member.globalName"
-                [avatarUrl]="warning.member.avatarUrl"
-                [size]="28"
-              />
-            </a>
-          </td>
-        </ng-container>
+		<div class="table-scroll">
+			<table mat-table [dataSource]="warnings()">
+				<ng-container matColumnDef="member">
+					<th mat-header-cell *matHeaderCellDef>Membre</th>
+					<td mat-cell *matCellDef="let warning">
+						<a [routerLink]="['/membres', warning.member.userId]" class="member-link">
+							<app-member-avatar
+								[username]="warning.member.username"
+								[globalName]="warning.member.globalName"
+								[avatarUrl]="warning.member.avatarUrl"
+								[size]="28"
+							/>
+						</a>
+					</td>
+				</ng-container>
 
-        <ng-container matColumnDef="severity">
-          <th mat-header-cell *matHeaderCellDef>Gravite</th>
-          <td mat-cell *matCellDef="let warning" class="nowrap">
-            {{ severityLabels[warning.severity] }}
-            <span class="points">{{ warning.points }} pt</span>
-          </td>
-        </ng-container>
+				<ng-container matColumnDef="severity">
+					<th mat-header-cell *matHeaderCellDef>Gravite</th>
+					<td mat-cell *matCellDef="let warning" class="nowrap">
+						{{ severityLabels[warning.severity] }}
+						<span class="points">{{ warning.points }} pt</span>
+					</td>
+				</ng-container>
 
-        <ng-container matColumnDef="reason">
-          <th mat-header-cell *matHeaderCellDef>Motif</th>
-          <td mat-cell *matCellDef="let warning" class="reason">
-            <span [matTooltip]="warning.reason">{{ warning.reason }}</span>
-          </td>
-        </ng-container>
+				<ng-container matColumnDef="reason">
+					<th mat-header-cell *matHeaderCellDef>Motif</th>
+					<td mat-cell *matCellDef="let warning" class="reason">
+						<span [matTooltip]="warning.reason">{{ warning.reason }}</span>
+					</td>
+				</ng-container>
 
-        <ng-container matColumnDef="issuedBy">
-          <th mat-header-cell *matHeaderCellDef>Emis par</th>
-          <td mat-cell *matCellDef="let warning" class="nowrap">
-            {{ warning.issuedBy.label }}
-            <span class="date" [matTooltip]="warning.createdAt | frDate">
-              {{ warning.createdAt | relativeTime }}
-            </span>
-          </td>
-        </ng-container>
+				<ng-container matColumnDef="issuedBy">
+					<th mat-header-cell *matHeaderCellDef>Emis par</th>
+					<td mat-cell *matCellDef="let warning" class="nowrap">
+						{{ warning.issuedBy.label }}
+						<span class="date" [matTooltip]="warning.createdAt | frDate">
+							{{ warning.createdAt | relativeTime }}
+						</span>
+					</td>
+				</ng-container>
 
-        <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef>Statut</th>
-          <td mat-cell *matCellDef="let warning">
-            <span class="tag" [class.tag-active]="warning.isActive">
-              {{ warning.isActive ? 'En cours' : warning.revokedAt ? 'Levee' : 'Expire' }}
-            </span>
-          </td>
-        </ng-container>
+				<ng-container matColumnDef="status">
+					<th mat-header-cell *matHeaderCellDef>Statut</th>
+					<td mat-cell *matCellDef="let warning">
+						<span class="tag" [class.tag-active]="warning.isActive">
+							{{ warning.isActive ? 'En cours' : warning.revokedAt ? 'Levee' : 'Expire' }}
+						</span>
+					</td>
+				</ng-container>
 
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef aria-label="Actions"></th>
-          <td mat-cell *matCellDef="let warning">
-            @if (warning.isActive) {
-              <button
-                matButton
-                *appHasPermission="Permission.WARNINGS_REVOKE"
-                (click)="revoke(warning)"
-              >
-                Lever
-              </button>
-            }
-          </td>
-        </ng-container>
+				<ng-container matColumnDef="actions">
+					<th mat-header-cell *matHeaderCellDef aria-label="Actions"></th>
+					<td mat-cell *matCellDef="let warning">
+						@if (warning.isActive) {
+							<button
+								matButton
+								*appHasPermission="Permission.WARNINGS_REVOKE"
+								(click)="revoke(warning)"
+							>
+								Lever
+							</button>
+						}
+					</td>
+				</ng-container>
 
-        <tr mat-header-row *matHeaderRowDef="columns"></tr>
-        <tr mat-row *matRowDef="let row; columns: columns"></tr>
-      </table>
-    </div>
+				<tr mat-header-row *matHeaderRowDef="columns"></tr>
+				<tr mat-row *matRowDef="let row; columns: columns"></tr>
+			</table>
+		</div>
 
-    @if (!loading() && warnings().length === 0) {
-      <p class="empty-state">Aucun avertissement ne correspond a ces criteres.</p>
-    }
+		@if (!loading() && warnings().length === 0) {
+			<p class="empty-state">Aucun avertissement ne correspond a ces criteres.</p>
+		}
 
-    <mat-paginator
-      [length]="total()"
-      [pageIndex]="pageIndex()"
-      [pageSize]="pageSize()"
-      [pageSizeOptions]="[10, 25, 50, 100]"
-      (page)="onPageChange($event)"
-      showFirstLastButtons
-    />
-  </mat-card>
+		<mat-paginator
+			[length]="total()"
+			[pageIndex]="pageIndex()"
+			[pageSize]="pageSize()"
+			[pageSizeOptions]="[10, 25, 50, 100]"
+			(page)="onPageChange($event)"
+			showFirstLastButtons
+		/>
+	</mat-card>
 </div>

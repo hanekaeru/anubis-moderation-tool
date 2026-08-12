@@ -1,4 +1,4 @@
-import { PrismaClient } from '@anubis/shared/prisma';
+import { PrismaClient } from "@anubis/shared/prisma";
 
 /**
  * Client Prisma partage avec l'API.
@@ -12,7 +12,7 @@ import { PrismaClient } from '@anubis/shared/prisma';
  * epuiserait les connexions PostgreSQL.
  */
 const prisma = new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+	log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
 });
 
 export default prisma;
