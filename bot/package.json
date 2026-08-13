@@ -4,24 +4,40 @@
 	"description": "Discord Mod Bot and Utilities",
 	"main": "dist/index.js",
 	"scripts": {
-		"build": "tsc",
+		"build": "tsc -p tsconfig.build.json",
 		"//env-file": "`-if-exists` et non `--env-file` sec : en conteneur il n'y a aucun fichier .env, les variables sont injectees directement dans l'environnement. Sans ce suffixe, la commande echoue avant meme de demarrer. Une variable reellement absente reste signalee par `requireEnv`.",
 		"start": "node --env-file-if-exists=.env dist/index.js",
 		"start:dev": "nodemon",
 		"start:prod": "node dist/index.js",
 		"refresh": "node --env-file-if-exists=.env -r ts-node/register refresh.ts",
 		"delete": "node --env-file-if-exists=.env -r ts-node/register delete_command.ts",
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"test": "jest"
 	},
 	"author": "hanekaeru",
 	"license": "ISC",
+	"jest": {
+		"moduleFileExtensions": [
+			"js",
+			"json",
+			"ts"
+		],
+		"rootDir": "src",
+		"testRegex": ".*\\.spec\\.ts$",
+		"transform": {
+			"^.+\\.(t|j)s$": "ts-jest"
+		},
+		"testEnvironment": "node"
+	},
 	"dependencies": {
 		"@anubis/shared": "file:../packages/shared",
 		"discord.js": "^14.15.3"
 	},
 	"devDependencies": {
+		"@types/jest": "^29.5.14",
 		"@types/node": "^20.14.10",
+		"jest": "^29.7.0",
 		"nodemon": "^3.1.4",
+		"ts-jest": "^29.2.5",
 		"ts-node": "^10.9.2",
 		"typescript": "^5.5.3"
 	}

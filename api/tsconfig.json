@@ -20,7 +20,13 @@
 		"strictBindCallApply": true,
 		"forceConsistentCasingInFileNames": true,
 		"noFallthroughCasesInSwitch": true,
-		"resolveJsonModule": true
+		"resolveJsonModule": true,
+		// Sans cette liste, TypeScript ramasse tous les `@types/*` presents
+		// n'importe ou dans le monorepo (typeRoots remonte l'arborescence) —
+		// notamment `@types/jasmine`, hoiste par le webapp, dont le global
+		// `expect` entre en collision avec celui de Jest et casse `rejects`,
+		// `any`, `objectContaining` dans les specs.
+		"types": ["node", "jest"]
 	},
 	"include": ["src/**/*.ts"],
 	"exclude": ["node_modules", "dist"]
