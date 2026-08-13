@@ -38,15 +38,28 @@
 		"studio": "prisma studio",
 		"//seed": "La CLI Prisma charge .env toute seule, pas un script lance via tsx : d'ou le flag. `-if-exists` et non `--env-file` sec, sinon la commande echoue la ou il n'y a aucun fichier .env — en conteneur, les variables sont injectees directement dans l'environnement.",
 		"seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
-		"format": "prisma format"
+		"format": "prisma format",
+		"test": "jest"
+	},
+	"jest": {
+		"moduleFileExtensions": ["js", "json", "ts"],
+		"rootDir": "src",
+		"testRegex": ".*\\.spec\\.ts$",
+		"transform": {
+			"^.+\\.(t|j)s$": "ts-jest"
+		},
+		"testEnvironment": "node"
 	},
 	"dependencies": {
 		"@prisma/client": "^6.3.1"
 	},
 	"devDependencies": {
+		"@types/jest": "^29.5.14",
 		"@types/node": "^22.10.7",
 		"argon2": "^0.41.1",
+		"jest": "^29.7.0",
 		"prisma": "^6.3.1",
+		"ts-jest": "^29.2.5",
 		"tsx": "^4.19.2",
 		"typescript": "^5.7.3"
 	}

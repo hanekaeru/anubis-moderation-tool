@@ -4,7 +4,11 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [master]
+    branches: ["**"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -30,11 +34,19 @@ jobs:
       - name: Construire shared, l'API et le dashboard
         run: npm run build
 
+      # Apres le build : les tests de l'API importent des types generes par
+      # `db:generate` (@anubis/shared/prisma), deja execute juste au-dessus.
+      - name: Lancer les tests (shared + API)
+        run: npm run test
+
       # `bot/` n'est pas un workspace npm, ses dependances s'installent a part.
       # L'ordre compte : il consomme `packages/shared` par une dependance
       # `file:` et a donc besoin du client Prisma genere juste avant.
       - name: Installer les dependances du bot
         run: npm ci --prefix bot
+
+      - name: Lancer les tests du bot
+        run: npm run test --prefix bot
 
       - name: Compiler le bot
         run: npm run bot:build

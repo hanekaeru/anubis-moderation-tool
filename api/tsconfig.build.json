@@ -1,0 +1,8 @@
+{
+	"extends": "./tsconfig.json",
+	// `nest build` prend ce fichier automatiquement quand il existe (voir
+	// getDefaultTsconfigPath dans @nestjs/cli). Les specs restent dans
+	// tsconfig.json (donc dans le projet vu par l'IDE et ts-jest, avec
+	// "types": ["node", "jest"]) mais sont exclues du build de production.
+	"exclude": ["node_modules", "dist", "src/**/*.spec.ts"]
+}

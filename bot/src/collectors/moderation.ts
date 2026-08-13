@@ -135,11 +135,12 @@ export async function findExpiredActiveSanctions(type: SanctionType) {
  * Sanctions qui sont encore active dont l'effet côté Discord n'a pas encore
  * été ajouté par le bot.
  */
-export async function findActiveSanctions(type: SanctionType) {
+export async function findActiveSanctions(types: SanctionType[]) {
 	return prisma.sanction.findMany({
 		where: {
-			type,
+			type: { in: types },
 			status: "ACTIVE",
+			isApplied: false,
 			expiresAt: { not: null, gt: new Date() },
 		},
 	});
@@ -170,6 +171,13 @@ export async function markDiscordSynced(sanctionId: string) {
 		where: { id: sanctionId },
 		data: { discordSyncedAt: new Date() },
 	});
+}
+
+export async function markDiscordAppliedSanction(sanctionId: string) {
+	await prisma.sanction.update({
+		where: { id: sanctionId },
+		data: { isApplied: true }
+	})
 }
 
 export async function markSanctionExpired(

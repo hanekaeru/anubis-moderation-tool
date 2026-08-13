@@ -13,7 +13,12 @@
 		"forceConsistentCasingInFileNames": true,
 		"resolveJsonModule": true,
 		"sourceMap": true,
-		"incremental": true
+		"incremental": true,
+		// Sans cette liste, TypeScript ramasse aussi les `@types/*` hoistes a la
+		// racine du monorepo (typeRoots remonte l'arborescence) — notamment
+		// `@types/jasmine` (webapp), dont le global `expect` entre en collision
+		// avec celui de Jest et casse `rejects`/`any`/`objectContaining`.
+		"types": ["node", "jest"]
 	},
 	"include": ["**/*.ts"],
 	"exclude": ["node_modules", "dist"]
