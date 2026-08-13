@@ -56,6 +56,10 @@ export class CreateSanctionDto {
 	reason!: string;
 
 	@IsOptional()
+	@IsBoolean()
+	isApplied?: boolean | null;
+
+	@IsOptional()
 	@Type(() => Number)
 	@IsInt()
 	@Min(60, { message: "La duree minimale est de 60 secondes." })

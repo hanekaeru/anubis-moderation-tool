@@ -7,36 +7,36 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import {
-	INSTANT_SANCTION_TYPES,
-	MAX_TIMEOUT_SECONDS,
-	SANCTION_DURATION_PRESETS,
-	SANCTION_TYPE_LABELS,
-	SanctionType,
-	type SanctionDto,
+  INSTANT_SANCTION_TYPES,
+  MAX_TIMEOUT_SECONDS,
+  SANCTION_DURATION_PRESETS,
+  SANCTION_TYPE_LABELS,
+  SanctionType,
+  type SanctionDto,
 } from '@anubis/shared';
 import { ModerationApi } from '../../../core/api/moderation.api';
 import { readApiError } from '../../../core/error.interceptor';
 import { NotificationService } from '../../../core/notification.service';
 
 export interface SanctionDialogData {
-	userId: string;
-	memberLabel: string;
-	/** Avertissement a l'origine de la sanction, quand elle en decoule. */
-	warningId?: string;
+  userId: string;
+  memberLabel: string;
+  /** Avertissement a l'origine de la sanction, quand elle en decoule. */
+  warningId?: string;
 }
 
 @Component({
-	selector: 'app-sanction-dialog',
-	imports: [
-		MatButtonModule,
-		MatDialogModule,
-		MatFormFieldModule,
-		MatInputModule,
-		MatSelectModule,
-		ReactiveFormsModule,
-	],
-	changeDetection: ChangeDetectionStrategy.OnPush,
-	template: `
+  selector: 'app-sanction-dialog',
+  imports: [
+    MatButtonModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    ReactiveFormsModule,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
 		<h2 mat-dialog-title>Sanctionner {{ data.memberLabel }}</h2>
 
 		<mat-dialog-content>
@@ -96,7 +96,7 @@ export interface SanctionDialogData {
 			</button>
 		</mat-dialog-actions>
 	`,
-	styles: `
+  styles: `
 		.form {
 			display: flex;
 			flex-direction: column;
@@ -133,75 +133,76 @@ export interface SanctionDialogData {
 	`,
 })
 export class SanctionDialog {
-	private readonly dialogRef = inject(MatDialogRef<SanctionDialog, SanctionDto>);
-	private readonly moderationApi = inject(ModerationApi);
-	private readonly notifications = inject(NotificationService);
-	private readonly formBuilder = inject(FormBuilder);
+  private readonly dialogRef = inject(MatDialogRef<SanctionDialog, SanctionDto>);
+  private readonly moderationApi = inject(ModerationApi);
+  private readonly notifications = inject(NotificationService);
+  private readonly formBuilder = inject(FormBuilder);
 
-	readonly data = inject<SanctionDialogData>(MAT_DIALOG_DATA);
-	readonly typeLabels = SANCTION_TYPE_LABELS;
-	readonly types = Object.values(SanctionType);
+  readonly data = inject<SanctionDialogData>(MAT_DIALOG_DATA);
+  readonly typeLabels = SANCTION_TYPE_LABELS;
+  readonly types = Object.values(SanctionType);
 
-	readonly submitting = signal(false);
-	readonly errorMessage = signal<string | null>(null);
+  readonly submitting = signal(false);
+  readonly errorMessage = signal<string | null>(null);
 
-	readonly form = this.formBuilder.nonNullable.group({
-		type: ['TIMEOUT' as SanctionType, [Validators.required]],
-		durationSeconds: [3600 as number | null],
-		reason: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(1000)]],
-		evidenceUrl: [''],
-	});
+  readonly form = this.formBuilder.nonNullable.group({
+    type: ['TIMEOUT' as SanctionType, [Validators.required]],
+    durationSeconds: [3600 as number | null],
+    reason: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(1000)]],
+    evidenceUrl: [''],
+  });
 
-	readonly selectedType = toSignal(this.form.controls.type.valueChanges, {
-		initialValue: this.form.controls.type.value,
-	});
+  readonly selectedType = toSignal(this.form.controls.type.valueChanges, {
+    initialValue: this.form.controls.type.value,
+  });
 
-	readonly needsDuration = computed(() => !INSTANT_SANCTION_TYPES.includes(this.selectedType()));
+  readonly needsDuration = computed(() => !INSTANT_SANCTION_TYPES.includes(this.selectedType()));
 
-	readonly isTimeout = computed(() => this.selectedType() === 'TIMEOUT');
+  readonly isTimeout = computed(() => this.selectedType() === 'TIMEOUT');
 
-	/**
-	 * Une exclusion temporaire ne peut pas etre permanente ni depasser 28 jours :
-	 * on retire les choix que l'API refuserait plutot que d'afficher une erreur
-	 * apres coup.
-	 */
-	readonly durations = computed(() =>
-		this.isTimeout()
-			? SANCTION_DURATION_PRESETS.filter(
-					(preset) => preset.seconds !== null && preset.seconds <= MAX_TIMEOUT_SECONDS,
-				)
-			: SANCTION_DURATION_PRESETS,
-	);
+  /**
+   * Une exclusion temporaire ne peut pas etre permanente ni depasser 28 jours :
+   * on retire les choix que l'API refuserait plutot que d'afficher une erreur
+   * apres coup.
+   */
+  readonly durations = computed(() =>
+    this.isTimeout()
+      ? SANCTION_DURATION_PRESETS.filter(
+        (preset) => preset.seconds !== null && preset.seconds <= MAX_TIMEOUT_SECONDS,
+      )
+      : SANCTION_DURATION_PRESETS,
+  );
 
-	submit(): void {
-		if (this.form.invalid || this.submitting()) {
-			this.form.markAllAsTouched();
-			return;
-		}
+  submit(): void {
+    if (this.form.invalid || this.submitting()) {
+      this.form.markAllAsTouched();
+      return;
+    }
 
-		this.submitting.set(true);
-		this.errorMessage.set(null);
+    this.submitting.set(true);
+    this.errorMessage.set(null);
 
-		const { type, durationSeconds, reason, evidenceUrl } = this.form.getRawValue();
+    const { type, durationSeconds, reason, evidenceUrl } = this.form.getRawValue();
 
-		this.moderationApi
-			.createSanction({
-				userId: this.data.userId,
-				type,
-				reason,
-				durationSeconds: this.needsDuration() ? durationSeconds : null,
-				warningId: this.data.warningId ?? null,
-				evidenceUrl: evidenceUrl.trim() || null,
-			})
-			.subscribe({
-				next: (sanction) => {
-					this.notifications.success('Sanction appliquee.');
-					this.dialogRef.close(sanction);
-				},
-				error: (error: unknown) => {
-					this.submitting.set(false);
-					this.errorMessage.set(readApiError(error));
-				},
-			});
-	}
+    this.moderationApi
+      .createSanction({
+        userId: this.data.userId,
+        type,
+        reason,
+        isApplied: false,
+        durationSeconds: this.needsDuration() ? durationSeconds : null,
+        warningId: this.data.warningId ?? null,
+        evidenceUrl: evidenceUrl.trim() || null,
+      })
+      .subscribe({
+        next: (sanction) => {
+          this.notifications.success('Sanction appliquee.');
+          this.dialogRef.close(sanction);
+        },
+        error: (error: unknown) => {
+          this.submitting.set(false);
+          this.errorMessage.set(readApiError(error));
+        },
+      });
+  }
 }

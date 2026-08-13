@@ -44,7 +44,7 @@ export class SanctionsService {
 		private readonly prisma: PrismaService,
 		private readonly guild: GuildContextService,
 		private readonly audit: AuditService,
-	) {}
+	) { }
 
 	private toDto(row: SanctionRow): SanctionDto {
 		return {
@@ -75,13 +75,13 @@ export class SanctionsService {
 			...(query.status ? { status: query.status } : {}),
 			...(query.from || query.to
 				? {
-						createdAt: {
-							...(query.from
-								? { gte: new Date(query.from) }
-								: {}),
-							...(query.to ? { lte: new Date(query.to) } : {}),
-						},
-					}
+					createdAt: {
+						...(query.from
+							? { gte: new Date(query.from) }
+							: {}),
+						...(query.to ? { lte: new Date(query.to) } : {}),
+					},
+				}
 				: {}),
 		};
 
@@ -196,6 +196,7 @@ export class SanctionsService {
 					: "ACTIVE",
 				warningId: dto.warningId ?? null,
 				evidenceUrl: dto.evidenceUrl ?? null,
+				isApplied: dto.isApplied ?? undefined
 			},
 			include: SANCTION_INCLUDE,
 		});

@@ -1,9 +1,10 @@
 import type { Client, GuildMember } from "discord.js";
-import type { SanctionType } from "@anubis/shared";
+import { SanctionType } from "@anubis/shared";
 import * as moderation from "../collectors/moderation";
 import * as shadowbanRole from "../collectors/shadowbanRole";
 
 const REVOCABLE_TYPES: SanctionType[] = ["TIMEOUT", "SHADOWBAN"];
+const WEBAPP_SANCTION_TYPES: SanctionType[] = Object.values(SanctionType);
 
 async function liftDiscordEffect(
 	member: GuildMember,
@@ -14,6 +15,22 @@ async function liftDiscordEffect(
 		await member.timeout(null, reason);
 	} else if (type === "SHADOWBAN") {
 		await shadowbanRole.liftShadowban(member, reason);
+	}
+}
+
+async function applyDiscordEffect(
+	member: GuildMember,
+	type: SanctionType,
+	reason: string,
+	duration: number
+): Promise<void> {
+	switch (type) {
+		case SanctionType.TIMEOUT:
+			await member.timeout(duration * 1000, reason);
+			break;
+		case SanctionType.SHADOWBAN:
+			await shadowbanRole.applyShadowban(member, reason);
+			break;
 	}
 }
 
@@ -83,7 +100,7 @@ export async function checkRevokedSanctions(client: Client): Promise<void> {
 					member,
 					sanction.type,
 					sanction.revokeReason ??
-						"Sanction levee depuis le dashboard.",
+					"Sanction levee depuis le dashboard.",
 				);
 			} catch (err) {
 				console.error(
@@ -107,5 +124,25 @@ export async function checkAppliedSanctions(client: Client): Promise<void> {
 	// Récupérer la liste des sanctions actives et avec cette liste, je regarde si elles ne sont pas arrivée à terme
 	// donc si la date d'expiration est supérieure à la date actuelle. Si c'est le cas, on regarde l'utilisateur Discord
 	// et on vérifie si il est toujours sanctionné.
-	const result = await moderation.findActiveSanctions("SHADOWBAN");
+	const activeSanctions = await moderation.findActiveSanctions(WEBAPP_SANCTION_TYPES);
+	for (const sanction of activeSanctions) {
+		const guild = client.guilds.cache.get(sanction.guildId);
+		const member = guild
+			? await guild.members.fetch(sanction.userId).catch(() => null)
+			: null;
+
+		if (member) {
+			try {
+				await applyDiscordEffect(member, sanction.type, sanction.reason, sanction.durationSeconds!);
+			} catch (err) {
+				console.error(
+					`[Moderation] Une erreur est survenue sur la vérification des sanctions appliquées (${sanction.id}).`,
+					err
+				);
+			}
+		}
+
+		await moderation.markDiscordAppliedSanction(sanction.id);
+
+	}
 }

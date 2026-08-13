@@ -77,6 +77,7 @@ export interface CreateSanctionRequest {
 	type: SanctionType;
 	reason: string;
 	/** Null ou absent = sanction permanente. */
+	isApplied?: boolean | null;
 	durationSeconds?: number | null;
 	warningId?: string | null;
 	evidenceUrl?: string | null;
@@ -119,15 +120,15 @@ export const SANCTION_DURATION_PRESETS: ReadonlyArray<{
 	label: string;
 	seconds: number | null;
 }> = [
-	{ label: "60 secondes", seconds: 60 },
-	{ label: "5 minutes", seconds: 5 * 60 },
-	{ label: "10 minutes", seconds: 10 * 60 },
-	{ label: "1 heure", seconds: 60 * 60 },
-	{ label: "1 jour", seconds: 24 * 60 * 60 },
-	{ label: "1 semaine", seconds: 7 * 24 * 60 * 60 },
-	{ label: "28 jours", seconds: 28 * 24 * 60 * 60 },
-	{ label: "Permanent", seconds: null },
-];
+		{ label: "60 secondes", seconds: 60 },
+		{ label: "5 minutes", seconds: 5 * 60 },
+		{ label: "10 minutes", seconds: 10 * 60 },
+		{ label: "1 heure", seconds: 60 * 60 },
+		{ label: "1 jour", seconds: 24 * 60 * 60 },
+		{ label: "1 semaine", seconds: 7 * 24 * 60 * 60 },
+		{ label: "28 jours", seconds: 28 * 24 * 60 * 60 },
+		{ label: "Permanent", seconds: null },
+	];
 
 /**
  * Discord plafonne les exclusions temporaires a 28 jours. La contrainte est
