@@ -1,50 +1,97 @@
 .shell {
 	height: 100vh;
+	background: var(--anubis-surface-0);
 }
 
 .sidenav {
-	width: 260px;
-	border-right: 1px solid var(--mat-sys-outline-variant);
-	background: var(--mat-sys-surface-container-low);
+	width: 236px;
+	border-right: 1px solid var(--anubis-border);
+	background: var(--anubis-surface-1);
+	padding: 8px;
 }
 
 .brand {
 	display: flex;
 	align-items: center;
-	gap: 12px;
-	padding: 20px 16px;
+	gap: 10px;
+	padding: 14px 12px 18px;
 }
 
 .brand-icon {
-	color: var(--mat-sys-primary);
-	font-size: 28px;
-	width: 28px;
-	height: 28px;
+	color: var(--anubis-accent);
+	font-size: 24px;
+	width: 24px;
+	height: 24px;
 }
 
 .brand-name {
 	margin: 0;
-	font-size: 1.15rem;
+	font-size: 1rem;
 	font-weight: 600;
-	letter-spacing: 0.02em;
+	letter-spacing: -0.02em;
 }
 
 .brand-tag {
 	margin: 0;
-	font-size: 0.75rem;
+	font-size: 0.68rem;
 	text-transform: uppercase;
-	letter-spacing: 0.08em;
-	color: var(--mat-sys-on-surface-variant);
+	letter-spacing: 0.09em;
+	color: var(--anubis-text-3);
 }
 
-/* L'entree active porte un fond plein : la couleur seule du texte serait trop
-   discrete sur la surface de la barre laterale. */
-a.active {
-	background: var(--mat-sys-secondary-container);
+/* La navigation est ramenee a des lignes compactes et arrondies : c'est ce
+   detail qui distingue une barre laterale d'outil moderne d'une liste
+   Material par defaut, haute et pleine largeur. */
+.mat-mdc-nav-list {
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
 
-	mat-icon,
-	span {
-		color: var(--mat-sys-on-secondary-container);
+.mat-mdc-list-item {
+	border-radius: 8px;
+	height: 38px !important;
+	color: var(--anubis-text-2);
+
+	.mat-mdc-list-item-title {
+		font-size: 0.875rem;
+		font-weight: 500;
+	}
+
+	mat-icon {
+		font-size: 19px;
+		width: 19px;
+		height: 19px;
+		color: var(--anubis-text-3);
+	}
+
+	&:hover {
+		background: var(--anubis-surface-2);
+		color: var(--anubis-text-1);
+	}
+}
+
+/* L'entree active se signale par un fond doux et une barre d'accent a gauche,
+   plutot que par un aplat de couleur qui ecraserait le reste de la liste. */
+a.active {
+	position: relative;
+	background: var(--anubis-accent-soft);
+
+	.mat-mdc-list-item-title,
+	mat-icon {
+		color: var(--anubis-accent-text);
+	}
+
+	&::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 9px;
+		bottom: 9px;
+		width: 2px;
+		border-radius: 0 2px 2px 0;
+		background: var(--anubis-accent);
 	}
 }
 
@@ -52,12 +99,23 @@ a.active {
 	position: sticky;
 	top: 0;
 	z-index: 2;
-	background: var(--mat-sys-surface);
-	border-bottom: 1px solid var(--mat-sys-outline-variant);
+	height: 56px;
+	background: color-mix(in srgb, var(--anubis-surface-0) 82%, transparent);
+	/* Le flou laisse deviner le contenu qui defile dessous sans le rendre
+	   lisible : la barre reste posee sur la page au lieu de la couper. */
+	backdrop-filter: blur(10px);
+	border-bottom: 1px solid var(--anubis-border);
+	padding: 0 20px;
 }
 
 .spacer {
 	flex: 1 1 auto;
+}
+
+.account {
+	color: var(--anubis-text-2);
+	font-size: 0.85rem;
+	font-weight: 500;
 }
 
 .account-name {
@@ -70,17 +128,18 @@ a.active {
 
 .menu-name {
 	margin: 0;
-	font-weight: 500;
+	font-weight: 600;
+	font-size: 0.9rem;
 }
 
 .menu-role {
 	margin: 2px 0 0;
-	font-size: 0.8rem;
-	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.78rem;
+	color: var(--anubis-text-3);
 }
 
 main {
-	min-height: calc(100vh - 64px);
+	min-height: calc(100vh - 56px);
 }
 
 @media (max-width: 600px) {

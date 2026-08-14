@@ -1,6 +1,7 @@
 .search {
-	min-width: 280px;
-	flex: 1 1 280px;
+	min-width: 260px;
+	flex: 1 1 260px;
+	max-width: 380px;
 }
 
 table {
@@ -11,6 +12,7 @@ table {
 .numeric {
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
+	color: var(--anubis-text-2);
 }
 
 .roles {
@@ -20,35 +22,44 @@ table {
 	align-items: center;
 }
 
-/* Bordure coloree plutot que fond colore : la couleur d'un role Discord n'est
-   pas choisie pour porter du texte lisible. */
+/* La couleur du role vient de Discord : elle est arbitraire et souvent
+   saturee. On la cantonne donc a un filet de 1 px sur un fond neutre, au lieu
+   de la laisser porter du texte — c'est lisible quelle que soit la teinte, et
+   ca reste vrai dans les deux modes. */
 .role-chip {
 	display: inline-block;
 	padding: 1px 8px;
 	border: 1px solid;
-	border-radius: 999px;
-	font-size: 0.74rem;
+	border-radius: 6px;
+	background: var(--anubis-surface-2);
+	color: var(--anubis-text-2);
+	font-size: 0.72rem;
+	font-weight: 500;
 	white-space: nowrap;
 }
 
 .role-more {
-	font-size: 0.74rem;
-	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.72rem;
+	color: var(--anubis-text-3);
 	cursor: default;
 }
 
+/* Un compteur a zero ne merite pas une pastille : seule une valeur non nulle
+   en recoit une, ce qui fait ressortir les membres a surveiller sans que la
+   colonne devienne un mur de badges. */
 .badge {
 	display: inline-block;
-	min-width: 24px;
-	padding: 1px 8px;
-	border-radius: 999px;
-	background: var(--mat-sys-secondary-container);
-	color: var(--mat-sys-on-secondary-container);
-	font-size: 0.8rem;
+	min-width: 22px;
+	padding: 1px 7px;
+	border-radius: 6px;
+	background: var(--anubis-surface-3);
+	color: var(--anubis-text-1);
+	font-size: 0.76rem;
 	font-weight: 500;
+	font-variant-numeric: tabular-nums;
 }
 
 .badge-alert {
-	background: var(--mat-sys-error-container);
-	color: var(--mat-sys-on-error-container);
+	background: var(--anubis-danger-soft);
+	color: var(--anubis-danger-text);
 }

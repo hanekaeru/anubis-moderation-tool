@@ -8,6 +8,7 @@ import {
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
+import { MAT_RIPPLE_GLOBAL_OPTIONS } from '@angular/material/core';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
 import { provideEchartsCore } from 'ngx-echarts';
 import { routes } from './app.routes';
@@ -40,6 +41,10 @@ export const appConfig: ApplicationConfig = {
 			provide: MAT_FORM_FIELD_DEFAULT_OPTIONS,
 			useValue: { appearance: 'outline', subscriptSizing: 'dynamic' },
 		},
+		// L'onde au clic est l'une des signatures les plus datees de Material.
+		// La couper par provider plutot qu'en CSS evite d'avoir a lutter contre
+		// des animations qui continueraient de tourner sans etre visibles.
+		{ provide: MAT_RIPPLE_GLOBAL_OPTIONS, useValue: { disabled: true } },
 		// Rejoue le cookie de refresh avant le premier rendu, pour qu'un
 		// rechargement de page ne renvoie pas vers l'ecran de connexion.
 		provideAppInitializer(() => inject(AuthService).restoreSession()),

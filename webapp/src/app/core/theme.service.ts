@@ -4,10 +4,16 @@ export type Theme = 'light' | 'dark';
 
 const STORAGE_KEY = 'anubis-theme';
 
+/**
+ * Sombre par defaut : seule une preference systeme explicitement claire
+ * bascule. Interroger `prefers-color-scheme: dark` ferait basculer en clair
+ * tous ceux qui n'ont exprime aucune preference, ce qui est l'inverse du
+ * defaut voulu. Doit rester aligne sur le script inline d'`index.html`.
+ */
 function preferredTheme(): Theme {
 	const stored = localStorage.getItem(STORAGE_KEY);
 	if (stored === 'light' || stored === 'dark') return stored;
-	return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+	return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 /**
