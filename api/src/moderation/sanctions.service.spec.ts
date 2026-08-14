@@ -199,6 +199,22 @@ describe("SanctionsService.revoke", () => {
 		).rejects.toBeInstanceOf(BadRequestException);
 	});
 
+	it("rejette une sanction deja terminee (EXPIRED)", async () => {
+		const { service } = makeService({
+			sanction: {
+				findFirst: jest.fn().mockResolvedValue({ ...SANCTION_ROW, status: "EXPIRED" }),
+				findMany: jest.fn(),
+				count: jest.fn(),
+				create: jest.fn(),
+				update: jest.fn(),
+				updateMany: jest.fn(),
+			},
+		});
+		await expect(
+			service.revoke("sanction-1", revokeDto(), ACTOR),
+		).rejects.toBeInstanceOf(BadRequestException);
+	});
+
 	it("leve une sanction active et ecrit l'audit", async () => {
 		const update = jest.fn().mockResolvedValue({ ...SANCTION_ROW, status: "REVOKED" });
 		const { service, audit } = makeService({

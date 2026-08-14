@@ -18,6 +18,14 @@ describe("avatarUrl", () => {
 		);
 	});
 
+	it("permet de demander explicitement un webp pour un avatar anime", () => {
+		expect(
+			avatarUrl("250902879667879937", "a_abcdef123456", 128, "webp"),
+		).toBe(
+			"https://cdn.discordapp.com/avatars/250902879667879937/a_abcdef123456.webp?size=128",
+		);
+	});
+
 	it("repercute la taille demandee dans l'URL", () => {
 		expect(avatarUrl("250902879667879937", "abcdef123456", 256)).toContain(
 			"size=256",

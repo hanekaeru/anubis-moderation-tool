@@ -4,6 +4,7 @@ import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AccountFlagsModule } from "./account-flags/account-flags.module";
+import { AccountModule } from "./account/account.module";
 import { AppUsersModule } from "./app-users/app-users.module";
 import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
@@ -20,6 +21,7 @@ import { ModerationModule } from "./moderation/moderation.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RaidModule } from "./raid/raid.module";
 import { StatsModule } from "./stats/stats.module";
+import { StatusModule } from "./status/status.module";
 import { TicketsModule } from "./tickets/tickets.module";
 
 @Module({
@@ -47,6 +49,8 @@ import { TicketsModule } from "./tickets/tickets.module";
 		AutomodModule,
 		RaidModule,
 		AccountFlagsModule,
+		AccountModule,
+		StatusModule,
 	],
 	providers: [
 		// L'ordre compte : on limite le debit, puis on authentifie, puis on

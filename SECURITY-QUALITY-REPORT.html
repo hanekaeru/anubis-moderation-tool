@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Anubis - audit sécurité et qualité</title>
+	<style>
+		:root {
+			--ink: #18212b;
+			--muted: #5d6874;
+			--line: #dce3e8;
+			--paper: #f6f8fa;
+			--card: #fff;
+			--red: #b42318;
+			--orange: #b54708;
+			--blue: #175cd3;
+			--green: #067647;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			color: var(--ink);
+			background: var(--paper);
+			font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+		}
+
+		main {
+			max-width: 1100px;
+			margin: 0 auto;
+			padding: 42px 22px 64px;
+		}
+
+		header {
+			background: #14202b;
+			color: #fff;
+			padding: 30px;
+			border-radius: 12px;
+			margin-bottom: 24px;
+		}
+
+		h1,
+		h2,
+		h3 {
+			line-height: 1.2;
+		}
+
+		h1 {
+			margin: 0 0 8px;
+			font-size: clamp(2rem, 4vw, 3.5rem);
+		}
+
+		h2 {
+			margin-top: 34px;
+			border-bottom: 1px solid var(--line);
+			padding-bottom: 9px;
+		}
+
+		h3 {
+			margin-bottom: 6px;
+		}
+
+		.subtitle {
+			color: #c7d1da;
+			margin: 0;
+		}
+
+		.meta {
+			color: #d4dde5;
+			font-size: .9rem;
+			margin-top: 20px;
+		}
+
+		.grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: 14px;
+		}
+
+		.card {
+			background: var(--card);
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			padding: 18px;
+		}
+
+		.metric {
+			font-size: 2rem;
+			font-weight: 750;
+			display: block;
+		}
+
+		.label {
+			color: var(--muted);
+			font-size: .9rem;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			background: var(--card);
+			border: 1px solid var(--line);
+		}
+
+		th,
+		td {
+			text-align: left;
+			vertical-align: top;
+			padding: 13px 14px;
+			border-bottom: 1px solid var(--line);
+		}
+
+		th {
+			background: #edf2f6;
+		}
+
+		tr:last-child td {
+			border-bottom: 0;
+		}
+
+		.badge {
+			display: inline-block;
+			padding: 3px 9px;
+			border-radius: 999px;
+			font-size: .78rem;
+			font-weight: 700;
+			white-space: nowrap;
+		}
+
+		.high {
+			color: var(--red);
+			background: #fee4e2;
+		}
+
+		.medium {
+			color: var(--orange);
+			background: #fef0c7;
+		}
+
+		.low {
+			color: var(--blue);
+			background: #e0ecff;
+		}
+
+		.good {
+			color: var(--green);
+			background: #dcfae6;
+		}
+
+		code {
+			background: #eef1f4;
+			padding: 1px 5px;
+			border-radius: 4px;
+		}
+
+		.note {
+			border-left: 4px solid var(--blue);
+			padding: 12px 16px;
+			background: #eaf2ff;
+		}
+
+		ul {
+			padding-left: 22px;
+		}
+
+		.small {
+			color: var(--muted);
+			font-size: .9rem;
+		}
+
+		@media (max-width:700px) {
+			main {
+				padding: 20px 12px 40px;
+			}
+
+			header {
+				padding: 22px;
+			}
+
+			table {
+				display: block;
+				overflow-x: auto;
+				white-space: normal;
+			}
+
+			th,
+			td {
+				min-width: 170px;
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<main>
+		<header>
+			<h1>Anubis</h1>
+			<p class="subtitle">Tour sécurité et retour global sur la qualité du code</p>
+			<p class="meta">Audit statique réalisé le 14 août 2026 sur l’état courant du workspace. Périmètre : API
+				NestJS, bot Discord, dashboard Angular, package partagé, Docker et CI.</p>
+		</header>
+
+		<section class="grid" aria-label="Synthèse">
+			<div class="card"><span class="metric">126</span><span class="label">tests racine réussis : shared +
+					API</span></div>
+			<div class="card"><span class="metric">0</span><span class="label">vulnérabilité high/critical dans npm
+					audit production</span></div>
+			<div class="card"><span class="metric">4</span><span class="label">guards globaux : débit, JWT, mot de
+					passe, permissions</span></div>
+			<div class="card"><span class="metric">292</span><span class="label">fichiers analysés par le graphe du
+					projet</span></div>
+		</section>
+
+		<h2>Verdict rapide</h2>
+		<div class="note"><strong>Base saine, mais pas encore durcie de bout en bout.</strong> Le projet possède de
+			bonnes fondations de sécurité applicative et une architecture lisible. Le principal travail restant concerne
+			le périmètre de déploiement, la validation explicite de la configuration de production, la couverture des
+			chemins sensibles et la reproductibilité des images Docker.</div>
+
+		<h2>Sécurité : points solides</h2>
+		<div class="grid">
+			<div class="card">
+				<h3>Authentification</h3>
+				<p>Guard JWT global avec ouverture explicite par <code>@Public()</code>. Mots de passe hachés en
+					Argon2id, hachage factice contre l’énumération temporelle, verrouillage après échecs et limite
+					dédiée de 5 connexions/minute sur le login.</p>
+				<p class="small">Références : <code>api/src/auth/auth.service.ts</code>,
+					<code>api/src/auth/auth.controller.ts</code>, <code>api/src/app.module.ts</code></p>
+			</div>
+			<div class="card">
+				<h3>Sessions</h3>
+				<p>Access token court gardé côté application, refresh token opaque en cookie <code>httpOnly</code>,
+					<code>secure</code> en production et rotation avec révocation des jetons réutilisés.</p>
+				<p class="small">Référence : <code>api/src/auth/token.service.ts</code></p>
+			</div>
+			<div class="card">
+				<h3>Entrées et API</h3>
+				<p><code>ValidationPipe</code> global avec transformation contrôlée, whitelist et
+					<code>forbidNonWhitelisted</code>. Helmet, CORS explicite et throttling global sont présents.</p>
+				<p class="small">Références : <code>api/src/main.ts</code>, <code>api/src/app.module.ts</code></p>
+			</div>
+			<div class="card">
+				<h3>Données</h3>
+				<p>Prisma est utilisé presque partout. Le seul SQL brut repéré dans la recherche membres paramètre les
+					valeurs et protège les colonnes de tri par une table blanche.</p>
+				<p class="small">Référence : <code>api/src/members/members.service.ts</code></p>
+			</div>
+		</div>
+
+		<h2>Risques et corrections proposées</h2>
+		<table>
+			<thead>
+				<tr>
+					<th>Priorité</th>
+					<th>Constat vérifié</th>
+					<th>Impact</th>
+					<th>Correction recommandée</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td><span class="badge high">Élevée</span></td>
+					<td><strong>Les fichiers secrets existent localement.</strong> <code>api/.env</code>,
+						<code>bot/.env</code> et <code>packages/shared/.env</code> sont présents, même s’ils ne sont pas
+						suivis par Git.</td>
+					<td>Une copie, archive, capture ou mauvaise commande peut exposer base, JWT ou token Discord.</td>
+					<td>Conserver uniquement les <code>.env.example</code> dans le dépôt, vérifier l’historique Git et
+						les artefacts CI, utiliser les secrets Coolify, et faire tourner toute valeur ayant déjà été
+						partagée.</td>
+				</tr>
+				<tr>
+					<td><span class="badge high">Élevée</span></td>
+					<td><strong>La production ne valide pas explicitement CORS et cookie.</strong>
+						<code>COOKIE_SECURE</code> est configurable et <code>CORS_ORIGINS</code> est construit depuis
+						<code>APP_DOMAIN</code>, sans contrôle HTTPS/wildcard dans <code>configuration.ts</code>.</td>
+					<td>Une erreur de déploiement avec cookies credentials peut élargir l’origine autorisée ou diminuer
+						le transport sécurisé.</td>
+					<td>En production, refuser les origines non HTTPS, les wildcards et les valeurs vides ; imposer
+						<code>cookieSecure=true</code> et ajouter des tests de configuration négatifs.</td>
+				</tr>
+				<tr>
+					<td><span class="badge medium">Moyenne</span></td>
+					<td><strong>Le serveur Nginx ne déclare pas de headers de sécurité.</strong> Le fichier ne contient
+						que le fallback Angular.</td>
+					<td>CSP, HSTS, anti-framing et options de type MIME dépendent du proxy amont et peuvent manquer
+						selon l’environnement.</td>
+					<td>Définir une CSP compatible avec Angular, HSTS uniquement derrière HTTPS,
+						<code>X-Content-Type-Options</code> et une politique de framing ; vérifier les headers avec un
+						test d’intégration.</td>
+				</tr>
+				<tr>
+					<td><span class="badge medium">Moyenne</span></td>
+					<td><strong>Les limites sont bonnes mais peu spécialisées.</strong> Le login est limité, tandis que
+						le throttling par défaut est de 120 requêtes/minute pour toutes les routes.</td>
+					<td>Les recherches lourdes, exports ou endpoints publics peuvent consommer une part disproportionnée
+						des ressources.</td>
+					<td>Définir des profils par endpoint (auth, recherche, écriture, health), idéalement avec un
+						stockage partagé si plusieurs réplicas API sont déployés.</td>
+				</tr>
+				<tr>
+					<td><span class="badge medium">Moyenne</span></td>
+					<td><strong>La couverture de sécurité n’est pas démontrée par un seuil.</strong> Les tests passent,
+						mais aucun seuil de couverture n’est imposé dans les scripts ou la CI.</td>
+					<td>Les guards, DTO, rotation de refresh tokens, commandes Discord et synchronisations peuvent
+						régresser sans alerter.</td>
+					<td>Ajouter tests ciblés pour <code>JwtAuthGuard</code>, <code>PermissionsGuard</code>,
+						<code>PasswordChangeGuard</code>, auth/refresh, recherche SQL et commandes de modération ;
+						publier et imposer un seuil progressif.</td>
+				</tr>
+				<tr>
+					<td><span class="badge medium">Moyenne</span></td>
+					<td><strong>Les images runtime ne fixent pas d’utilisateur non privilégié.</strong> Les Dockerfiles
+						ne contiennent ni <code>USER</code> ni durcissement explicite du système de fichiers.</td>
+					<td>Une compromission applicative aurait un périmètre plus large dans le conteneur.</td>
+					<td>Créer un utilisateur runtime dédié, passer les répertoires nécessaires en lecture seule, ajouter
+						un <code>HEALTHCHECK</code> et limiter les capabilities au niveau Compose.</td>
+				</tr>
+				<tr>
+					<td><span class="badge low">Faible</span></td>
+					<td><strong>Le build du bot utilise <code>npm install</code>.</strong> Les autres images utilisent
+						aussi des étapes distinctes et le bot reste hors workspace.</td>
+					<td>Moins de reproductibilité et risque de dérive par rapport au lockfile lors d’une reconstruction.
+					</td>
+					<td>Copier <code>bot/package-lock.json</code> et utiliser <code>npm ci</code> dans l’image ; aligner
+						cette règle avec la CI.</td>
+				</tr>
+				<tr>
+					<td><span class="badge low">Faible</span></td>
+					<td><strong>Audit npm : une vulnérabilité modérée est signalée dans chaque arbre audité.</strong>
+						Aucune high/critical n’a été trouvée.</td>
+					<td>Risque limité, mais les dépendances transitives restent à suivre.</td>
+					<td>Examiner les avis modérés liés à <code>echarts</code> et <code>undici</code>, puis ajouter
+						périodiquement <code>npm audit --audit-level=high</code> ou Dependabot en CI.</td>
+				</tr>
+			</tbody>
+		</table>
+
+		<h2>Qualité globale du code</h2>
+		<div class="grid">
+			<div class="card">
+				<h3><span class="badge good">Bon</span> Architecture</h3>
+				<p>La séparation API/bot/webapp/shared est nette. Les contrats partagés, les DTO et les décorateurs de
+					permissions réduisent la duplication. Le graphe signale aucune boucle d’import détectée.</p>
+			</div>
+			<div class="card">
+				<h3><span class="badge good">Bon</span> Lisibilité</h3>
+				<p>Les abstractions importantes sont nommées, les décisions sensibles sont documentées et les règles
+					métier Discord complexes sont isolées dans des collecteurs et tâches dédiés.</p>
+			</div>
+			<div class="card">
+				<h3><span class="badge medium">À renforcer</span> Tests</h3>
+				<p>126 tests racine passent, ce qui est un bon filet de non-régression. Il faut toutefois compléter les
+					chemins de sécurité, les contrôleurs et le bot, puis mesurer la couverture plutôt que compter
+					seulement les suites.</p>
+			</div>
+			<div class="card">
+				<h3><span class="badge medium">À renforcer</span> Exploitabilité</h3>
+				<p>La configuration est typée et échoue tôt, mais le contrôle de ses invariants de production (CORS,
+					HTTPS, secrets, intents Discord) devrait être aussi strict que le contrôle des variables
+					obligatoires.</p>
+			</div>
+			<div class="card">
+				<h3><span class="badge medium">À renforcer</span> Reproductibilité</h3>
+				<p>La CI construit et teste les principaux composants, mais le bot est hors workspace et son Dockerfile
+					utilise <code>npm install</code>. Les audits de dépendances et les scans d’image ne sont pas encore
+					des étapes bloquantes.</p>
+			</div>
+			<div class="card">
+				<h3><span class="badge good">Bon</span> Dette technique</h3>
+				<p>Le code ne montre pas de cycle d’import et concentre correctement le SQL brut dans un point justifié.
+					La priorité est la couverture et le durcissement, pas une refonte de l’architecture.</p>
+			</div>
+		</div>
+
+		<h2>Plan d’action suggéré</h2>
+		<ol>
+			<li><strong>Avant mise en production :</strong> valider CORS/HTTPS/cookies, vérifier les secrets locaux et
+				historiques, ajouter un utilisateur non root aux images, puis tester les headers réellement servis.</li>
+			<li><strong>Prochaine itération :</strong> écrire les tests des guards et de l’authentification, couvrir la
+				whitelist SQL et les commandes sensibles du bot, et instaurer un seuil de couverture.</li>
+			<li><strong>Industrialisation :</strong> remplacer <code>npm install</code> par <code>npm ci</code> dans le
+				bot, ajouter audit dépendances et scan d’images en CI, et rendre les limites de débit configurables par
+				environnement.</li>
+		</ol>
+
+		<h2>Limites de l’audit</h2>
+		<p class="small">Il s’agit d’une revue statique complétée par les tests racine et deux audits npm de production.
+			Je n’ai pas inspecté le contenu des fichiers <code>.env</code>, effectué de test d’intrusion, vérifié la
+			configuration réelle de Coolify/Traefik/Discord, ni exécuté la CI complète avec le test et le build séparés
+			du bot. Le workspace contient aussi des modifications utilisateur non liées ; elles ont été laissées
+			intactes.</p>
+		<p class="small">Sources principales : <code>api/src/main.ts</code>, <code>api/src/app.module.ts</code>,
+			<code>api/src/auth/</code>, <code>api/src/config/configuration.ts</code>,
+			<code>api/src/members/members.service.ts</code>, <code>api/Dockerfile</code>, <code>bot/Dockerfile</code>,
+			<code>webapp/nginx.conf</code>, <code>.github/workflows/ci.yml</code> et <code>CLAUDE.md</code>.</p>
+	</main>
+</body>
+
+</html>

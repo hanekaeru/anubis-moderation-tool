@@ -21,7 +21,7 @@ import { MembersService } from "./members.service";
 @Controller("members")
 @RequirePermissions(Permission.MEMBERS_READ)
 export class MembersController {
-	constructor(private readonly members: MembersService) {}
+	constructor(private readonly members: MembersService) { }
 
 	@Get()
 	search(@Query() query: MemberQueryDto): Promise<Paginated<MemberListItem>> {

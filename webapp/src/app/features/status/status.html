@@ -1,0 +1,96 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Statut</h1>
+			<p class="subtitle">
+				État de fonctionnement d'Anubis : process du bot, API, base de données et alertes de
+				sécurité en cours. Actualisé automatiquement.
+			</p>
+		</div>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (status(); as state) {
+		<mat-card appearance="outlined" class="banner" [attr.data-severity]="overall()">
+			<mat-card-content>
+				<mat-icon>{{ overallIcon() }}</mat-icon>
+				<div>
+					<strong>{{ overallLabel() }}</strong>
+					<p>Dernière vérification {{ state.checkedAt | relativeTime }}.</p>
+				</div>
+			</mat-card-content>
+		</mat-card>
+
+		<section class="tiles">
+			<app-stat-card
+				label="Bot Discord"
+				[value]="bot() ? (bot()!.online ? 'En ligne' : 'Hors ligne') : 'Jamais démarré'"
+				[hint]="bot() ? ('Dernier signe de vie ' + (bot()!.lastHeartbeatAt | relativeTime)) : undefined"
+				icon="smart_toy"
+			/>
+			<app-stat-card
+				label="Ping moyen"
+				[value]="pingLabel(bot()?.avgPingMs)"
+				[hint]="'Dernière mesure : ' + pingLabel(bot()?.wsPingMs)"
+				icon="network_ping"
+			/>
+			<app-stat-card
+				label="Uptime du bot"
+				[value]="bot() ? (bot()!.uptimeSeconds | duration) : '—'"
+				[hint]="bot() ? ('Démarré le ' + (bot()!.startedAt | frDate)) : undefined"
+				icon="schedule"
+			/>
+			<app-stat-card
+				label="Serveurs Discord"
+				[value]="bot()?.guildCount ?? '—'"
+				icon="hub"
+			/>
+			<app-stat-card
+				label="Base de données"
+				[value]="state.api.database.reachable ? 'Joignable' : 'Injoignable'"
+				[hint]="state.api.database.latencyMs !== null ? (state.api.database.latencyMs + ' ms') : undefined"
+				icon="storage"
+			/>
+			<app-stat-card
+				label="Uptime de l'API"
+				[value]="state.api.uptimeSeconds | duration"
+				icon="dns"
+			/>
+			<app-stat-card
+				label="Incidents automod"
+				[value]="state.automodIncidents24h"
+				hint="Sur les 24 dernières heures"
+				icon="shield"
+			/>
+			<app-stat-card
+				label="Anti-raid"
+				[value]="state.activeRaidLockdown ? 'Confinement actif' : 'Normal'"
+				icon="security"
+			/>
+		</section>
+
+		<mat-card appearance="outlined">
+			<mat-card-header>
+				<mat-card-title>Problèmes détectés</mat-card-title>
+			</mat-card-header>
+
+			<mat-card-content>
+				@if (problems().length === 0) {
+					<p class="empty-state">Aucun problème détecté.</p>
+				} @else {
+					<ul class="problems">
+						@for (problem of problems(); track problem.message) {
+							<li [attr.data-severity]="problem.severity">
+								<mat-icon>{{ problem.severity === 'critical' ? 'error' : 'warning' }}</mat-icon>
+								<span>{{ problem.message }}</span>
+							</li>
+						}
+					</ul>
+				}
+			</mat-card-content>
+		</mat-card>
+	}
+</div>

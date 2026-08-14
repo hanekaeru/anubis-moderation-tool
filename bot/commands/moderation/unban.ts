@@ -6,6 +6,8 @@ import {
 import type { Command } from "../../src/types";
 import * as referentiel from "../../src/collectors/referentiel";
 import * as moderation from "../../src/collectors/moderation";
+import { baseCommandEmbed } from "../../src/utils/commandEmbed";
+import * as colors from "../../utils/constantes";
 
 const command: Command = {
 	data: new SlashCommandBuilder()
@@ -31,11 +33,14 @@ const command: Command = {
 	async execute(interaction) {
 		if (!interaction.inCachedGuild()) return;
 
-		if (
-			!interaction.memberPermissions?.has(PermissionFlagsBits.BanMembers)
-		) {
+		const responseEmbed = baseCommandEmbed("unban");
+
+		if (!interaction.memberPermissions?.has(PermissionFlagsBits.BanMembers)) {
+			responseEmbed
+				.setDescription("Tu n'as pas la permission de debannir des membres.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "Tu n'as pas la permission de debannir des membres.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -48,9 +53,13 @@ const command: Command = {
 			await interaction.guild.members.unban(targetUser, reason);
 		} catch (err) {
 			console.error("[Moderation] Levee de ban Discord echouee :", err);
+			responseEmbed
+				.setDescription(
+					"La levée du bannissement a échoué côté Discord (le membre n'est peut-être pas banni).",
+				)
+				.setColor(colors.danger);
 			await interaction.reply({
-				content:
-					"La levee du bannissement a echoue cote Discord (le membre n'est peut-etre pas banni).",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -69,9 +78,12 @@ const command: Command = {
 
 		const note = revoked
 			? ""
-			: " (aucun bannissement actif trouve en base, le ban Discord a quand meme ete leve)";
+			: "\n(aucun bannissement actif trouvé en base, le ban Discord a quand même été levé)";
+		responseEmbed
+			.setDescription(`<@${targetUser.id}> a été débanni.${note}`)
+			.setColor(colors.success);
 		await interaction.reply({
-			content: `${targetUser.tag} a ete debanni.${note}`,
+			embeds: [responseEmbed],
 			flags: MessageFlags.Ephemeral,
 		});
 	},

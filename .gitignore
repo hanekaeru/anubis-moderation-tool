@@ -19,3 +19,6 @@ packages/shared/generated/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+
+# Graphify
+graphify-out

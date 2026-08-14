@@ -30,6 +30,7 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 		}
 
 		if (!interaction.isChatInputCommand()) return;
+		if (interaction.replied || interaction.deferred) return;
 		const command = interaction.client.commands.get(
 			interaction.commandName,
 		);

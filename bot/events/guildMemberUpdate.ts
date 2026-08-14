@@ -6,11 +6,12 @@ import {
 	type PartialGuildMember,
 } from "discord.js";
 import type { BotEvent } from "../src/types";
-import { IdentityEventType, SanctionType } from "@anubis/shared";
+import { IdentityEventType, SanctionType, SHADOWBAN_ROLE_CONFIG_KEY } from "@anubis/shared";
 import prisma from "../src/prisma";
 import * as referentiel from "../src/collectors/referentiel";
 import * as moderation from "../src/collectors/moderation";
 import { chercherAction, garantirAuteur } from "../src/collectors/discordAudit";
+import * as guildConfig from "../src/collectors/guildConfig";
 
 const event: BotEvent<typeof Events.GuildMemberUpdate> = {
 	name: Events.GuildMemberUpdate,
@@ -57,6 +58,7 @@ const event: BotEvent<typeof Events.GuildMemberUpdate> = {
 			}
 
 			await suivreExclusionTemporaire(ancien, nouveau, client);
+			await suivreShadowbanManuel(nouveau, client, ajoutes, retires);
 		} catch (err) {
 			console.error(
 				"[Referentiel] Mise a jour de membre non enregistree :",
@@ -150,6 +152,87 @@ async function suivreExclusionTemporaire(
 	if (levee) {
 		console.log(
 			`[Moderation] Exclusion temporaire de ${nouveau.user.tag} levee` +
+				` (auteur : ${action?.executorTag ?? "inconnu"}).`,
+		);
+	}
+}
+
+/**
+ * Detecte l'attribution ou le retrait manuel du role de shadowban dans le
+ * client Discord (en dehors de `/shadowban`/`/unshadowban`).
+ *
+ * Contrairement au bannissement, a l'expulsion ou au timeout, le shadowban
+ * est un role applicatif : Discord n'a pas d'evenement dedie. On le repere
+ * en comparant l'etat courant des roles a l'etat precedent, deja calcule par
+ * `synchroniserRoles` pour l'historique (`ajoutes`/`retires`).
+ */
+async function suivreShadowbanManuel(
+	nouveau: GuildMember,
+	client: Client,
+	ajoutes: string[],
+	retires: string[],
+): Promise<void> {
+	const shadowbanRoleId = await guildConfig.getConfig(
+		nouveau.guild.id,
+		SHADOWBAN_ROLE_CONFIG_KEY,
+	);
+	if (!shadowbanRoleId) return;
+
+	const roleAjoute = ajoutes.includes(shadowbanRoleId);
+	const roleRetire = retires.includes(shadowbanRoleId);
+	if (!roleAjoute && !roleRetire) return;
+
+	const action = await chercherAction(
+		nouveau.guild,
+		AuditLogEvent.MemberRoleUpdate,
+		nouveau.id,
+		(candidat) =>
+			candidat.changes.some(
+				(changement) =>
+					(changement.key === "$add" || changement.key === "$remove") &&
+					Array.isArray(changement.new) &&
+					(changement.new as { id: string }[]).some(
+						(role) => role.id === shadowbanRoleId,
+					),
+			),
+	);
+
+	// Role pose/retire par /shadowban ou /unshadowban : deja enregistre avec
+	// le moderateur reel, la reprendre ici en attribuerait la paternite au bot.
+	if (action?.executorId && action.executorId === client.user?.id) return;
+
+	const moderatorId = await garantirAuteur(client, action?.executorId ?? null);
+
+	if (roleAjoute) {
+		const sanction = await moderation.recordExternalSanction({
+			guildId: nouveau.guild.id,
+			userId: nouveau.id,
+			moderatorId,
+			type: SanctionType.SHADOWBAN,
+			reason: action?.reason ?? "Role de shadowban attribue depuis Discord.",
+			occurredAt: action?.createdAt,
+		});
+
+		if (sanction) {
+			console.log(
+				`[Moderation] Shadowban de ${nouveau.user.tag} enregistre` +
+					` (auteur : ${action?.executorTag ?? "inconnu"}).`,
+			);
+		}
+		return;
+	}
+
+	const levee = await moderation.revokeExternalSanction({
+		guildId: nouveau.guild.id,
+		userId: nouveau.id,
+		type: SanctionType.SHADOWBAN,
+		moderatorId,
+		reason: action?.reason ?? "Role de shadowban retire depuis Discord.",
+	});
+
+	if (levee) {
+		console.log(
+			`[Moderation] Shadowban de ${nouveau.user.tag} leve` +
 				` (auteur : ${action?.executorTag ?? "inconnu"}).`,
 		);
 	}

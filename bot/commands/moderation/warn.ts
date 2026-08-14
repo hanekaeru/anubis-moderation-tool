@@ -7,8 +7,10 @@ import { WARNING_SEVERITY_LABELS, WarningSeverity } from "@anubis/shared";
 import type { Command } from "../../src/types";
 import * as referentiel from "../../src/collectors/referentiel";
 import * as moderation from "../../src/collectors/moderation";
+import { baseCommandEmbed } from "../../src/utils/commandEmbed";
 import { hierarchyIssue } from "../../src/utils/moderationGuard";
 import { notifyMember } from "../../src/utils/notifyMember";
+import * as colors from "../../utils/constantes";
 
 const SEVERITY_CHOICES = Object.values(WarningSeverity).map((severity) => ({
 	name: WARNING_SEVERITY_LABELS[severity],
@@ -52,13 +54,18 @@ const command: Command = {
 	async execute(interaction) {
 		if (!interaction.inCachedGuild()) return;
 
+		const responseEmbed = baseCommandEmbed("warn");
+
 		if (
 			!interaction.memberPermissions?.has(
 				PermissionFlagsBits.ModerateMembers,
 			)
 		) {
+			responseEmbed
+				.setDescription("Tu n'as pas la permission d'avertir des membres.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "Tu n'as pas la permission d'avertir des membres.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -76,8 +83,9 @@ const command: Command = {
 		if (target) {
 			const issue = hierarchyIssue(interaction.member, target);
 			if (issue) {
+				responseEmbed.setDescription(issue).setColor(colors.danger);
 				await interaction.reply({
-					content: issue,
+					embeds: [responseEmbed],
 					flags: MessageFlags.Ephemeral,
 				});
 				return;
@@ -103,8 +111,13 @@ const command: Command = {
 			);
 		}
 
+		responseEmbed
+			.setDescription(
+				`<@${targetUser.id}> a été averti (${WARNING_SEVERITY_LABELS[severity]}).\nMotif : ${reason}`,
+			)
+			.setColor(colors.success);
 		await interaction.reply({
-			content: `${targetUser.tag} a ete averti (${WARNING_SEVERITY_LABELS[severity]}). Motif : ${reason}`,
+			embeds: [responseEmbed],
 			flags: MessageFlags.Ephemeral,
 		});
 	},

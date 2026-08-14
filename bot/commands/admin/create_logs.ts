@@ -32,6 +32,7 @@ const command: Command = {
 		.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 	async execute(interaction) {
 		if (!interaction.inCachedGuild()) return;
+		if (interaction.replied || interaction.deferred) return;
 
 		if (
 			!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)

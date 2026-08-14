@@ -44,6 +44,52 @@ describe("upsertRole", () => {
 	});
 });
 
+describe("synchroniserAvatars", () => {
+	it("met a jour les utilisateurs de tous les membres presents", async () => {
+		const utilisateurA = {
+			user: {
+				id: "user-a",
+				username: "alice",
+				globalName: "Alice",
+				discriminator: "0",
+				avatar: "avatar-a",
+				bot: false,
+				createdAt: new Date(),
+			},
+		};
+		const utilisateurB = {
+			user: {
+				id: "user-b",
+				username: "bob",
+				globalName: null,
+				discriminator: "0",
+				avatar: null,
+				bot: false,
+				createdAt: new Date(),
+			},
+		};
+		const guild = {
+			members: {
+				fetch: jest.fn().mockResolvedValue(
+					new Collection([
+						[utilisateurA.user.id, utilisateurA as unknown as GuildMember],
+						[utilisateurB.user.id, utilisateurB as unknown as GuildMember],
+					]),
+				),
+			},
+		} as unknown as Guild;
+
+		await expect(referentiel.synchroniserAvatars(guild)).resolves.toBe(2);
+		expect(prismaMock.discordUser.upsert).toHaveBeenCalledTimes(2);
+		expect(prismaMock.discordUser.upsert.mock.calls[0][0].update).toMatchObject({
+			avatarHash: "avatar-a",
+		});
+		expect(prismaMock.discordUser.upsert.mock.calls[1][0].update).toMatchObject({
+			avatarHash: null,
+		});
+	});
+});
+
 describe("synchroniserRoles", () => {
 	it("calcule les roles ajoutes et retires par diff avec l'etat en base, en ignorant @everyone", async () => {
 		const guildId = "guild-1";

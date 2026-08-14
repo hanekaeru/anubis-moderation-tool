@@ -44,9 +44,7 @@ enum WarningSeverity {
 
 enum SanctionType {
     TIMEOUT
-    VOICE_MUTE
     KICK
-    SOFTBAN
     BAN
     SHADOWBAN
 }
@@ -154,6 +152,8 @@ model Guild {
     raidConfig         RaidConfig?
     raidIncidents      RaidIncident[]
     accountFlags       AccountFlag[]
+    quarantineConfig   QuarantineConfig?
+    quarantineStatuses QuarantineStatus[]
 
     @@map("guilds")
 }
@@ -189,6 +189,7 @@ model DiscordUser {
     activityTargets    ModerationActivity[]    @relation("ActivityTarget")
     automodIncidents   AutomodIncident[]
     accountFlags       AccountFlag[]
+    quarantineStatuses QuarantineStatus[]
     appUser            AppUser?
 
     @@index([username])
@@ -648,6 +649,46 @@ model AccountFlag {
     @@map("account_flags")
 }
 
+/// Reglage de quarantaine a l'arrivee, une ligne par serveur.
+model QuarantineConfig {
+    guildId     String   @id @map("guild_id") @db.VarChar(20)
+    enabled     Boolean  @default(false)
+    /// Role attribue a l'arrivee, retire a l'acceptation du reglement.
+    roleId      String?  @map("role_id") @db.VarChar(20)
+    /// Salon ou le message de reglement (embed + bouton) est publie.
+    channelId   String?  @map("channel_id") @db.VarChar(20)
+    message     String?  @db.Text
+    buttonLabel String   @default("J'accepte le reglement") @map("button_label")
+    updatedAt   DateTime @updatedAt @map("updated_at")
+
+    guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+    @@map("quarantine_config")
+}
+
+/// Etat de quarantaine d'un membre. Pas d'expulsion automatique : la
+/// quarantaine dure jusqu'au clic sur le bouton, ou une levee manuelle.
+model QuarantineStatus {
+    guildId       String    @map("guild_id") @db.VarChar(20)
+    userId        String    @map("user_id") @db.VarChar(20)
+    quarantinedAt DateTime  @default(now()) @map("quarantined_at")
+    acceptedAt    DateTime? @map("accepted_at")
+    /// Pose depuis la webapp lors d'une levee manuelle : `null` en attendant
+    /// que le bot retire le role au prochain passage de synchronisation.
+    releasedById String? @map("released_by_id") @db.Uuid
+    /// Pose immediatement quand le retrait du role est fait par le bot
+    /// lui-meme (clic sur le bouton) — meme patron que
+    /// `RaidIncident.discordSyncedAt` pour une levee demandee depuis la webapp.
+    discordSyncedAt DateTime? @map("discord_synced_at")
+
+    guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+    user       DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+    releasedBy AppUser?    @relation("QuarantineReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull)
+
+    @@id([guildId, userId])
+    @@map("quarantine_status")
+}
+
 // ---------------------------------------------------------------------------
 // Activite (metadonnees seulement, aucun contenu de message stocke)
 // ---------------------------------------------------------------------------
@@ -764,8 +805,25 @@ model AppUser {
     automodRulesEdited    AutomodRule[]
     raidIncidentsResolved RaidIncident[]
     accountFlagsReviewed  AccountFlag[]
+    quarantineReleases    QuarantineStatus[]  @relation("QuarantineReleasedBy")
+    discordLinkCode       AccountLinkCode?
 
     @@map("app_users")
+}
+
+/// Code temporaire permettant a un utilisateur du dashboard de rattacher
+/// lui-meme son compte Discord (`AppUser.discordUserId`), via la commande
+/// `/lier-compte` du bot. Une seule ligne par compte : en generer un nouveau
+/// remplace l'ancien (upsert sur `appUserId`).
+model AccountLinkCode {
+    appUserId String   @id @map("app_user_id") @db.Uuid
+    code      String   @unique @db.VarChar(10)
+    expiresAt DateTime @map("expires_at")
+    createdAt DateTime @default(now()) @map("created_at")
+
+    appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+
+    @@map("account_link_codes")
 }
 
 /// Refresh tokens, stockes hashes. Une "famille" regroupe les rotations
@@ -824,4 +882,24 @@ model ConfigGuild {
     @@unique([guildId, configName])
     @@index([configName])
     @@map("config_guild")
+}
+
+// ---------------------------------------------------------------------------
+// Supervision
+// ---------------------------------------------------------------------------
+
+/// Une seule ligne (`id = "bot"`), reecrite periodiquement par le process
+/// bot tant qu'il tourne. Absence de ligne recente = bot hors ligne : c'est
+/// ce que lit la page de statut de la webapp, il n'existe aucun autre canal
+/// pour connaitre l'etat du process bot depuis l'API.
+model BotHeartbeat {
+    id              String   @id @default("bot")
+    startedAt       DateTime @map("started_at")
+    lastHeartbeatAt DateTime @map("last_heartbeat_at")
+    wsPingMs        Int?     @map("ws_ping_ms")
+    avgPingMs       Int?     @map("avg_ping_ms")
+    guildCount      Int      @map("guild_count")
+    updatedAt       DateTime @updatedAt @map("updated_at")
+
+    @@map("bot_heartbeat")
 }

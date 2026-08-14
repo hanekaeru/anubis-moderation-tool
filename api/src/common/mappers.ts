@@ -24,7 +24,7 @@ export function toMemberRef(user: DiscordUserLike): MemberRef {
 		userId: user.id,
 		username: user.username,
 		globalName: user.globalName,
-		avatarUrl: avatarUrl(user.id, user.avatarHash),
+		avatarUrl: avatarUrl(user.id, user.avatarHash, 128),
 	};
 }
 

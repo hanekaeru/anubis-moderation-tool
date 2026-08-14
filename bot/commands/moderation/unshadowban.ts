@@ -7,7 +7,9 @@ import type { Command } from "../../src/types";
 import * as referentiel from "../../src/collectors/referentiel";
 import * as moderation from "../../src/collectors/moderation";
 import * as shadowbanRole from "../../src/collectors/shadowbanRole";
+import { baseCommandEmbed } from "../../src/utils/commandEmbed";
 import { notifyMember } from "../../src/utils/notifyMember";
+import * as colors from "../../utils/constantes";
 
 const command: Command = {
 	data: new SlashCommandBuilder()
@@ -35,14 +37,20 @@ const command: Command = {
 	async execute(interaction) {
 		if (!interaction.inCachedGuild()) return;
 
+		const responseEmbed = baseCommandEmbed("unshadowban");
+
 		if (
 			!interaction.memberPermissions?.has(
 				PermissionFlagsBits.ModerateMembers,
 			)
 		) {
-			await interaction.reply({
-				content:
+			responseEmbed
+				.setDescription(
 					"Tu n'as pas la permission de lever une restriction d'accès.",
+				)
+				.setColor(colors.danger);
+			await interaction.reply({
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -55,8 +63,11 @@ const command: Command = {
 			.fetch(targetUser.id)
 			.catch(() => null);
 		if (!target) {
+			responseEmbed
+				.setDescription("Ce membre n'est pas sur ce serveur.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "Ce membre n'est pas sur ce serveur.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -66,8 +77,11 @@ const command: Command = {
 			await shadowbanRole.liftShadowban(target, reason);
 		} catch (err) {
 			console.error("[Shadowban] Levée du rôle échouée :", err);
+			responseEmbed
+				.setDescription("La levée de la restriction a échoué côté Discord.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "La levée de la restriction a échoué côté Discord.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -91,9 +105,12 @@ const command: Command = {
 
 		const note = revoked
 			? ""
-			: " (aucune restriction active trouvée en base, le rôle a quand même été retiré)";
+			: "\n(aucune restriction active trouvée en base, le rôle a quand même été retiré)";
+		responseEmbed
+			.setDescription(`La restriction de <@${target.user.id}> a été levée.${note}`)
+			.setColor(colors.success);
 		await interaction.reply({
-			content: `La restriction de ${target.user.tag} a été levée.${note}`,
+			embeds: [responseEmbed],
 			flags: MessageFlags.Ephemeral,
 		});
 	},

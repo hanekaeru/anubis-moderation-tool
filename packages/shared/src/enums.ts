@@ -39,10 +39,8 @@ export type WarningSeverity =
 export const SanctionType = {
 	// Concerne le Timeout classique proposé par Discord.
 	TIMEOUT: "TIMEOUT",
-	VOICE_MUTE: "VOICE_MUTE",
 	// Déconnecte l'utilisateur du serveur.
 	KICK: "KICK",
-	SOFTBAN: "SOFTBAN",
 	// Banni l'utilisateur du serveur sans possibilité pour lui de rejoindre.
 	BAN: "BAN",
 	// Ajoute un rôle qui bloque complètement l'accès aux fonctionnalités du serveur.
@@ -139,9 +137,7 @@ export type AccountFlagType =
 /** Libelles francais, pour ne pas les repeter dans chaque composant. */
 export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
 	TIMEOUT: "Exclusion temporaire",
-	VOICE_MUTE: "Mute vocal",
 	KICK: "Expulsion",
-	SOFTBAN: "Softban",
 	BAN: "Bannissement",
 	SHADOWBAN: "Shadowban",
 };

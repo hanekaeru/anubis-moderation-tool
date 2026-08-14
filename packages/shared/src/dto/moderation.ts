@@ -137,7 +137,4 @@ export const SANCTION_DURATION_PRESETS: ReadonlyArray<{
 export const MAX_TIMEOUT_SECONDS = 28 * 24 * 60 * 60;
 
 /** Types de sanction qui n'ont pas de duree. */
-export const INSTANT_SANCTION_TYPES: readonly SanctionType[] = [
-	"KICK",
-	"SOFTBAN",
-];
+export const INSTANT_SANCTION_TYPES: readonly SanctionType[] = ["KICK"];

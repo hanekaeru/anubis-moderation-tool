@@ -237,6 +237,15 @@ export class SanctionsService {
 		if (existing.status === "REVOKED") {
 			throw new BadRequestException("Cette sanction est deja levee.");
 		}
+		// Une sanction EXPIRED n'a plus d'effet cote Discord a lever (expulsion
+		// deja executee, timeout ou shadowban deja arrive a echeance) : marquer
+		// "levee" ne changerait rien reellement, et le bot n'a de toute facon
+		// aucun effet a rejouer pour ce statut.
+		if (existing.status === "EXPIRED") {
+			throw new BadRequestException(
+				"Cette sanction est deja terminee, elle ne peut pas etre levee.",
+			);
+		}
 
 		const updated = await this.prisma.sanction.update({
 			where: { id },

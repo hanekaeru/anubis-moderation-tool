@@ -55,6 +55,20 @@ export async function upsertUser(user: User): Promise<void> {
 	});
 }
 
+/**
+ * Synchronise les identites des membres presents sans recalculer le reste du
+ * referentiel. Les avatars sont globaux au compte Discord : un seul upsert
+ * suffit meme quand le compte appartient a plusieurs serveurs.
+ */
+export async function synchroniserAvatars(guild: Guild): Promise<number> {
+	const membres = await guild.members.fetch();
+	for (const membre of membres.values()) {
+		await upsertUser(membre.user);
+	}
+
+	return membres.size;
+}
+
 export async function upsertRole(role: Role): Promise<void> {
 	const data = {
 		name: role.name,
@@ -333,8 +347,8 @@ export async function synchroniserServeur(guild: Guild): Promise<void> {
 	} catch (err) {
 		console.error(
 			"[Referentiel] Membres non recuperes. Activez l'intent privilegie " +
-				'"Server Members" dans le portail developpeur Discord, puis ajoutez ' +
-				"GatewayIntentBits.GuildMembers aux intents du client.",
+			'"Server Members" dans le portail developpeur Discord, puis ajoutez ' +
+			"GatewayIntentBits.GuildMembers aux intents du client.",
 			err instanceof Error ? err.message : err,
 		);
 	}
@@ -361,6 +375,6 @@ export async function synchroniserServeur(guild: Guild): Promise<void> {
 
 	console.log(
 		`[Referentiel] ${guild.name} : ${roles.size} role(s), ${salons.size} salon(s), ` +
-			`${membresSynchronises} membre(s) en ${Date.now() - debut} ms.`,
+		`${membresSynchronises} membre(s) en ${Date.now() - debut} ms.`,
 	);
 }

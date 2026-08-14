@@ -1,5 +1,6 @@
 import { Events } from "discord.js";
 import type { BotEvent } from "../src/types";
+import { recordHeartbeat } from "../src/collectors/heartbeat";
 import * as raid from "../src/collectors/raid";
 import * as referentiel from "../src/collectors/referentiel";
 import * as tickets from "../src/collectors/tickets";
@@ -46,7 +47,16 @@ const event: BotEvent<typeof Events.ClientReady> = {
 			}
 		}
 
+		// Premier battement immediat : sans lui, la page de statut affiche le bot
+		// hors ligne pendant les premieres secondes suivant un redemarrage.
+		await recordHeartbeat(client).catch((err) => {
+			console.error("[Statut] Battement initial non enregistre :", err);
+		});
+
 		setInterval(() => {
+			recordHeartbeat(client).catch((err) => {
+				console.error("[Statut] Battement non enregistre :", err);
+			});
 			checkExpiredShadowbans(client).catch((err) => {
 				console.error(
 					"[Shadowban] Vérification des expirations échouée :",

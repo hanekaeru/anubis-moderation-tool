@@ -95,6 +95,10 @@ EXISTS` dans la migration initiale, pour ne pas ecraser les donnees d'XP
 - Les `BigInt` de PostgreSQL (`xp`, `total_characters`, identifiants
   auto-incrementes) doivent etre convertis explicitement dans les mappers.
   `main.ts` pose un `BigInt.prototype.toJSON` en filet, pas en solution.
+- `SanctionsService.revoke` refuse de lever une sanction `EXPIRED` (expulsion
+  deja executee, timeout/shadowban deja arrive a echeance) : il n'y a rien a
+  rejouer cote Discord, et le laisser passer donnait une fausse impression de
+  levee reelle.
 
 ## Bot
 
@@ -136,6 +140,31 @@ le dev avec rechargement).
 - Le statut `BANNED` n'est **jamais retrograde** en `LEFT` : les deux
   evenements arrivent sans ordre garanti, le filtre `status: { not: BANNED }`
   de `guildMemberRemove` fait converger les deux ordres vers le meme resultat.
+- **`SanctionType` ne compte que 4 valeurs** (`TIMEOUT`, `KICK`, `BAN`,
+  `SHADOWBAN`) : `VOICE_MUTE` et `SOFTBAN` ont ete retires (aucune commande,
+  aucun effet Discord ne les implementait). Le shadowban pose ou retire a la
+  main dans le client (attribution/retrait du role, hors `/shadowban` et
+  `/unshadowban`) est detecte dans `guildMemberUpdate.ts`
+  (`suivreShadowbanManuel`), sur le meme principe que le timeout : comparaison
+  de l'etat des roles avant/apres, filtre sur les entrees d'audit
+  `MemberRoleUpdate` qui touchent precisement le role de shadowban.
+- **La synchronisation webapp -> Discord (`sanctionSync.ts`) doit couvrir tous
+  les types, y compris les permanents et les instantanes** — trois pieges
+  distincts, chacun a fait qu'une sanction posee depuis la webapp restait
+  sans effet reel sur Discord :
+  - `findActiveSanctions` ne doit **pas** filtrer sur `expiresAt`. Une
+    sanction permanente (`BAN` sans duree, `SHADOWBAN` permanent) a
+    `expiresAt = null` ; un filtre `expiresAt > now()` l'exclut pour
+    toujours de la file d'application.
+  - `BAN` n'a pas de `GuildMember` a retrouver : la personne n'est plus sur le
+    serveur. `checkAppliedSanctions`/`checkRevokedSanctions` agissent
+    directement via `guild.members.ban()`/`unban()`, sans passer par
+    `guild.members.fetch()`.
+  - Une sanction instantanee (`KICK`) passe au statut `EXPIRED` **des sa
+    creation**, y compris depuis la webapp : elle ne remonte donc jamais via
+    `findActiveSanctions` (qui filtre `status: "ACTIVE"`). D'ou
+    `findUnappliedInstantSanctions`, une requete separee sur
+    `status: "EXPIRED", isApplied: false`.
 - `GuildMembers` est un **intent privilegie** : sans activation dans le portail
   developpeur Discord, la connexion echoue. `GuildModeration` ne l'est pas,
   mais sans lui `guildBanAdd`/`guildBanRemove` ne sont **jamais livres** — sans

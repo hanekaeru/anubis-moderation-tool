@@ -22,3 +22,5 @@ export * from "./dto/guild-config";
 export * from "./dto/automod";
 export * from "./dto/raid";
 export * from "./dto/account-flags";
+export * from "./dto/account";
+export * from "./dto/status";

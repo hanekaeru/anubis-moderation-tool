@@ -57,6 +57,12 @@ const NAV_ENTRIES: NavEntry[] = [
 		permissions: [Permission.RAID_READ],
 	},
 	{
+		path: '/statut',
+		label: 'Statut',
+		icon: 'monitor_heart',
+		permissions: [Permission.STATUS_READ],
+	},
+	{
 		path: '/comptes-signales',
 		label: 'Comptes signalés',
 		icon: 'person_search',

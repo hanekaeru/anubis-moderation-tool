@@ -2,7 +2,6 @@ import {
 	MessageFlags,
 	PermissionFlagsBits,
 	SlashCommandBuilder,
-	EmbedBuilder,
 } from "discord.js";
 import {
 	DURATION_UNIT_CHOICES_TIMED,
@@ -14,6 +13,7 @@ import {
 import type { Command } from "../../src/types";
 import * as referentiel from "../../src/collectors/referentiel";
 import * as moderation from "../../src/collectors/moderation";
+import { baseCommandEmbed } from "../../src/utils/commandEmbed";
 import { hierarchyIssue } from "../../src/utils/moderationGuard";
 import { notifyMember } from "../../src/utils/notifyMember";
 import { formatDuration } from "../../src/utils/formatDuration";
@@ -60,13 +60,7 @@ const command: Command = {
 	async execute(interaction) {
 		if (!interaction.inCachedGuild()) return;
 
-		const responseEmbed = new EmbedBuilder()
-			.setColor(colors.info)
-			.setTitle("Anubis - /mute")
-			.setTimestamp()
-			.setFooter({
-				text: "En cas de problème, vous pouvez ouvrir un ticket ou en parler aux administrateurs.",
-			});
+		const responseEmbed = baseCommandEmbed("mute");
 
 		if (
 			!interaction.memberPermissions?.has(
@@ -123,8 +117,9 @@ const command: Command = {
 
 		const issue = hierarchyIssue(interaction.member, target);
 		if (issue) {
+			responseEmbed.setDescription(issue).setColor(colors.danger);
 			await interaction.reply({
-				content: issue,
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;

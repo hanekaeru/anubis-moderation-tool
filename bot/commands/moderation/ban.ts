@@ -6,8 +6,10 @@ import {
 import type { Command } from "../../src/types";
 import * as referentiel from "../../src/collectors/referentiel";
 import * as moderation from "../../src/collectors/moderation";
+import { baseCommandEmbed } from "../../src/utils/commandEmbed";
 import { hierarchyIssue } from "../../src/utils/moderationGuard";
 import { notifyMember } from "../../src/utils/notifyMember";
+import * as colors from "../../utils/constantes";
 
 const DELETE_MESSAGE_CHOICES = [
 	{ name: "Aucun message", value: 0 },
@@ -48,11 +50,14 @@ const command: Command = {
 	async execute(interaction) {
 		if (!interaction.inCachedGuild()) return;
 
-		if (
-			!interaction.memberPermissions?.has(PermissionFlagsBits.BanMembers)
-		) {
+		const responseEmbed = baseCommandEmbed("ban");
+
+		if (!interaction.memberPermissions?.has(PermissionFlagsBits.BanMembers)) {
+			responseEmbed
+				.setDescription("Tu n'as pas la permission de bannir des membres.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "Tu n'as pas la permission de bannir des membres.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -69,17 +74,22 @@ const command: Command = {
 		if (target) {
 			const issue = hierarchyIssue(interaction.member, target);
 			if (issue) {
+				responseEmbed.setDescription(issue).setColor(colors.danger);
 				await interaction.reply({
-					content: issue,
+					embeds: [responseEmbed],
 					flags: MessageFlags.Ephemeral,
 				});
 				return;
 			}
 
 			if (!target.bannable) {
+				responseEmbed
+					.setDescription(
+						"Je ne peux pas bannir ce membre (rôle trop haut ou permissions insuffisantes).",
+					)
+					.setColor(colors.danger);
 				await interaction.reply({
-					content:
-						"Je ne peux pas bannir ce membre (role trop haut ou permissions insuffisantes).",
+					embeds: [responseEmbed],
 					flags: MessageFlags.Ephemeral,
 				});
 				return;
@@ -102,8 +112,11 @@ const command: Command = {
 			});
 		} catch (err) {
 			console.error("[Moderation] Bannissement Discord echoue :", err);
+			responseEmbed
+				.setDescription("Le bannissement a échoué côté Discord.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "Le bannissement a echoue cote Discord.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -117,8 +130,11 @@ const command: Command = {
 			reason,
 		});
 
+		responseEmbed
+			.setDescription(`<@${targetUser.id}> a été banni.\nMotif : ${reason}`)
+			.setColor(colors.success);
 		await interaction.reply({
-			content: `${targetUser.tag} a ete banni. Motif : ${reason}`,
+			embeds: [responseEmbed],
 			flags: MessageFlags.Ephemeral,
 		});
 	},

@@ -33,6 +33,10 @@ export const Permission = {
 	RAID_CONFIGURE: "raid:configure",
 	ACCOUNT_FLAGS_READ: "account-flags:read",
 	ACCOUNT_FLAGS_WRITE: "account-flags:write",
+	STATUS_READ: "status:read",
+	QUARANTINE_READ: "quarantine:read",
+	QUARANTINE_RESPOND: "quarantine:respond",
+	QUARANTINE_CONFIGURE: "quarantine:configure",
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
@@ -46,6 +50,8 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	Permission.AUTOMOD_READ,
 	Permission.RAID_READ,
 	Permission.ACCOUNT_FLAGS_READ,
+	Permission.STATUS_READ,
+	Permission.QUARANTINE_READ,
 ];
 
 const MODERATOR_PERMISSIONS: Permission[] = [
@@ -61,6 +67,7 @@ const MODERATOR_PERMISSIONS: Permission[] = [
 	// un signalement) : de la moderation courante, pas de la configuration.
 	Permission.RAID_RESPOND,
 	Permission.ACCOUNT_FLAGS_WRITE,
+	Permission.QUARANTINE_RESPOND,
 ];
 
 const ADMIN_PERMISSIONS: Permission[] = [
@@ -78,6 +85,7 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	// niveau que LOGS_WRITE, pas la reponse au quotidien.
 	Permission.AUTOMOD_WRITE,
 	Permission.RAID_CONFIGURE,
+	Permission.QUARANTINE_CONFIGURE,
 ];
 
 export const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {

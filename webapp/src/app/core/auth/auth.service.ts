@@ -80,6 +80,13 @@ export class AuthService {
 		);
 	}
 
+	/** Relit le profil courant sans passer par le cookie de refresh — utilise apres une action qui modifie le compte (ex. rattachement Discord) sans toucher a la session. */
+	refreshMe(): Observable<SessionUser> {
+		return this.http
+			.get<SessionUser>('/api/auth/me')
+			.pipe(tap((user) => this.user.set(user)));
+	}
+
 	changePassword(request: ChangePasswordRequest): Observable<void> {
 		return this.http.post<void>('/api/auth/password', request, { withCredentials: true }).pipe(
 			// Le serveur a revoque toutes les sessions, celle-ci comprise.

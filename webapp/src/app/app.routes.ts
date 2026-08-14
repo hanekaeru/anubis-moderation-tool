@@ -33,6 +33,12 @@ export const routes: Routes = [
 				title: "Vue d'ensemble — Anubis",
 			},
 			{
+				path: 'mon-compte/discord',
+				loadComponent: () =>
+					import('./features/account/discord-link/discord-link').then((m) => m.DiscordLinkPage),
+				title: 'Mon compte Discord — Anubis',
+			},
+			{
 				path: 'membres',
 				canActivate: [permissionGuard(Permission.MEMBERS_READ)],
 				loadComponent: () =>
@@ -113,6 +119,12 @@ export const routes: Routes = [
 				canActivate: [permissionGuard(Permission.RAID_READ)],
 				loadComponent: () => import('./features/security/raid/raid').then((m) => m.RaidPage),
 				title: 'Anti-raid — Anubis',
+			},
+			{
+				path: 'statut',
+				canActivate: [permissionGuard(Permission.STATUS_READ)],
+				loadComponent: () => import('./features/status/status').then((m) => m.StatusPage),
+				title: 'Statut — Anubis',
 			},
 			{
 				path: 'comptes-signales',

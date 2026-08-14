@@ -6,8 +6,10 @@ import {
 import type { Command } from "../../src/types";
 import * as referentiel from "../../src/collectors/referentiel";
 import * as moderation from "../../src/collectors/moderation";
+import { baseCommandEmbed } from "../../src/utils/commandEmbed";
 import { hierarchyIssue } from "../../src/utils/moderationGuard";
 import { notifyMember } from "../../src/utils/notifyMember";
+import * as colors from "../../utils/constantes";
 
 const command: Command = {
 	data: new SlashCommandBuilder()
@@ -31,11 +33,14 @@ const command: Command = {
 	async execute(interaction) {
 		if (!interaction.inCachedGuild()) return;
 
-		if (
-			!interaction.memberPermissions?.has(PermissionFlagsBits.KickMembers)
-		) {
+		const responseEmbed = baseCommandEmbed("kick");
+
+		if (!interaction.memberPermissions?.has(PermissionFlagsBits.KickMembers)) {
+			responseEmbed
+				.setDescription("Tu n'as pas la permission d'expulser des membres.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "Tu n'as pas la permission d'expulser des membres.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -48,8 +53,11 @@ const command: Command = {
 			.fetch(targetUser.id)
 			.catch(() => null);
 		if (!target) {
+			responseEmbed
+				.setDescription("Ce membre n'est pas sur ce serveur.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "Ce membre n'est pas sur ce serveur.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -57,17 +65,22 @@ const command: Command = {
 
 		const issue = hierarchyIssue(interaction.member, target);
 		if (issue) {
+			responseEmbed.setDescription(issue).setColor(colors.danger);
 			await interaction.reply({
-				content: issue,
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
 		}
 
 		if (!target.kickable) {
+			responseEmbed
+				.setDescription(
+					"Je ne peux pas expulser ce membre (rôle trop haut ou permissions insuffisantes).",
+				)
+				.setColor(colors.danger);
 			await interaction.reply({
-				content:
-					"Je ne peux pas expulser ce membre (role trop haut ou permissions insuffisantes).",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -84,8 +97,11 @@ const command: Command = {
 			await target.kick(reason);
 		} catch (err) {
 			console.error("[Moderation] Expulsion Discord echouee :", err);
+			responseEmbed
+				.setDescription("L'expulsion a échoué côté Discord.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "L'expulsion a echoue cote Discord.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -99,8 +115,11 @@ const command: Command = {
 			reason,
 		});
 
+		responseEmbed
+			.setDescription(`<@${target.user.id}> a été expulsé.\nMotif : ${reason}`)
+			.setColor(colors.success);
 		await interaction.reply({
-			content: `${target.user.tag} a ete expulse. Motif : ${reason}`,
+			embeds: [responseEmbed],
 			flags: MessageFlags.Ephemeral,
 		});
 	},

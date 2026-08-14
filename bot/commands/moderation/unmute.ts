@@ -6,7 +6,9 @@ import {
 import type { Command } from "../../src/types";
 import * as referentiel from "../../src/collectors/referentiel";
 import * as moderation from "../../src/collectors/moderation";
+import { baseCommandEmbed } from "../../src/utils/commandEmbed";
 import { notifyMember } from "../../src/utils/notifyMember";
+import * as colors from "../../utils/constantes";
 
 const command: Command = {
 	data: new SlashCommandBuilder()
@@ -32,14 +34,20 @@ const command: Command = {
 	async execute(interaction) {
 		if (!interaction.inCachedGuild()) return;
 
+		const responseEmbed = baseCommandEmbed("unmute");
+
 		if (
 			!interaction.memberPermissions?.has(
 				PermissionFlagsBits.ModerateMembers,
 			)
 		) {
-			await interaction.reply({
-				content:
+			responseEmbed
+				.setDescription(
 					"Tu n'as pas la permission de lever une exclusion temporaire.",
+				)
+				.setColor(colors.danger);
+			await interaction.reply({
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -52,8 +60,11 @@ const command: Command = {
 			.fetch(targetUser.id)
 			.catch(() => null);
 		if (!target) {
+			responseEmbed
+				.setDescription("Ce membre n'est pas sur ce serveur.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "Ce membre n'est pas sur ce serveur.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -62,12 +73,12 @@ const command: Command = {
 		try {
 			await target.timeout(null, reason);
 		} catch (err) {
-			console.error(
-				"[Moderation] Levee du timeout Discord echouee :",
-				err,
-			);
+			console.error("[Moderation] Levee du timeout Discord echouee :", err);
+			responseEmbed
+				.setDescription("La levée de l'exclusion a échoué côté Discord.")
+				.setColor(colors.danger);
 			await interaction.reply({
-				content: "La levee de l'exclusion a echoue cote Discord.",
+				embeds: [responseEmbed],
 				flags: MessageFlags.Ephemeral,
 			});
 			return;
@@ -91,9 +102,12 @@ const command: Command = {
 
 		const note = revoked
 			? ""
-			: " (aucune exclusion active trouvee en base, le timeout Discord a quand meme ete leve)";
+			: "\n(aucune exclusion active trouvée en base, le timeout Discord a quand même été levé)";
+		responseEmbed
+			.setDescription(`L'exclusion de <@${target.user.id}> a été levée.${note}`)
+			.setColor(colors.success);
 		await interaction.reply({
-			content: `L'exclusion de ${target.user.tag} a ete levee.${note}`,
+			embeds: [responseEmbed],
 			flags: MessageFlags.Ephemeral,
 		});
 	},

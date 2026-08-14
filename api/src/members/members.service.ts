@@ -58,7 +58,7 @@ export class MembersService {
 		private readonly prisma: PrismaService,
 		private readonly guild: GuildContextService,
 		private readonly audit: AuditService,
-	) {}
+	) { }
 
 	/**
 	 * Recherche paginee.
@@ -222,6 +222,8 @@ export class MembersService {
 			include: { user: true },
 		});
 
+		console.log(member);
+
 		if (!member) {
 			throw new NotFoundException(
 				`Membre ${userId} introuvable sur ce serveur.`,
@@ -242,7 +244,7 @@ export class MembersService {
 			username: member.user.username,
 			globalName: member.user.globalName,
 			nickname: member.nickname,
-			avatarUrl: avatarUrl(userId, member.user.avatarHash, 256),
+			avatarUrl: avatarUrl(userId, member.user.avatarHash, 256, "webp"),
 			isBot: member.user.isBot,
 			status: member.status,
 			// A defaut de date enregistree, elle se deduit du snowflake.

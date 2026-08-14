@@ -1,0 +1,76 @@
+.banner {
+	margin-bottom: 16px;
+
+	mat-card-content {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		padding-top: 8px;
+
+		div {
+			flex: 1;
+
+			p {
+				margin: 2px 0 0;
+				color: var(--mat-sys-on-surface-variant);
+			}
+		}
+	}
+
+	&[data-severity='ok'] mat-icon {
+		color: var(--mat-sys-primary);
+	}
+
+	&[data-severity='warning'] mat-icon {
+		color: var(--mat-sys-tertiary);
+	}
+
+	&[data-severity='critical'] mat-icon {
+		color: var(--mat-sys-error);
+	}
+}
+
+.tiles {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 16px;
+	margin-bottom: 16px;
+}
+
+mat-card-content {
+	padding-top: 8px;
+}
+
+.problems {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+
+	li {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		padding: 12px;
+		border-radius: 8px;
+		background: var(--mat-sys-surface-variant);
+		color: var(--mat-sys-on-surface-variant);
+
+		&[data-severity='critical'] {
+			background: var(--mat-sys-error-container);
+			color: var(--mat-sys-on-error-container);
+		}
+
+		mat-icon {
+			flex-shrink: 0;
+		}
+	}
+}
+
+.empty-state {
+	padding: 24px;
+	text-align: center;
+	color: var(--mat-sys-on-surface-variant);
+}

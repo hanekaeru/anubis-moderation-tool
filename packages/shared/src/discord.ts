@@ -5,11 +5,15 @@ const CDN = "https://cdn.discordapp.com";
 /**
  * URL d'avatar d'un compte Discord. Retombe sur l'avatar par defaut quand le
  * membre n'en a pas defini, pour que l'interface n'ait jamais de trou.
+ *
+ * Le prefixe `a_` indique seulement un avatar anime : il ne permet pas de
+ * connaitre le format a demander au CDN. Le format peut donc etre fourni
+ * explicitement pour les avatars animes.
  */
 export function avatarUrl(
 	userId: Snowflake,
 	avatarHash: string | null | undefined,
-	size = 128,
+	size = 128
 ): string {
 	if (!avatarHash) {
 		// Depuis le passage aux pseudos uniques, l'avatar par defaut derive de
