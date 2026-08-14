@@ -1,36 +1,154 @@
 @use '@angular/material' as mat;
 
 /**
- * Theme unique, applique a la racine. L'API `mat.theme` genere les variables
- * systeme de Material 3 : les composants s'y adaptent seuls, et les styles
- * maison ci-dessous piochent dans les memes tokens plutot que de redefinir
- * des couleurs en dur.
+ * Theme d'Anubis — sombre par defaut, accent froid.
+ *
+ * Le parti pris : on ne remplace pas Angular Material, on le retone. Material 3
+ * expose toute sa couleur et sa forme sous des jetons `--mat-sys-*`, et le CSS
+ * maison de l'application parle deja ce meme vocabulaire. Redefinir ces jetons
+ * restyle donc les composants Material et les notres d'un seul geste, sans
+ * toucher a un seul template.
+ *
+ * Ce qui donnait l'aspect date, et ce qu'on en fait :
+ *   - densite tactile          -> `density: -2`, plus les hauteurs de table ci-dessous
+ *   - ombres d'elevation       -> bordures 1 px et surfaces superposees
+ *   - Roboto                   -> Inter
+ *   - boutons en gelule        -> `corner-full` ramene a 8 px
+ *   - surfaces teintees primaire -> gris quasi neutres, une seule couleur d'accent
+ *   - ripple a chaque clic     -> desactive dans `app.config.ts`
  */
-html {
-	color-scheme: light dark;
 
+html {
 	@include mat.theme(
 		(
-			color: (
-				primary: mat.$violet-palette,
-				tertiary: mat.$cyan-palette,
-			),
-			typography: Roboto,
-			density: 0,
+			// La palette Material ne sert plus qu'a cabler les jetons : toutes les
+			// couleurs reellement affichees sont surchargees plus bas.
+			color: (primary: mat.$azure-palette, tertiary: mat.$blue-palette),
+			typography: Inter,
+			density: -2,
 		)
 	);
 }
 
-/* ThemeService pose cet attribut sur <html> pour forcer un mode plutot que de
-   suivre la preference systeme : le theme M3 ci-dessus reagit seul a
-   `color-scheme`, sans palette dupliquee. */
-html[data-theme='light'] {
-	color-scheme: light;
+/* --- Palette ---------------------------------------------------------------
+ * `:root` (0,1,0) l'emporte sur le `html` (0,0,1) emis par `mat.theme()`, et
+ * `:root[data-theme='light']` (0,2,0) l'emporte sur les deux. ThemeService pose
+ * toujours l'attribut ; le mode sombre reste donc le defaut, y compris avant
+ * que le JavaScript n'ait tourne.
+ */
+
+:root {
+	color-scheme: dark;
+
+	--anubis-surface-0: #0b0d11; /* fond de page */
+	--anubis-surface-1: #12151b; /* cartes, barre laterale */
+	--anubis-surface-2: #171b22; /* survol, badges */
+	--anubis-surface-3: #1d222a; /* elements en relief */
+	--anubis-border: #242a33;
+	--anubis-border-strong: #313945;
+	--anubis-text-1: #e7eaf0;
+	--anubis-text-2: #9aa3b2;
+	--anubis-text-3: #6c7482;
+
+	--anubis-accent: #4c8dff;
+	--anubis-accent-on: #06111f;
+	--anubis-accent-soft: rgb(76 141 255 / 16%);
+	--anubis-accent-text: #a8c7ff;
+
+	--anubis-danger: #ef4444;
+	--anubis-danger-soft: rgb(239 68 68 / 16%);
+	--anubis-danger-text: #fca5a5;
+
+	--anubis-warning-soft: rgb(245 158 11 / 16%);
+	--anubis-warning-text: #fcd34d;
 }
 
-html[data-theme='dark'] {
-	color-scheme: dark;
+:root[data-theme='light'] {
+	color-scheme: light;
+
+	--anubis-surface-0: #f6f7f9;
+	--anubis-surface-1: #ffffff;
+	--anubis-surface-2: #f1f3f6;
+	--anubis-surface-3: #e9ecf1;
+	--anubis-border: #e2e6ec;
+	--anubis-border-strong: #cdd3dc;
+	--anubis-text-1: #0f1520;
+	--anubis-text-2: #4a5567;
+	--anubis-text-3: #7a8494;
+
+	--anubis-accent: #2563eb;
+	--anubis-accent-on: #ffffff;
+	--anubis-accent-soft: rgb(37 99 235 / 10%);
+	--anubis-accent-text: #1d4ed8;
+
+	--anubis-danger: #dc2626;
+	--anubis-danger-soft: rgb(220 38 38 / 10%);
+	--anubis-danger-text: #b91c1c;
+
+	--anubis-warning-soft: rgb(217 119 6 / 12%);
+	--anubis-warning-text: #b45309;
 }
+
+/* --- Cablage sur les jetons Material --------------------------------------
+ * Un seul endroit fait le pont. Tout le reste — composants Material comme
+ * feuilles de style maison — lit ces variables sans savoir d'ou elles viennent.
+ */
+
+:root {
+	--mat-sys-surface: var(--anubis-surface-0);
+	--mat-sys-surface-dim: var(--anubis-surface-0);
+	--mat-sys-surface-bright: var(--anubis-surface-2);
+	--mat-sys-surface-container-lowest: var(--anubis-surface-0);
+	--mat-sys-surface-container-low: var(--anubis-surface-1);
+	--mat-sys-surface-container: var(--anubis-surface-1);
+	--mat-sys-surface-container-high: var(--anubis-surface-2);
+	--mat-sys-surface-container-highest: var(--anubis-surface-3);
+	--mat-sys-surface-variant: var(--anubis-surface-2);
+	--mat-sys-background: var(--anubis-surface-0);
+
+	--mat-sys-on-surface: var(--anubis-text-1);
+	--mat-sys-on-surface-variant: var(--anubis-text-2);
+	--mat-sys-on-background: var(--anubis-text-1);
+
+	--mat-sys-outline-variant: var(--anubis-border);
+	--mat-sys-outline: var(--anubis-border-strong);
+
+	--mat-sys-primary: var(--anubis-accent);
+	--mat-sys-on-primary: var(--anubis-accent-on);
+	--mat-sys-primary-container: var(--anubis-accent-soft);
+	--mat-sys-on-primary-container: var(--anubis-accent-text);
+
+	/* Les conteneurs secondaire et tertiaire portent des statuts dans cette
+	   application (entree de menu active, avertissement) : on leur donne des
+	   teintes qui signifient quelque chose plutot que des derives de la primaire. */
+	--mat-sys-secondary-container: var(--anubis-accent-soft);
+	--mat-sys-on-secondary-container: var(--anubis-accent-text);
+	--mat-sys-tertiary-container: var(--anubis-warning-soft);
+	--mat-sys-on-tertiary-container: var(--anubis-warning-text);
+
+	--mat-sys-error: var(--anubis-danger);
+	--mat-sys-error-container: var(--anubis-danger-soft);
+	--mat-sys-on-error-container: var(--anubis-danger-text);
+
+	/* Aucune elevation : la hierarchie passe par la bordure et la surface. */
+	--mat-sys-level0: none;
+	--mat-sys-level1: none;
+	--mat-sys-level2: none;
+	--mat-sys-level3: none;
+	--mat-sys-level4: none;
+	--mat-sys-level5: none;
+
+	/* Le rayon plein est ce qui donne aux boutons Material leur forme de gelule.
+	   Les pastilles de statut, elles, fixent leur propre rayon en composant. */
+	--mat-sys-corner-full: 8px;
+	--mat-sys-corner-extra-large: 12px;
+	--mat-sys-corner-large: 10px;
+	--mat-sys-corner-medium: 8px;
+	--mat-sys-corner-small: 8px;
+	--mat-sys-corner-extra-small: 6px;
+}
+
+/* --- Base ------------------------------------------------------------------ */
 
 html,
 body {
@@ -39,19 +157,112 @@ body {
 }
 
 body {
-	background: var(--mat-sys-surface);
-	color: var(--mat-sys-on-surface);
-	font-family: Roboto, 'Helvetica Neue', sans-serif;
+	background: var(--anubis-surface-0);
+	color: var(--anubis-text-1);
+	font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	/* Interlettrage legerement resserre : c'est ce qui distingue une interface
+	   dense d'une interface simplement petite. */
+	letter-spacing: -0.006em;
+	-webkit-font-smoothing: antialiased;
 }
 
 * {
 	box-sizing: border-box;
 }
 
+/* Chiffres a chasse fixe partout ou ils s'empilent : sans ca, une colonne de
+   nombres ne s'aligne pas et devient penible a comparer. */
+table,
+.numeric,
+.tabular {
+	font-variant-numeric: tabular-nums;
+}
+
+/* --- Ajustements de composants Material ------------------------------------ */
+
+.mat-mdc-card-outlined {
+	border-color: var(--anubis-border);
+	border-radius: 12px;
+}
+
+/* Les en-tetes de table gagnent a se detacher par la casse et la couleur
+   plutot que par le gras, qui alourdit une grille dense. */
+.mat-mdc-header-cell {
+	font-size: 0.72rem;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--anubis-text-3);
+	border-bottom-color: var(--anubis-border);
+}
+
+.mat-mdc-row:hover .mat-mdc-cell {
+	background: var(--anubis-surface-2);
+}
+
+.mat-mdc-cell {
+	border-bottom-color: var(--anubis-border);
+	font-size: 0.875rem;
+}
+
+.mat-mdc-paginator {
+	background: transparent;
+	border-top: 1px solid var(--anubis-border);
+	font-size: 0.8rem;
+}
+
+.mat-mdc-form-field {
+	font-size: 0.875rem;
+}
+
+/* --- Panneaux flottants (menu, select, autocompletion) ---------------------
+ * Ces panneaux vivent dans le CDK overlay, hors de l'arbre de `<app-root>` :
+ * ils avaient donc rate la conversion "bordure plutot qu'ombre" faite plus
+ * haut sur les cartes, et gardaient l'ombre M3 par defaut — la coupure de
+ * langage visuel la plus visible des qu'on ouvre un menu. Le rayon du select
+ * (`0 0 4px 4px`) est en plus un reliquat de Material 2 ; on l'aligne ici.
+ */
+.mat-mdc-menu-panel,
+.mat-mdc-select-panel,
+.mat-mdc-autocomplete-panel {
+	background: var(--anubis-surface-2) !important;
+	border: 1px solid var(--anubis-border-strong);
+	border-radius: 10px !important;
+	box-shadow: 0 8px 24px rgb(0 0 0 / 28%) !important;
+}
+
+.mat-mdc-menu-item,
+.mat-mdc-option {
+	min-height: 38px !important;
+	font-size: 0.85rem;
+}
+
+/* --- Boite de dialogue ------------------------------------------------------
+ * Meme raisonnement : le conteneur de dialogue est un overlay CDK, jamais
+ * touche par les regles de carte. Sans ceci, une confirmation de sanction
+ * s'ouvrait avec l'ombre M3 et des coins a 28px, hors de propos avec le reste
+ * de l'interface desormais plate et a angles resserres.
+ */
+.mat-mdc-dialog-container .mdc-dialog__surface {
+	background: var(--anubis-surface-1) !important;
+	border: 1px solid var(--anubis-border);
+	border-radius: 12px !important;
+	box-shadow: 0 16px 40px rgb(0 0 0 / 32%) !important;
+}
+
+/* --- Anneau de focus ---------------------------------------------------------
+ * L'anneau M3 par defaut est epais et reprend la couleur primaire brute — sur
+ * une interface plate, il ecrase tout ce qui l'entoure. Un filet fin dans
+ * l'accent suffit a signaler le focus sans dominer visuellement.
+ */
+.mat-mdc-focus-indicator::before {
+	border-width: 1.5px !important;
+}
+
 /* --- Utilitaires partages -------------------------------------------------- */
 
 .page {
-	padding: 24px;
+	padding: 28px 32px 48px;
 	max-width: 1600px;
 	margin: 0 auto;
 }
@@ -66,27 +277,28 @@ body {
 
 	h1 {
 		margin: 0;
-		font-size: 1.6rem;
-		font-weight: 500;
+		font-size: 1.45rem;
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
 
 	.subtitle {
 		margin: 4px 0 0;
-		color: var(--mat-sys-on-surface-variant);
-		font-size: 0.9rem;
+		color: var(--anubis-text-2);
+		font-size: 0.875rem;
 	}
 }
 
 .card-grid {
 	display: grid;
-	gap: 16px;
-	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 14px;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .filters {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 12px;
+	gap: 10px;
 	align-items: flex-start;
 	margin-bottom: 16px;
 }
@@ -103,21 +315,22 @@ body {
 }
 
 .muted {
-	color: var(--mat-sys-on-surface-variant);
+	color: var(--anubis-text-3);
 }
 
 .empty-state {
-	padding: 48px 24px;
+	padding: 56px 24px;
 	text-align: center;
-	color: var(--mat-sys-on-surface-variant);
+	color: var(--anubis-text-3);
+	font-size: 0.9rem;
 }
 
 .snack-success {
-	--mdc-snackbar-container-color: var(--mat-sys-tertiary-container);
-	--mdc-snackbar-supporting-text-color: var(--mat-sys-on-tertiary-container);
+	--mdc-snackbar-container-color: var(--anubis-surface-3);
+	--mdc-snackbar-supporting-text-color: var(--anubis-text-1);
 }
 
 .snack-error {
-	--mdc-snackbar-container-color: var(--mat-sys-error-container);
-	--mdc-snackbar-supporting-text-color: var(--mat-sys-on-error-container);
+	--mdc-snackbar-container-color: var(--anubis-danger-soft);
+	--mdc-snackbar-supporting-text-color: var(--anubis-danger-text);
 }
