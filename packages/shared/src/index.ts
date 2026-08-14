@@ -19,3 +19,6 @@ export * from "./dto/ticket";
 export * from "./dto/stats";
 export * from "./dto/app-user";
 export * from "./dto/guild-config";
+export * from "./dto/automod";
+export * from "./dto/raid";
+export * from "./dto/account-flags";

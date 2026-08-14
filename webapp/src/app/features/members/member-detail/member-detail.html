@@ -75,6 +75,23 @@
 			</div>
 		</header>
 
+		@if (accountFlags().length) {
+			<mat-card appearance="outlined" class="flags-banner">
+				<mat-card-content>
+					<mat-icon>person_search</mat-icon>
+					<div>
+						<strong>Signalements de securite</strong>
+						<p>
+							@for (flag of accountFlags(); track flag.id; let last = $last) {
+								{{ accountFlagLabels[flag.type] }}{{ last ? '' : ', ' }}
+							}
+						</p>
+					</div>
+					<a matButton routerLink="/comptes-signales">Voir</a>
+				</mat-card-content>
+			</mat-card>
+		}
+
 		<section class="card-grid counters">
 			<app-stat-card
 				label="Avertissements"

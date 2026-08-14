@@ -2,7 +2,9 @@ import { Events } from "discord.js";
 import type { BotEvent } from "../src/types";
 import xpManager from "../src/collectors/xp";
 import activite from "../src/collectors/activite";
+import * as automod from "../src/collectors/automod";
 import * as referentiel from "../src/collectors/referentiel";
+import * as tickets from "../src/collectors/tickets";
 import { readInt } from "../src/env";
 
 const cooldowns = new Set<string>();
@@ -29,6 +31,17 @@ const event: BotEvent<typeof Events.MessageCreate> = {
 
 		if (contexteOk) {
 			activite.enregistrerMessage(message);
+		}
+
+		await automod.processMessage(message).catch((err) => {
+			console.error("[Automod] Traitement du message echoue :", err);
+		});
+
+		const ticketId = tickets.ticketIdForChannel(message.channel.id);
+		if (ticketId) {
+			await tickets.recordMessage(ticketId, message).catch((err) => {
+				console.error("[Tickets] Enregistrement du message echoue :", err);
+			});
 		}
 
 		const cooldownKey = `${message.author.id}:${message.guild.id}`;

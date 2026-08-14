@@ -101,6 +101,28 @@ export const routes: Routes = [
 				loadComponent: () => import('./features/admin/logs/logs').then((m) => m.LogsPage),
 				title: 'Logs — Anubis',
 			},
+			{
+				path: 'automod',
+				canActivate: [permissionGuard(Permission.AUTOMOD_READ)],
+				loadComponent: () =>
+					import('./features/security/automod/automod').then((m) => m.AutomodPage),
+				title: 'Automodération — Anubis',
+			},
+			{
+				path: 'anti-raid',
+				canActivate: [permissionGuard(Permission.RAID_READ)],
+				loadComponent: () => import('./features/security/raid/raid').then((m) => m.RaidPage),
+				title: 'Anti-raid — Anubis',
+			},
+			{
+				path: 'comptes-signales',
+				canActivate: [permissionGuard(Permission.ACCOUNT_FLAGS_READ)],
+				loadComponent: () =>
+					import('./features/security/account-flags/account-flags').then(
+						(m) => m.AccountFlagsPage,
+					),
+				title: 'Comptes signalés — Anubis',
+			},
 		],
 	},
 	{ path: '**', redirectTo: '' },

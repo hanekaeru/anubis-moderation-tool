@@ -12,6 +12,12 @@ const client = new Client({
 		GatewayIntentBits.GuildMessages,
 		GatewayIntentBits.GuildMembers,
 		GatewayIntentBits.GuildModeration,
+		// Intent privilegie : necessaire pour lire le contenu des messages des
+		// salons de ticket (fil de discussion suivi sur la webapp). Le contenu
+		// des autres salons continue de n'etre jamais persiste (voir
+		// collectors/activite.ts). A activer dans le portail developpeur
+		// Discord (Bot > Privileged Gateway Intents > Message Content Intent).
+		GatewayIntentBits.MessageContent,
 	],
 });
 

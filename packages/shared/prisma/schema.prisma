@@ -81,6 +81,16 @@ enum TicketEventType {
     INTERNAL_NOTE
     CLOSED
     REOPENED
+    /// Salon Discord supprime : le transcript a ete poste dans le salon d'archive.
+    TRANSCRIPT_ARCHIVED
+}
+
+enum TicketCategory {
+    SUPPORT
+    REPORT
+    COMPLAINT
+    PARTNERSHIP
+    OTHER
 }
 
 enum AppUserRole {
@@ -88,6 +98,29 @@ enum AppUserRole {
     MODERATOR
     ADMIN
     OWNER
+}
+
+enum AutomodRuleType {
+    SPAM_RATE
+    MASS_MENTIONS
+    LINKS_INVITES
+    WORD_FILTER
+    EXCESSIVE_CAPS
+    REPETITION
+}
+
+enum AutomodAction {
+    LOG_ONLY
+    DELETE
+    DELETE_AND_TIMEOUT
+}
+
+enum AccountFlagType {
+    NEW_ACCOUNT
+    DEFAULT_AVATAR
+    STAFF_IMPERSONATION
+    QUICK_REJOIN
+    JOINED_AFTER_BAN
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +149,11 @@ model Guild {
     memberRoles        MemberRole[]
     moderationActivity ModerationActivity[]
     configGuilds       ConfigGuild[]
+    automodRules       AutomodRule[]
+    automodIncidents   AutomodIncident[]
+    raidConfig         RaidConfig?
+    raidIncidents      RaidIncident[]
+    accountFlags       AccountFlag[]
 
     @@map("guilds")
 }
@@ -149,6 +187,8 @@ model DiscordUser {
     roleEvents         MemberRoleEvent[]       @relation("RoleEventTarget")
     moderationActivity ModerationActivity[]    @relation("ActivityModerator")
     activityTargets    ModerationActivity[]    @relation("ActivityTarget")
+    automodIncidents   AutomodIncident[]
+    accountFlags       AccountFlag[]
     appUser            AppUser?
 
     @@index([username])
@@ -415,7 +455,7 @@ model Ticket {
     assigneeId      String?        @map("assignee_id") @db.VarChar(20)
     claimedById     String?        @map("claimed_by_id") @db.Uuid
     subject         String
-    category        String         @default("general")
+    category        TicketCategory @default(OTHER)
     status          TicketStatus   @default(OPEN)
     priority        TicketPriority @default(NORMAL)
     openedAt        DateTime       @default(now()) @map("opened_at")
@@ -427,13 +467,20 @@ model Ticket {
     /// Satisfaction de 1 a 5, si l'utilisateur la renseigne.
     rating          Int?
     messageCount    Int            @default(0) @map("message_count")
+    /// Renseigne quand le bot a rejoue cote Discord (permissions du salon,
+    /// embed) le statut courant. Meme role que `Sanction.discordSyncedAt` :
+    /// un changement de statut fait depuis la webapp le laisse `null` jusqu'a
+    /// ce que `bot/src/tasks/ticketSync.ts` rattrape l'effet Discord ; un
+    /// changement fait par les boutons du bot le pose immediatement.
+    discordSyncedAt DateTime?      @map("discord_synced_at")
 
-    guild     Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
-    opener    DiscordUser   @relation("TicketOpener", fields: [openerId], references: [id], onDelete: Cascade)
-    assignee  DiscordUser?  @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-    claimedBy AppUser?      @relation("TicketClaimer", fields: [claimedById], references: [id], onDelete: SetNull)
-    closedBy  AppUser?      @relation("TicketCloser", fields: [closedById], references: [id], onDelete: SetNull)
-    events    TicketEvent[]
+    guild       Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
+    opener      DiscordUser        @relation("TicketOpener", fields: [openerId], references: [id], onDelete: Cascade)
+    assignee    DiscordUser?       @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+    claimedBy   AppUser?           @relation("TicketClaimer", fields: [claimedById], references: [id], onDelete: SetNull)
+    closedBy    AppUser?           @relation("TicketCloser", fields: [closedById], references: [id], onDelete: SetNull)
+    events      TicketEvent[]
+    attachments TicketAttachment[]
 
     @@unique([guildId, number])
     @@index([guildId, status, openedAt])
@@ -457,6 +504,148 @@ model TicketEvent {
 
     @@index([ticketId, occurredAt])
     @@map("ticket_events")
+}
+
+/// Octets d'une piece jointe de ticket, telecharges par le bot depuis Discord.
+///
+/// Les metadonnees (nom, type, taille) sont aussi dupliquees dans le `payload`
+/// de l'evenement `TicketEvent` de type MESSAGE correspondant, pour que l'API
+/// n'ait pas a joindre cette table pour afficher le fil de discussion — elle
+/// n'est lue que par l'endpoint de telechargement, piece par piece.
+model TicketAttachment {
+    id          String   @id @default(uuid()) @db.Uuid
+    ticketId    String   @map("ticket_id") @db.Uuid
+    fileName    String   @map("file_name")
+    contentType String   @map("content_type")
+    size        Int
+    data        Bytes
+    createdAt   DateTime @default(now()) @map("created_at")
+
+    ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+    @@index([ticketId])
+    @@map("ticket_attachments")
+}
+
+// ---------------------------------------------------------------------------
+// Protections (automod, anti-raid, surveillance de comptes)
+// ---------------------------------------------------------------------------
+
+/// Reglage d'une regle d'automodération, une ligne par type et par serveur.
+model AutomodRule {
+    id             String          @id @default(uuid()) @db.Uuid
+    guildId        String          @map("guild_id") @db.VarChar(20)
+    type           AutomodRuleType
+    enabled        Boolean         @default(false)
+    action         AutomodAction   @default(LOG_ONLY)
+    /// Uniquement quand `action = DELETE_AND_TIMEOUT`.
+    timeoutSeconds Int?            @map("timeout_seconds")
+    /// Forme dependante de `type` (seuils, mots, domaines...) : voir
+    /// `AutomodRuleSettings` dans `packages/shared/src/dto/automod.ts`.
+    settings       Json
+    /// Roles dispenses de cette regle, en plus des membres avec ModerateMembers.
+    exemptRoleIds  String[]        @map("exempt_role_ids")
+    updatedAt      DateTime        @updatedAt @map("updated_at")
+    updatedById    String?         @map("updated_by_id") @db.Uuid
+
+    guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+    updatedBy AppUser? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+    @@unique([guildId, type])
+    @@map("automod_rules")
+}
+
+/// Declenchement d'une regle d'automodération : trace consultable depuis la webapp.
+model AutomodIncident {
+    id        BigInt          @id @default(autoincrement())
+    guildId   String          @map("guild_id") @db.VarChar(20)
+    ruleType  AutomodRuleType @map("rule_type")
+    userId    String          @map("user_id") @db.VarChar(20)
+    channelId String?         @map("channel_id") @db.VarChar(20)
+    action    AutomodAction
+    /// Contenu du message incrimine, conserve meme apres sa suppression Discord.
+    messageContent     String? @map("message_content")
+    /// Metadonnees des pieces jointes (nom, type, taille) : jamais les octets,
+    /// ce n'est qu'un journal d'audit, pas un archivage comme les tickets.
+    messageAttachments Json?   @map("message_attachments")
+    /// Details propres a la regle (ex. nombre de mentions, mot filtre trouve).
+    details    Json?
+    occurredAt DateTime @default(now()) @map("occurred_at")
+
+    guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+    user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([guildId, occurredAt])
+    @@index([guildId, userId, occurredAt])
+    @@map("automod_incidents")
+}
+
+/// Reglage anti-raid, une ligne par serveur.
+model RaidConfig {
+    guildId         String   @id @map("guild_id") @db.VarChar(20)
+    enabled         Boolean  @default(false)
+    /// Nombre d'arrivees dans `windowSeconds` qui declenche le confinement.
+    joinThreshold   Int      @default(10) @map("join_threshold")
+    windowSeconds   Int      @default(30) @map("window_seconds")
+    /// Duree par defaut avant qu'un confinement automatique ne puisse etre leve.
+    lockdownMinutes Int      @default(15) @map("lockdown_minutes")
+    /// Role mentionne dans l'alerte de confinement, si renseigne.
+    alertRoleId     String?  @map("alert_role_id") @db.VarChar(20)
+    updatedAt       DateTime @updatedAt @map("updated_at")
+
+    guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+    @@map("raid_config")
+}
+
+/// Episode de confinement, declenche automatiquement ou manuellement.
+model RaidIncident {
+    id            String   @id @default(uuid()) @db.Uuid
+    guildId       String   @map("guild_id") @db.VarChar(20)
+    triggeredAt   DateTime @default(now()) @map("triggered_at")
+    joinCount     Int      @map("join_count")
+    windowSeconds Int      @map("window_seconds")
+    /// Identifiants Discord des membres arrives pendant la fenetre detectee.
+    memberIds     String[] @map("member_ids")
+    /// Salons verrouilles par ce confinement (et seulement ceux-la, pour ne
+    /// pas rouvrir un salon deja restreint manuellement avant le raid).
+    lockedChannelIds          String[] @map("locked_channel_ids")
+    previousVerificationLevel Int?     @map("previous_verification_level")
+    resolvedAt   DateTime? @map("resolved_at")
+    resolvedById String?   @map("resolved_by_id") @db.Uuid
+    /// Pose par le bot une fois le deconfinement (salons + niveau de
+    /// verification) rejoue cote Discord — meme patron que
+    /// `Ticket.discordSyncedAt` pour une resolution demandee depuis la webapp.
+    discordSyncedAt DateTime? @map("discord_synced_at")
+
+    guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+    resolvedBy AppUser? @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+
+    @@index([guildId, triggeredAt])
+    @@map("raid_incidents")
+}
+
+/// Signalement d'un compte suspect a l'arrivee : jamais de sanction
+/// automatique, uniquement une trace presentee au staff.
+model AccountFlag {
+    id           BigInt          @id @default(autoincrement())
+    guildId      String          @map("guild_id") @db.VarChar(20)
+    userId       String          @map("user_id") @db.VarChar(20)
+    type         AccountFlagType
+    /// Details bruts ayant motive le signalement (age du compte, pseudo
+    /// imite, delai depuis le depart precedent, ...).
+    details      Json?
+    createdAt    DateTime  @default(now()) @map("created_at")
+    reviewedAt   DateTime? @map("reviewed_at")
+    reviewedById String?   @map("reviewed_by_id") @db.Uuid
+
+    guild      Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+    user       DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+    reviewedBy AppUser?    @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+    @@index([guildId, createdAt])
+    @@index([guildId, userId])
+    @@map("account_flags")
 }
 
 // ---------------------------------------------------------------------------
@@ -558,20 +747,23 @@ model AppUser {
     createdAt          DateTime    @default(now()) @map("created_at")
     updatedAt          DateTime    @updatedAt @map("updated_at")
 
-    discordUser       DiscordUser?         @relation(fields: [discordUserId], references: [id], onDelete: SetNull)
-    createdBy         AppUser?             @relation("AppUserCreator", fields: [createdById], references: [id], onDelete: SetNull)
-    createdUsers      AppUser[]            @relation("AppUserCreator")
-    refreshTokens     RefreshToken[]
-    notes             MemberNote[]
-    warningsAuthored  Warning[]            @relation("WarningAuthor")
-    warningsRevoked   Warning[]            @relation("WarningRevoker")
-    sanctionsAuthored Sanction[]           @relation("SanctionAuthor")
-    sanctionsRevoked  Sanction[]           @relation("SanctionRevoker")
-    ticketsClaimed    Ticket[]             @relation("TicketClaimer")
-    ticketsClosed     Ticket[]             @relation("TicketCloser")
-    ticketEvents      TicketEvent[]
-    auditEntries      AuditLog[]
-    activity          ModerationActivity[]
+    discordUser           DiscordUser?         @relation(fields: [discordUserId], references: [id], onDelete: SetNull)
+    createdBy             AppUser?             @relation("AppUserCreator", fields: [createdById], references: [id], onDelete: SetNull)
+    createdUsers          AppUser[]            @relation("AppUserCreator")
+    refreshTokens         RefreshToken[]
+    notes                 MemberNote[]
+    warningsAuthored      Warning[]            @relation("WarningAuthor")
+    warningsRevoked       Warning[]            @relation("WarningRevoker")
+    sanctionsAuthored     Sanction[]           @relation("SanctionAuthor")
+    sanctionsRevoked      Sanction[]           @relation("SanctionRevoker")
+    ticketsClaimed        Ticket[]             @relation("TicketClaimer")
+    ticketsClosed         Ticket[]             @relation("TicketCloser")
+    ticketEvents          TicketEvent[]
+    auditEntries          AuditLog[]
+    activity              ModerationActivity[]
+    automodRulesEdited    AutomodRule[]
+    raidIncidentsResolved RaidIncident[]
+    accountFlagsReviewed  AccountFlag[]
 
     @@map("app_users")
 }

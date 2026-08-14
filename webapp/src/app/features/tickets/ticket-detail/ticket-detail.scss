@@ -89,6 +89,13 @@
 	color: var(--mat-sys-on-surface-variant);
 }
 
+.event-attachments {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 8px;
+}
+
 .event-meta {
 	margin: 4px 0 0;
 	font-size: 0.76rem;

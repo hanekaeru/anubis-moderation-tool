@@ -1,5 +1,9 @@
 import { Collection, Events, MessageFlags } from "discord.js";
 import type { BotEvent } from "../src/types";
+import {
+	handleTicketButton,
+	handleTicketOpenSelect,
+} from "../src/handlers/ticketInteractions";
 
 const commandCooldowns = new Collection<string, Collection<string, number>>();
 
@@ -7,6 +11,24 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 	name: Events.InteractionCreate,
 	once: false,
 	async execute(interaction) {
+		if (interaction.isStringSelectMenu() && interaction.customId === "ticket:open") {
+			try {
+				await handleTicketOpenSelect(interaction);
+			} catch (err) {
+				console.error("[Tickets] Ouverture depuis le panneau echouee :", err);
+			}
+			return;
+		}
+
+		if (interaction.isButton() && interaction.customId.startsWith("ticket:")) {
+			try {
+				await handleTicketButton(interaction);
+			} catch (err) {
+				console.error("[Tickets] Action sur bouton echouee :", err);
+			}
+			return;
+		}
+
 		if (!interaction.isChatInputCommand()) return;
 		const command = interaction.client.commands.get(
 			interaction.commandName,

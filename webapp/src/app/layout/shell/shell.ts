@@ -45,6 +45,24 @@ const NAV_ENTRIES: NavEntry[] = [
 		permissions: [Permission.TICKETS_READ],
 	},
 	{
+		path: '/automod',
+		label: 'Automodération',
+		icon: 'shield',
+		permissions: [Permission.AUTOMOD_READ],
+	},
+	{
+		path: '/anti-raid',
+		label: 'Anti-raid',
+		icon: 'security',
+		permissions: [Permission.RAID_READ],
+	},
+	{
+		path: '/comptes-signales',
+		label: 'Comptes signalés',
+		icon: 'person_search',
+		permissions: [Permission.ACCOUNT_FLAGS_READ],
+	},
+	{
 		path: '/comptes',
 		label: 'Comptes',
 		icon: 'admin_panel_settings',

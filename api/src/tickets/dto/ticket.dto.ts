@@ -8,7 +8,7 @@ import {
 	MinLength,
 	ValidateIf,
 } from "class-validator";
-import { TicketPriority, TicketStatus } from "@anubis/shared";
+import { TicketCategory, TicketPriority, TicketStatus } from "@anubis/shared";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 
 const SNOWFLAKE = /^\d{17,20}$/;
@@ -28,9 +28,8 @@ export class TicketQueryDto extends PaginationDto {
 	priority?: TicketPriority;
 
 	@IsOptional()
-	@IsString()
-	@MaxLength(50)
-	category?: string;
+	@IsIn(Object.values(TicketCategory))
+	category?: TicketCategory;
 
 	@IsOptional()
 	@Matches(SNOWFLAKE)
@@ -67,9 +66,8 @@ export class UpdateTicketDto {
 	priority?: TicketPriority;
 
 	@IsOptional()
-	@IsString()
-	@MaxLength(50)
-	category?: string;
+	@IsIn(Object.values(TicketCategory))
+	category?: TicketCategory;
 
 	// `null` est une valeur utile ici : elle desassigne le ticket.
 	@IsOptional()

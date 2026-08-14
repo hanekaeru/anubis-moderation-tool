@@ -12,7 +12,7 @@
 				</a>
 				<h1>#{{ data.number }} — {{ data.subject }}</h1>
 				<p class="subtitle">
-					Categorie {{ data.category }}
+					Categorie {{ categoryLabels[data.category] }}
 					<span class="dot">·</span>
 					Ouvert {{ data.openedAt | relativeTime }}
 					@if (data.closedAt) {
@@ -47,6 +47,16 @@
 										</p>
 										@if (eventDetail(event); as detail) {
 											<p class="event-detail">{{ detail }}</p>
+										}
+										@if (messageContent(event); as content) {
+											<p class="event-detail">{{ content }}</p>
+										}
+										@if (messageAttachments(event).length) {
+											<div class="event-attachments">
+												@for (attachment of messageAttachments(event); track attachment.id) {
+													<app-ticket-attachment [ticketId]="data.id" [attachment]="attachment" />
+												}
+											</div>
 										}
 										<p class="event-meta" [matTooltip]="event.occurredAt | frDate">
 											{{ event.occurredAt | relativeTime }}

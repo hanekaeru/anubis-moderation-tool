@@ -141,9 +141,11 @@ le dev avec rechargement).
   mais sans lui `guildBanAdd`/`guildBanRemove` ne sont **jamais livres** — sans
   la moindre erreur. La lecture de l'audit log demande en plus la permission
   Discord « Voir le journal d'audit » ; sans elle, les sanctions sont
-  enregistrees mais sans auteur. `MESSAGE_CONTENT` reste desactive —
-  aucun texte n'est stocke, et `totalCharacters` reste donc a zero (la longueur
-  moyenne affichee sur la fiche membre aussi). C'est attendu, pas un bug.
+  enregistrees mais sans auteur. `MESSAGE_CONTENT` est **active** (necessaire
+  au suivi des tickets, voir plus bas) mais son usage reste discipline :
+  `activite.ts` ne persiste toujours que la longueur des messages, jamais leur
+  texte — seuls les messages des salons de ticket voient leur contenu ecrit en
+  base, par `collectors/tickets.ts`.
 - Les jours sont calcules en **UTC** et `weekday` compte a partir de lundi
   (`(getUTCDay() + 6) % 7`), pas de dimanche comme JavaScript.
 - Les suppressions de roles et de salons sont **logiques** (`deletedAt`) :
@@ -157,6 +159,59 @@ le dev avec rechargement).
   reglage retroactif et reversible). `member_roles`, qui porte l'etat courant,
   n'est jamais filtre : un role decoratif doit rester visible sur la fiche et
   utilisable comme filtre de recherche.
+- **Tickets** (`src/collectors/tickets.ts`, `src/utils/ticketChannel.ts`,
+  `src/handlers/ticketInteractions.ts`) : l'acces aux salons de ticket est
+  accorde a tout role portant `ModerateMembers`, la meme permission deja
+  verifiee par `/warn`/`/ban` — pas de role dedie a gerer en plus. Un cache
+  memoire `channelId -> ticketId` (peuple au demarrage par
+  `loadTicketChannelsCache`) evite de requeter la base a chaque message pour
+  savoir si un salon est un ticket. Les pieces jointes sont **telechargees et
+  stockees en base** (`ticket_attachments.data`, `bytea`) plutot que
+  referencees par leur lien CDN Discord, qui peut expirer ou disparaitre a la
+  suppression du salon ; un plafond (`MAX_ATTACHMENT_BYTES`, 25 Mo) les ignore
+  au-dela sans faire echouer l'enregistrement du message. La suppression d'un
+  salon de ticket ne supprime jamais le ticket en base : seul `channelId`
+  repasse a `null` (evenement `TRANSCRIPT_ARCHIVED`), pour que la webapp reste
+  consultable indefiniment.
+- **Select menu de ticket** : `handleTicketOpenSelect` accuse reception avec
+  `interaction.deferUpdate()`, jamais `deferReply()`. Seul un accuse de type
+  "mise a jour du message d'origine" reinitialise le select a son placeholder
+  cote client Discord ; `deferReply()` cree une reponse a part et laisse le
+  menu affiche bloque sur la derniere valeur choisie — c'est le bug que ce
+  choix corrige. Un cooldown memoire de 30s par utilisateur
+  (`lastOpenAttempt`) protege en plus contre le spam de clics.
+- **Synchronisation Discord** (`events/ready.ts`) : un seul `setInterval` a
+  5s (`DISCORD_SYNC_INTERVAL_MS`, reduit de 30s) enchaine les rattrapages
+  sanctions, tickets et anti-raid. Meme patron partout : une ecriture web
+  laisse `discordSyncedAt` a `null`, une action posee par le bot lui-meme le
+  pose immediatement (elle vient d'appliquer l'effet elle-meme, rien a
+  rattraper). Voir `Sanction.discordSyncedAt`, `Ticket.discordSyncedAt`
+  (`src/tasks/ticketSync.ts`) et `RaidIncident.discordSyncedAt`
+  (`src/collectors/raid.ts`).
+- **Automod** (`src/collectors/automod.ts`) : regles mises en cache par
+  serveur (TTL 30s) pour eviter une requete DB a chaque message. Une seule
+  regle se declenche par message. Le contenu et les pieces jointes du
+  message incrimine sont conserves dans `AutomodIncident` **en
+  metadonnees seulement** pour les pieces jointes (nom/type/taille, jamais
+  les octets) — a la difference des tickets, c'est un journal d'audit, pas
+  un archivage a reconsulter. Une sanction `DELETE_AND_TIMEOUT` passe par
+  `moderation.createSanction` avec pour `moderatorId` le compte Discord du
+  bot lui-meme, upsert une fois au demarrage (`ready.ts`) pour que la
+  contrainte de cle etrangere ne casse pas au premier declenchement.
+- **Anti-raid** (`src/collectors/raid.ts`) : fenetre glissante d'arrivees en
+  memoire par serveur. Le confinement ne verrouille que les salons
+  **effectivement ouverts** au moment du declenchement, et ne memorise que
+  ceux-la (`lockedChannelIds`) pour les rouvrir a l'identique — jamais un
+  salon deja restreint manuellement avant le raid. Le declenchement
+  automatique applique l'effet Discord immediatement (le bot y a deja
+  acces) ; un declenchement ou une resolution demandes depuis la webapp
+  laissent `discordSyncedAt` a `null` et attendent le prochain passage de la
+  tache periodique.
+- **Surveillance de comptes** (`src/collectors/accountSurveillance.ts`) :
+  calculee a l'arrivee, **avant** l'upsert de `guildMemberAdd.ts` qui
+  ecraserait `Member.leftAt` (necessaire pour detecter un retour rapide).
+  Jamais de sanction automatique — uniquement un `AccountFlag` par signal
+  declenche et une alerte consolidee au staff.
 
 ## Dashboard
 
@@ -173,6 +228,14 @@ le dev avec rechargement).
   teinte sans revalider. Au-dela de trois series, preferer des petits multiples.
   Une seule teinte quand la couleur ne code rien (c'est l'axe qui nomme les
   categories).
+- **Securite** (`features/security/{automod,raid,account-flags}`) : les
+  identifiants de role (`exemptRoleIds`, `alertRoleId`) sont saisis en texte
+  libre (snowflakes separes par des virgules), pas via un selecteur de
+  roles — simplification assumee, aucun `RolesApi` de liste simple n'existe
+  encore cote webapp. La page Automod construit un `FormGroup` par regle
+  dont les champs `settings` dependent du type (`@switch` dans le template) ;
+  les six formes possibles sont documentees dans
+  `packages/shared/src/dto/automod.ts` (`AutomodRuleSettings`).
 
 ## Verifier
 

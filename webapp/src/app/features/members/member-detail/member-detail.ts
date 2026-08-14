@@ -21,8 +21,9 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, map, of } from 'rxjs';
 import {
+	ACCOUNT_FLAG_TYPE_LABELS,
 	MEMBER_STATUS_LABELS,
 	Permission,
 	SANCTION_TYPE_LABELS,
@@ -30,6 +31,7 @@ import {
 	WARNING_SEVERITY_LABELS,
 	WEEKDAY_LABELS,
 	roleColorToHex,
+	type AccountFlagDto,
 	type MemberActivityStats,
 	type MemberDetail,
 	type NoteDto,
@@ -38,6 +40,7 @@ import {
 	type TimelineEntry,
 	type WarningDto,
 } from '@anubis/shared';
+import { AccountFlagsApi } from '../../../core/api/account-flags.api';
 import { MembersApi } from '../../../core/api/members.api';
 import { ModerationApi } from '../../../core/api/moderation.api';
 import { StatsApi } from '../../../core/api/stats.api';
@@ -102,6 +105,7 @@ const TIMELINE_ICONS: Record<string, string | undefined> = {
 	styleUrl: './member-detail.scss',
 })
 export class MemberDetailPage {
+	private readonly accountFlagsApi = inject(AccountFlagsApi);
 	private readonly membersApi = inject(MembersApi);
 	private readonly moderationApi = inject(ModerationApi);
 	private readonly statsApi = inject(StatsApi);
@@ -123,6 +127,7 @@ export class MemberDetailPage {
 	readonly weekdays = WEEKDAY_LABELS;
 	readonly roleColor = roleColorToHex;
 	readonly timelineIcons = TIMELINE_ICONS;
+	readonly accountFlagLabels = ACCOUNT_FLAG_TYPE_LABELS;
 
 	readonly loading = signal(true);
 	readonly member = signal<MemberDetail | null>(null);
@@ -130,6 +135,7 @@ export class MemberDetailPage {
 	readonly notes = signal<NoteDto[]>([]);
 	readonly warnings = signal<WarningDto[]>([]);
 	readonly sanctions = signal<SanctionDto[]>([]);
+	readonly accountFlags = signal<AccountFlagDto[]>([]);
 	readonly activity = signal<MemberActivityStats | null>(null);
 	readonly activityPeriod = signal<StatsPeriod>('90d');
 	readonly savingNote = signal(false);
@@ -349,6 +355,11 @@ export class MemberDetailPage {
 				: Promise.resolve([] as NoteDto[]),
 			warnings: this.moderationApi.searchWarnings({ userId, pageSize: 50 }),
 			sanctions: this.moderationApi.searchSanctions({ userId, pageSize: 50 }),
+			accountFlags: this.canRead(Permission.ACCOUNT_FLAGS_READ)
+				? this.accountFlagsApi
+						.search({ userId, pageSize: 50 })
+						.pipe(map((page) => page.items))
+				: of([] as AccountFlagDto[]),
 		}).subscribe({
 			next: (result) => {
 				this.member.set(result.member);
@@ -356,6 +367,7 @@ export class MemberDetailPage {
 				this.notes.set(result.notes);
 				this.warnings.set(result.warnings.items);
 				this.sanctions.set(result.sanctions.items);
+				this.accountFlags.set(result.accountFlags);
 				this.loading.set(false);
 			},
 			error: () => this.loading.set(false),

@@ -1,0 +1,30 @@
+.filters {
+	display: flex;
+	gap: 12px;
+	margin-bottom: 12px;
+
+	mat-form-field {
+		min-width: 180px;
+	}
+}
+
+.details {
+	max-width: 320px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tag {
+	padding: 2px 10px;
+	border-radius: 999px;
+	font-size: 0.8rem;
+	background: var(--mat-sys-surface-variant);
+	color: var(--mat-sys-on-surface-variant);
+}
+
+.empty-state {
+	padding: 24px;
+	text-align: center;
+	color: var(--mat-sys-on-surface-variant);
+}

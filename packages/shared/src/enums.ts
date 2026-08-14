@@ -85,9 +85,20 @@ export const TicketEventType = {
 	INTERNAL_NOTE: "INTERNAL_NOTE",
 	CLOSED: "CLOSED",
 	REOPENED: "REOPENED",
+	TRANSCRIPT_ARCHIVED: "TRANSCRIPT_ARCHIVED",
 } as const;
 export type TicketEventType =
 	(typeof TicketEventType)[keyof typeof TicketEventType];
+
+export const TicketCategory = {
+	SUPPORT: "SUPPORT",
+	REPORT: "REPORT",
+	COMPLAINT: "COMPLAINT",
+	PARTNERSHIP: "PARTNERSHIP",
+	OTHER: "OTHER",
+} as const;
+export type TicketCategory =
+	(typeof TicketCategory)[keyof typeof TicketCategory];
 
 export const AppUserRole = {
 	VIEWER: "VIEWER",
@@ -96,6 +107,34 @@ export const AppUserRole = {
 	OWNER: "OWNER",
 } as const;
 export type AppUserRole = (typeof AppUserRole)[keyof typeof AppUserRole];
+
+export const AutomodRuleType = {
+	SPAM_RATE: "SPAM_RATE",
+	MASS_MENTIONS: "MASS_MENTIONS",
+	LINKS_INVITES: "LINKS_INVITES",
+	WORD_FILTER: "WORD_FILTER",
+	EXCESSIVE_CAPS: "EXCESSIVE_CAPS",
+	REPETITION: "REPETITION",
+} as const;
+export type AutomodRuleType =
+	(typeof AutomodRuleType)[keyof typeof AutomodRuleType];
+
+export const AutomodAction = {
+	LOG_ONLY: "LOG_ONLY",
+	DELETE: "DELETE",
+	DELETE_AND_TIMEOUT: "DELETE_AND_TIMEOUT",
+} as const;
+export type AutomodAction = (typeof AutomodAction)[keyof typeof AutomodAction];
+
+export const AccountFlagType = {
+	NEW_ACCOUNT: "NEW_ACCOUNT",
+	DEFAULT_AVATAR: "DEFAULT_AVATAR",
+	STAFF_IMPERSONATION: "STAFF_IMPERSONATION",
+	QUICK_REJOIN: "QUICK_REJOIN",
+	JOINED_AFTER_BAN: "JOINED_AFTER_BAN",
+} as const;
+export type AccountFlagType =
+	(typeof AccountFlagType)[keyof typeof AccountFlagType];
 
 /** Libelles francais, pour ne pas les repeter dans chaque composant. */
 export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
@@ -133,6 +172,14 @@ export const TICKET_PRIORITY_LABELS: Record<TicketPriority, string> = {
 	URGENT: "Urgente",
 };
 
+export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {
+	SUPPORT: "Support technique",
+	REPORT: "Signalement d'un membre",
+	COMPLAINT: "Réclamation / Litige",
+	PARTNERSHIP: "Partenariat",
+	OTHER: "Autre",
+};
+
 export const APP_USER_ROLE_LABELS: Record<AppUserRole, string> = {
 	VIEWER: "Lecture seule",
 	MODERATOR: "Modérateur",
@@ -144,6 +191,38 @@ export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
 	ACTIVE: "Présent(e)",
 	LEFT: "Parti(e)",
 	BANNED: "Banni(e)",
+};
+
+export const AUTOMOD_RULE_TYPE_LABELS: Record<AutomodRuleType, string> = {
+	SPAM_RATE: "Débit de messages",
+	MASS_MENTIONS: "Mentions massives",
+	LINKS_INVITES: "Liens et invitations",
+	WORD_FILTER: "Filtre de mots",
+	EXCESSIVE_CAPS: "Majuscules excessives",
+	REPETITION: "Répétition",
+};
+
+export const AUTOMOD_RULE_TYPE_DESCRIPTIONS: Record<AutomodRuleType, string> = {
+	SPAM_RATE: "Trop de messages en peu de temps de la part d'un même membre.",
+	MASS_MENTIONS: "Trop de mentions (membres ou rôles) dans un seul message.",
+	LINKS_INVITES: "Liens ou invitations Discord non autorisés.",
+	WORD_FILTER: "Mots ou expressions interdits sur le serveur.",
+	EXCESSIVE_CAPS: "Message majoritairement en majuscules.",
+	REPETITION: "Caractères ou messages répétés à l'excès.",
+};
+
+export const AUTOMOD_ACTION_LABELS: Record<AutomodAction, string> = {
+	LOG_ONLY: "Journaliser uniquement",
+	DELETE: "Supprimer le message",
+	DELETE_AND_TIMEOUT: "Supprimer et exclure temporairement",
+};
+
+export const ACCOUNT_FLAG_TYPE_LABELS: Record<AccountFlagType, string> = {
+	NEW_ACCOUNT: "Compte récent (< 2 jours)",
+	DEFAULT_AVATAR: "Avatar par défaut",
+	STAFF_IMPERSONATION: "Pseudo imitant un membre du staff",
+	QUICK_REJOIN: "Retour rapide après un départ",
+	JOINED_AFTER_BAN: "Arrivée juste après un bannissement",
 };
 
 /**
@@ -182,3 +261,10 @@ export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
  * shadowban, cree paresseusement au premier `/shadowban` sur un serveur.
  */
 export const SHADOWBAN_ROLE_CONFIG_KEY = "SHADOWBAN_ROLE";
+
+/**
+ * Cle `config_name` sous laquelle le bot enregistre l'identifiant du salon
+ * d'archive des transcripts de tickets, cree paresseusement au premier usage
+ * de `/create_ticket_panel`.
+ */
+export const TICKET_TRANSCRIPT_CHANNEL_CONFIG_KEY = "TICKET_TRANSCRIPT_CHANNEL";

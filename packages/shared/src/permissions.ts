@@ -26,6 +26,13 @@ export const Permission = {
 	AUDIT_READ: "audit:read",
 	LOGS_READ: "logs:read",
 	LOGS_WRITE: "logs:write",
+	AUTOMOD_READ: "automod:read",
+	AUTOMOD_WRITE: "automod:write",
+	RAID_READ: "raid:read",
+	RAID_RESPOND: "raid:respond",
+	RAID_CONFIGURE: "raid:configure",
+	ACCOUNT_FLAGS_READ: "account-flags:read",
+	ACCOUNT_FLAGS_WRITE: "account-flags:write",
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
@@ -36,6 +43,9 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	Permission.SANCTIONS_READ,
 	Permission.TICKETS_READ,
 	Permission.STATS_READ,
+	Permission.AUTOMOD_READ,
+	Permission.RAID_READ,
+	Permission.ACCOUNT_FLAGS_READ,
 ];
 
 const MODERATOR_PERMISSIONS: Permission[] = [
@@ -47,6 +57,10 @@ const MODERATOR_PERMISSIONS: Permission[] = [
 	Permission.SANCTIONS_REVOKE,
 	Permission.TICKETS_WRITE,
 	Permission.LOGS_READ,
+	// Reponse operationnelle rapide (lever/declencher un confinement, traiter
+	// un signalement) : de la moderation courante, pas de la configuration.
+	Permission.RAID_RESPOND,
+	Permission.ACCOUNT_FLAGS_WRITE,
 ];
 
 const ADMIN_PERMISSIONS: Permission[] = [
@@ -60,6 +74,10 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	Permission.USERS_WRITE,
 	Permission.AUDIT_READ,
 	Permission.LOGS_WRITE,
+	// Reglages structurants (seuils, regles, actions automatiques) : meme
+	// niveau que LOGS_WRITE, pas la reponse au quotidien.
+	Permission.AUTOMOD_WRITE,
+	Permission.RAID_CONFIGURE,
 ];
 
 export const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {

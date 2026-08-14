@@ -1,4 +1,9 @@
-import { TicketEventType, TicketPriority, TicketStatus } from "../enums";
+import {
+	TicketCategory,
+	TicketEventType,
+	TicketPriority,
+	TicketStatus,
+} from "../enums";
 import { IsoDateString, PaginationQuery, Snowflake } from "./common";
 import { ActorRef, MemberRef } from "./moderation";
 
@@ -6,7 +11,7 @@ export interface TicketListItem {
 	id: string;
 	number: number;
 	subject: string;
-	category: string;
+	category: TicketCategory;
 	status: TicketStatus;
 	priority: TicketPriority;
 	opener: MemberRef;
@@ -30,6 +35,13 @@ export interface TicketDetail extends TicketListItem {
 	events: TicketEventDto[];
 }
 
+/**
+ * `payload` selon `type` :
+ * - `MESSAGE` : `{ content: string | null; attachments: TicketAttachmentRef[] }`
+ * - `STATUS_CHANGED` / `PRIORITY_CHANGED` / `ASSIGNED` : `{ from; to }`
+ * - `INTERNAL_NOTE` : `{ body: string }`
+ * - `TRANSCRIPT_ARCHIVED` : `{ channelName: string; transcriptPosted: boolean }`
+ */
 export interface TicketEventDto {
 	id: string;
 	type: TicketEventType;
@@ -38,11 +50,19 @@ export interface TicketEventDto {
 	occurredAt: IsoDateString;
 }
 
+/** Metadonnees d'une piece jointe telechargee par le bot (jamais les octets). */
+export interface TicketAttachmentRef {
+	id: string;
+	fileName: string;
+	contentType: string;
+	size: number;
+}
+
 export interface TicketSearchQuery extends PaginationQuery {
 	search?: string;
 	status?: TicketStatus;
 	priority?: TicketPriority;
-	category?: string;
+	category?: TicketCategory;
 	assigneeId?: Snowflake;
 	openerId?: Snowflake;
 	from?: IsoDateString;
@@ -54,7 +74,7 @@ export interface TicketSearchQuery extends PaginationQuery {
 export interface UpdateTicketRequest {
 	status?: TicketStatus;
 	priority?: TicketPriority;
-	category?: string;
+	category?: TicketCategory;
 	assigneeId?: Snowflake | null;
 	closeReason?: string;
 }

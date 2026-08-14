@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import type { TicketAttachment } from "@anubis/shared/prisma";
 import type { Prisma } from "@anubis/shared/prisma";
 import type {
 	Paginated,
@@ -328,13 +329,21 @@ export class TicketsService {
 		return this.findOne(id);
 	}
 
-	/** Categories reellement utilisees, pour alimenter les filtres. */
-	async listCategories(): Promise<string[]> {
-		const rows = await this.prisma.ticket.groupBy({
-			by: ["category"],
-			where: { guildId: this.guild.guildId },
-			orderBy: { category: "asc" },
+	/**
+	 * Octets d'une piece jointe, pour l'endpoint de telechargement. Verifie que
+	 * le ticket appartient bien au serveur administre avant de renvoyer quoi
+	 * que ce soit.
+	 */
+	async getAttachment(
+		ticketId: string,
+		attachmentId: string,
+	): Promise<TicketAttachment> {
+		const attachment = await this.prisma.ticketAttachment.findFirst({
+			where: { id: attachmentId, ticketId, ticket: { guildId: this.guild.guildId } },
 		});
-		return rows.map((row) => row.category);
+
+		if (!attachment) throw new NotFoundException("Piece jointe introuvable.");
+
+		return attachment;
 	}
 }
