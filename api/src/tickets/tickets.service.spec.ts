@@ -32,7 +32,7 @@ function ticketRow(overrides: Record<string, unknown> = {}) {
 		messageCount: 0,
 		firstResponseAt: null,
 		rating: null,
-		opener: { id: "250902879667879937", username: "member", globalName: null, avatarHash: null },
+		opener: { id: "250902879667879937", username: "member", globalName: null, avatarUrl: null },
 		assignee: null,
 		claimedBy: null,
 		closedBy: null,

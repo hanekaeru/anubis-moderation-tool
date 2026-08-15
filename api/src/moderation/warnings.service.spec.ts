@@ -28,7 +28,7 @@ function warningRow(overrides: Record<string, unknown> = {}) {
 		revokedBy: null,
 		revokeReason: null,
 		createdAt: new Date("2026-01-01T00:00:00.000Z"),
-		user: { id: "250902879667879937", username: "member", globalName: null, avatarHash: null },
+		user: { id: "250902879667879937", username: "member", globalName: null, avatarUrl: null },
 		moderator: null,
 		createdBy: { id: "app-1", displayName: "Mod" },
 		...overrides,

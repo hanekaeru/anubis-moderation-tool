@@ -43,7 +43,7 @@ export async function upsertUser(user: User): Promise<void> {
 		username: user.username,
 		globalName: user.globalName ?? null,
 		discriminator: user.discriminator === "0" ? null : user.discriminator,
-		avatarHash: user.avatar ?? null,
+		avatarUrl: user.displayAvatarURL({ size: 256, extension: "webp", forceStatic: true }),
 		isBot: user.bot,
 		accountCreatedAt: user.createdAt,
 	};

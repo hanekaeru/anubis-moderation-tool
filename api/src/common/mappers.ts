@@ -1,5 +1,4 @@
 import {
-	avatarUrl,
 	type ActorRef,
 	type MemberRef,
 	type RoleSummary,
@@ -10,7 +9,7 @@ export interface DiscordUserLike {
 	id: string;
 	username: string;
 	globalName: string | null;
-	avatarHash: string | null;
+	avatarUrl: string | null;
 }
 
 export interface AppUserLike {
@@ -24,7 +23,7 @@ export function toMemberRef(user: DiscordUserLike): MemberRef {
 		userId: user.id,
 		username: user.username,
 		globalName: user.globalName,
-		avatarUrl: avatarUrl(user.id, user.avatarHash, 128),
+		avatarUrl: user.avatarUrl,
 	};
 }
 

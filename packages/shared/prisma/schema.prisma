@@ -164,7 +164,7 @@ model DiscordUser {
     username         String
     globalName       String?   @map("global_name")
     discriminator    String?   @db.VarChar(4)
-    avatarHash       String?   @map("avatar_hash")
+    avatarUrl        String?   @map("avatar_url")
     isBot            Boolean   @default(false) @map("is_bot")
     accountCreatedAt DateTime? @map("account_created_at")
     firstSeenAt      DateTime  @default(now()) @map("first_seen_at")
@@ -558,20 +558,20 @@ model AutomodRule {
 
 /// Declenchement d'une regle d'automodération : trace consultable depuis la webapp.
 model AutomodIncident {
-    id        BigInt          @id @default(autoincrement())
-    guildId   String          @map("guild_id") @db.VarChar(20)
-    ruleType  AutomodRuleType @map("rule_type")
-    userId    String          @map("user_id") @db.VarChar(20)
-    channelId String?         @map("channel_id") @db.VarChar(20)
-    action    AutomodAction
+    id                 BigInt          @id @default(autoincrement())
+    guildId            String          @map("guild_id") @db.VarChar(20)
+    ruleType           AutomodRuleType @map("rule_type")
+    userId             String          @map("user_id") @db.VarChar(20)
+    channelId          String?         @map("channel_id") @db.VarChar(20)
+    action             AutomodAction
     /// Contenu du message incrimine, conserve meme apres sa suppression Discord.
-    messageContent     String? @map("message_content")
+    messageContent     String?         @map("message_content")
     /// Metadonnees des pieces jointes (nom, type, taille) : jamais les octets,
     /// ce n'est qu'un journal d'audit, pas un archivage comme les tickets.
-    messageAttachments Json?   @map("message_attachments")
+    messageAttachments Json?           @map("message_attachments")
     /// Details propres a la regle (ex. nombre de mentions, mot filtre trouve).
-    details    Json?
-    occurredAt DateTime @default(now()) @map("occurred_at")
+    details            Json?
+    occurredAt         DateTime        @default(now()) @map("occurred_at")
 
     guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
     user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -601,23 +601,23 @@ model RaidConfig {
 
 /// Episode de confinement, declenche automatiquement ou manuellement.
 model RaidIncident {
-    id            String   @id @default(uuid()) @db.Uuid
-    guildId       String   @map("guild_id") @db.VarChar(20)
-    triggeredAt   DateTime @default(now()) @map("triggered_at")
-    joinCount     Int      @map("join_count")
-    windowSeconds Int      @map("window_seconds")
+    id                        String    @id @default(uuid()) @db.Uuid
+    guildId                   String    @map("guild_id") @db.VarChar(20)
+    triggeredAt               DateTime  @default(now()) @map("triggered_at")
+    joinCount                 Int       @map("join_count")
+    windowSeconds             Int       @map("window_seconds")
     /// Identifiants Discord des membres arrives pendant la fenetre detectee.
-    memberIds     String[] @map("member_ids")
+    memberIds                 String[]  @map("member_ids")
     /// Salons verrouilles par ce confinement (et seulement ceux-la, pour ne
     /// pas rouvrir un salon deja restreint manuellement avant le raid).
-    lockedChannelIds          String[] @map("locked_channel_ids")
-    previousVerificationLevel Int?     @map("previous_verification_level")
-    resolvedAt   DateTime? @map("resolved_at")
-    resolvedById String?   @map("resolved_by_id") @db.Uuid
+    lockedChannelIds          String[]  @map("locked_channel_ids")
+    previousVerificationLevel Int?      @map("previous_verification_level")
+    resolvedAt                DateTime? @map("resolved_at")
+    resolvedById              String?   @map("resolved_by_id") @db.Uuid
     /// Pose par le bot une fois le deconfinement (salons + niveau de
     /// verification) rejoue cote Discord — meme patron que
     /// `Ticket.discordSyncedAt` pour une resolution demandee depuis la webapp.
-    discordSyncedAt DateTime? @map("discord_synced_at")
+    discordSyncedAt           DateTime? @map("discord_synced_at")
 
     guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
     resolvedBy AppUser? @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
@@ -636,9 +636,9 @@ model AccountFlag {
     /// Details bruts ayant motive le signalement (age du compte, pseudo
     /// imite, delai depuis le depart precedent, ...).
     details      Json?
-    createdAt    DateTime  @default(now()) @map("created_at")
-    reviewedAt   DateTime? @map("reviewed_at")
-    reviewedById String?   @map("reviewed_by_id") @db.Uuid
+    createdAt    DateTime        @default(now()) @map("created_at")
+    reviewedAt   DateTime?       @map("reviewed_at")
+    reviewedById String?         @map("reviewed_by_id") @db.Uuid
 
     guild      Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
     user       DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -669,19 +669,19 @@ model QuarantineConfig {
 /// Etat de quarantaine d'un membre. Pas d'expulsion automatique : la
 /// quarantaine dure jusqu'au clic sur le bouton, ou une levee manuelle.
 model QuarantineStatus {
-    guildId       String    @map("guild_id") @db.VarChar(20)
-    userId        String    @map("user_id") @db.VarChar(20)
-    quarantinedAt DateTime  @default(now()) @map("quarantined_at")
-    acceptedAt    DateTime? @map("accepted_at")
+    guildId         String    @map("guild_id") @db.VarChar(20)
+    userId          String    @map("user_id") @db.VarChar(20)
+    quarantinedAt   DateTime  @default(now()) @map("quarantined_at")
+    acceptedAt      DateTime? @map("accepted_at")
     /// Pose depuis la webapp lors d'une levee manuelle : `null` en attendant
     /// que le bot retire le role au prochain passage de synchronisation.
-    releasedById String? @map("released_by_id") @db.Uuid
+    releasedById    String?   @map("released_by_id") @db.Uuid
     /// Pose immediatement quand le retrait du role est fait par le bot
     /// lui-meme (clic sur le bouton) — meme patron que
     /// `RaidIncident.discordSyncedAt` pour une levee demandee depuis la webapp.
     discordSyncedAt DateTime? @map("discord_synced_at")
 
-    guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+    guild      Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
     user       DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
     releasedBy AppUser?    @relation("QuarantineReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull)
 
@@ -805,7 +805,7 @@ model AppUser {
     automodRulesEdited    AutomodRule[]
     raidIncidentsResolved RaidIncident[]
     accountFlagsReviewed  AccountFlag[]
-    quarantineReleases    QuarantineStatus[]  @relation("QuarantineReleasedBy")
+    quarantineReleases    QuarantineStatus[]   @relation("QuarantineReleasedBy")
     discordLinkCode       AccountLinkCode?
 
     @@map("app_users")

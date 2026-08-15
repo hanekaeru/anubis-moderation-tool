@@ -12,14 +12,14 @@ describe("toMemberRef", () => {
 			id: "250902879667879937",
 			username: "hanekaeru",
 			globalName: "Haneka",
-			avatarHash: null,
+			avatarUrl: "https://cdn.discordapp.com/avatars/250902879667879937/abcdef.png",
 		});
 
 		expect(ref).toEqual({
 			userId: "250902879667879937",
 			username: "hanekaeru",
 			globalName: "Haneka",
-			avatarUrl: expect.stringContaining("embed/avatars"),
+			avatarUrl: "https://cdn.discordapp.com/avatars/250902879667879937/abcdef.png",
 		});
 	});
 });
@@ -27,7 +27,7 @@ describe("toMemberRef", () => {
 describe("toActorRef", () => {
 	it("priorise le compte dashboard sur le compte Discord", () => {
 		const ref = toActorRef(
-			{ id: "1", username: "bot-user", globalName: null, avatarHash: null },
+			{ id: "1", username: "bot-user", globalName: null, avatarUrl: null },
 			{ id: "app-1", username: "admin", displayName: "Admin" },
 		);
 		expect(ref).toEqual({ kind: "app", id: "app-1", label: "Admin" });
@@ -35,7 +35,7 @@ describe("toActorRef", () => {
 
 	it("retombe sur le compte Discord quand aucun compte dashboard n'est fourni", () => {
 		const ref = toActorRef(
-			{ id: "1", username: "hanekaeru", globalName: "Haneka", avatarHash: null },
+			{ id: "1", username: "hanekaeru", globalName: "Haneka", avatarUrl: null },
 			null,
 		);
 		expect(ref).toEqual({ kind: "discord", id: "1", label: "Haneka" });
@@ -43,7 +43,7 @@ describe("toActorRef", () => {
 
 	it("retombe sur le nom d'utilisateur Discord si le nom global est absent", () => {
 		const ref = toActorRef(
-			{ id: "1", username: "hanekaeru", globalName: null, avatarHash: null },
+			{ id: "1", username: "hanekaeru", globalName: null, avatarUrl: null },
 			null,
 		);
 		expect(ref).toEqual({ kind: "discord", id: "1", label: "hanekaeru" });

@@ -66,7 +66,7 @@ describe("MembersService.findOne", () => {
 					user: {
 						username: "hanekaeru",
 						globalName: "Haneka",
-						avatarHash: null,
+						avatarUrl: null,
 						isBot: false,
 						accountCreatedAt: new Date("2020-01-01T00:00:00.000Z"),
 					},
@@ -98,7 +98,7 @@ describe("MembersService.findOne", () => {
 					user: {
 						username: "hanekaeru",
 						globalName: null,
-						avatarHash: null,
+						avatarUrl: null,
 						isBot: false,
 						accountCreatedAt: null,
 					},
@@ -124,7 +124,7 @@ describe("MembersService.findOne", () => {
 					user: {
 						username: "hanekaeru",
 						globalName: null,
-						avatarHash: null,
+						avatarUrl: null,
 						isBot: false,
 						accountCreatedAt: new Date(),
 					},

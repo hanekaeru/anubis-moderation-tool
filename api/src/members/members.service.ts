@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@anubis/shared/prisma";
 import {
-	avatarUrl,
 	snowflakeToDate,
 	TimelineKind,
 	type MemberCounters,
@@ -26,7 +25,7 @@ interface MemberSearchRow {
 	username: string;
 	global_name: string | null;
 	nickname: string | null;
-	avatar_hash: string | null;
+	avatar_url: string | null;
 	status: "ACTIVE" | "LEFT" | "BANNED";
 	joined_at: Date | null;
 	warning_count: number;
@@ -147,7 +146,7 @@ export class MembersService {
              du.username,
              du.global_name,
              m.nickname,
-             du.avatar_hash,
+             du.avatar_url,
              m.status,
              m.joined_at,
              COALESCE(warn.c, 0) AS warning_count,
@@ -175,7 +174,7 @@ export class MembersService {
 			username: row.username,
 			globalName: row.global_name,
 			nickname: row.nickname,
-			avatarUrl: avatarUrl(row.user_id, row.avatar_hash),
+			avatarUrl: row.avatar_url,
 			status: row.status,
 			joinedAt: row.joined_at?.toISOString() ?? null,
 			roles: rolesByUser.get(row.user_id) ?? [],
@@ -244,7 +243,7 @@ export class MembersService {
 			username: member.user.username,
 			globalName: member.user.globalName,
 			nickname: member.nickname,
-			avatarUrl: avatarUrl(userId, member.user.avatarHash, 256, "webp"),
+			avatarUrl: member.user.avatarUrl,
 			isBot: member.user.isBot,
 			status: member.status,
 			// A defaut de date enregistree, elle se deduit du snowflake.

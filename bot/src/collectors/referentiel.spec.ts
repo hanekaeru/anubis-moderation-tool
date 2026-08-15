@@ -52,9 +52,11 @@ describe("synchroniserAvatars", () => {
 				username: "alice",
 				globalName: "Alice",
 				discriminator: "0",
-				avatar: "avatar-a",
 				bot: false,
 				createdAt: new Date(),
+				displayAvatarURL: jest
+					.fn()
+					.mockReturnValue("https://cdn.discordapp.com/avatars/user-a/avatar-a.png"),
 			},
 		};
 		const utilisateurB = {
@@ -63,9 +65,11 @@ describe("synchroniserAvatars", () => {
 				username: "bob",
 				globalName: null,
 				discriminator: "0",
-				avatar: null,
 				bot: false,
 				createdAt: new Date(),
+				displayAvatarURL: jest
+					.fn()
+					.mockReturnValue("https://cdn.discordapp.com/embed/avatars/0.png"),
 			},
 		};
 		const guild = {
@@ -82,10 +86,10 @@ describe("synchroniserAvatars", () => {
 		await expect(referentiel.synchroniserAvatars(guild)).resolves.toBe(2);
 		expect(prismaMock.discordUser.upsert).toHaveBeenCalledTimes(2);
 		expect(prismaMock.discordUser.upsert.mock.calls[0][0].update).toMatchObject({
-			avatarHash: "avatar-a",
+			avatarUrl: "https://cdn.discordapp.com/avatars/user-a/avatar-a.png",
 		});
 		expect(prismaMock.discordUser.upsert.mock.calls[1][0].update).toMatchObject({
-			avatarHash: null,
+			avatarUrl: "https://cdn.discordapp.com/embed/avatars/0.png",
 		});
 	});
 });
@@ -237,9 +241,9 @@ describe("garantirContexte", () => {
 			username: "user",
 			globalName: null,
 			discriminator: "0",
-			avatar: null,
 			bot: false,
 			createdAt: new Date(),
+			displayAvatarURL: jest.fn().mockReturnValue("https://cdn.discordapp.com/embed/avatars/0.png"),
 		} as unknown as User;
 	}
 
