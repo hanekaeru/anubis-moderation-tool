@@ -4,7 +4,11 @@ import type { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
 import type { PrismaService } from "../prisma/prisma.service";
 import type { ModerationPointsService } from "./moderation-points.service";
-import type { CreateSanctionDto, RevokeDto } from "./dto/moderation.dto";
+import type {
+	CreateSanctionDto,
+	RevokeDto,
+	SanctionQueryDto,
+} from "./dto/moderation.dto";
 import { SanctionsService } from "./sanctions.service";
 
 const ACTOR: AuthenticatedUser = {
@@ -28,7 +32,9 @@ const SANCTION_ROW = {
 	expiresAt: new Date("2026-01-01T01:00:00.000Z"),
 	revokedAt: null,
 	revokedBy: null,
+	revokedByDiscord: null,
 	revokeReason: null,
+	automodIncident: null,
 	warningId: null,
 	evidenceUrl: null,
 	createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -281,5 +287,155 @@ describe("SanctionsService.revoke", () => {
 				data: expect.objectContaining({ discordSyncedAt: null }),
 			}),
 		);
+	});
+});
+
+describe("SanctionsService.search", () => {
+	function searchQuery(overrides: Record<string, unknown> = {}) {
+		return {
+			page: 1,
+			pageSize: 25,
+			skip: 0,
+			take: 25,
+			...overrides,
+		} as unknown as SanctionQueryDto;
+	}
+
+	function searchService(row: Record<string, unknown>) {
+		return makeService({
+			sanction: {
+				findMany: jest.fn().mockResolvedValue([row]),
+				count: jest.fn().mockResolvedValue(1),
+				findFirst: jest.fn(),
+				create: jest.fn(),
+				update: jest.fn(),
+				updateMany: jest.fn(),
+			},
+		});
+	}
+
+	it("annonce l'auteur d'une levee faite depuis Discord", async () => {
+		// `revokedById` pointe vers un compte dashboard : une levee posee par
+		// `/unban` n'en a pas. Sans `revokedByDiscord`, la sanction s'affichait
+		// « Levée » sans le moindre auteur — le cas le plus courant, puisque la
+		// plupart des levees se font depuis Discord.
+		const { service } = searchService({
+			...SANCTION_ROW,
+			status: "REVOKED",
+			revokedAt: new Date("2026-01-02T00:00:00.000Z"),
+			revokeReason: "Erreur de moderation",
+			revokedBy: null,
+			revokedByDiscord: {
+				id: "250902879667879937",
+				username: "moderateur",
+				globalName: "Modérateur",
+			},
+		});
+
+		const page = await service.search(searchQuery());
+
+		expect(page.items[0]!.revokedBy).toEqual({
+			kind: "discord",
+			id: "250902879667879937",
+			label: "Modérateur",
+		});
+		expect(page.items[0]!.revokeReason).toBe("Erreur de moderation");
+	});
+
+	it("expose le message supprime d'une sanction automatique", async () => {
+		// Le message est supprime de Discord des le declenchement : l'incident
+		// en est la seule trace, et sans lui la sanction ne dit que la regle.
+		const { service } = searchService({
+			...SANCTION_ROW,
+			automodIncident: {
+				id: 42n,
+				ruleType: "WORD_FILTER",
+				messageContent: "message interdit",
+				channelId: "111",
+				details: { matched: "interdit", via: "mot" },
+				occurredAt: new Date("2026-01-01T00:00:00.000Z"),
+			},
+		});
+
+		const page = await service.search(searchQuery());
+
+		expect(page.items[0]!.automod).toEqual({
+			// L'identifiant est un BIGINT en base : rendu en chaine, comme
+			// partout ailleurs dans les mappers.
+			incidentId: "42",
+			ruleType: "WORD_FILTER",
+			messageContent: "message interdit",
+			matched: "interdit",
+			channelId: "111",
+			occurredAt: "2026-01-01T00:00:00.000Z",
+		});
+	});
+
+	it("ignore un `details` sans clef `matched` exploitable", async () => {
+		const { service } = searchService({
+			...SANCTION_ROW,
+			automodIncident: {
+				id: 7n,
+				ruleType: "SPAM_RATE",
+				messageContent: null,
+				channelId: null,
+				details: { count: 12, windowSeconds: 10 },
+				occurredAt: new Date("2026-01-01T00:00:00.000Z"),
+			},
+		});
+
+		const page = await service.search(searchQuery());
+
+		expect(page.items[0]!.automod?.matched).toBeNull();
+	});
+
+	it("cherche le membre sur le pseudo, le nom affiche et l'identifiant", async () => {
+		const findMany = jest.fn().mockResolvedValue([]);
+		const { service } = makeService({
+			sanction: {
+				findMany,
+				count: jest.fn().mockResolvedValue(0),
+				findFirst: jest.fn(),
+				create: jest.fn(),
+				update: jest.fn(),
+				updateMany: jest.fn(),
+			},
+		});
+
+		await service.search(searchQuery({ member: " Alice " }));
+
+		expect(findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					// Saisie rognee : un espace colle par erreur ne doit pas
+					// vider la liste.
+					user: {
+						OR: [
+							{ username: { contains: "Alice", mode: "insensitive" } },
+							{ globalName: { contains: "Alice", mode: "insensitive" } },
+							{ id: { contains: "Alice" } },
+						],
+					},
+				}),
+			}),
+		);
+	});
+
+	it("ne filtre pas sur un champ de recherche laisse vide", async () => {
+		const findMany = jest.fn().mockResolvedValue([]);
+		const { service } = makeService({
+			sanction: {
+				findMany,
+				count: jest.fn().mockResolvedValue(0),
+				findFirst: jest.fn(),
+				create: jest.fn(),
+				update: jest.fn(),
+				updateMany: jest.fn(),
+			},
+		});
+
+		await service.search(searchQuery({ member: "   " }));
+
+		expect(findMany.mock.calls[0]![0].where).not.toHaveProperty("user");
 	});
 });

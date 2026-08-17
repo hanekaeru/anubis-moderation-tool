@@ -7,6 +7,12 @@
   </header>
 
   <form class="filters" [formGroup]="filters">
+    <mat-form-field class="member-filter">
+      <mat-label>Membre</mat-label>
+      <input matInput formControlName="member" placeholder="Pseudo, nom affiché ou identifiant" />
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+
     <mat-form-field>
       <mat-label>Gravité</mat-label>
       <mat-select formControlName="severity">
@@ -75,6 +81,16 @@
             <span class="tag" [class.tag-active]="warning.isActive">
               {{ warning.isActive ? 'En cours' : warning.revokedAt ? 'Levé' : 'Expiré' }}
             </span>
+            <!-- « Levé » seul ne dit ni qui, ni pourquoi. -->
+            @if (warning.revokedAt) {
+            <span class="date" [matTooltip]="warning.revokedAt | frDate">
+              par {{ warning.revokedBy?.label ?? 'auteur inconnu' }},
+              {{ warning.revokedAt | relativeTime }}
+            </span>
+            <span class="date revoke-reason" [matTooltip]="warning.revokeReason ?? ''">
+              {{ warning.revokeReason ?? 'Aucun motif enregistré' }}
+            </span>
+            }
           </td>
         </ng-container>
 

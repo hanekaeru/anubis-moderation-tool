@@ -6,6 +6,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
@@ -44,6 +45,7 @@ const STATUS_LABELS: Record<SanctionStatus, string> = {
     MatCardModule,
     MatFormFieldModule,
     MatIconModule,
+    MatInputModule,
     MatPaginatorModule,
     MatProgressBarModule,
     MatSelectModule,
@@ -81,6 +83,7 @@ export class SanctionListPage {
   readonly pageSize = signal(DEFAULT_PAGE_SIZE);
 
   readonly filters = this.formBuilder.group({
+    member: [''],
     type: [null as SanctionType | null],
     status: [null as SanctionStatus | null],
   });
@@ -132,6 +135,10 @@ export class SanctionListPage {
       .searchSanctions({
         page: this.pageIndex() + 1,
         pageSize: this.pageSize(),
+        // Chaine vide = pas de filtre : l'envoyer telle quelle ferait chercher
+        // les membres dont le pseudo contient "", donc rien de plus, mais avec
+        // un parametre inutile dans chaque URL.
+        member: raw.member?.trim() || undefined,
         type: raw.type ?? undefined,
         status: raw.status ?? undefined,
       })

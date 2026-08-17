@@ -21,6 +21,13 @@ const SANCTION_INCLUDE = {
 	moderator: true,
 	createdBy: true,
 	revokedBy: true,
+	// Une levee vient de la webapp (`revokedBy`) ou de Discord
+	// (`revokedByDiscord`) : sans les deux, la moitie des levees s'afficherait
+	// sans auteur.
+	revokedByDiscord: true,
+	// Le message qui a declenche une sanction automatique : supprime de
+	// Discord, l'incident en est la seule trace.
+	automodIncident: true,
 } satisfies Prisma.SanctionInclude;
 
 const WARNING_INCLUDE = {

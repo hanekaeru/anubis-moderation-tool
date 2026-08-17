@@ -97,6 +97,23 @@ function auteur(
 	return "*Systeme*";
 }
 
+/**
+ * Auteur d'une levee.
+ *
+ * Distinct de `auteur` sur un seul point, mais qui compte : sans auteur connu,
+ * une levee n'est pas l'oeuvre du « Systeme ». Le cas se produit pour les
+ * levees faites a la main dans Discord dont l'audit log n'a rien donne (droit
+ * absent, entree expiree), et pour celles enregistrees avant que la colonne
+ * n'existe.
+ */
+function auteurLevee(
+	revokedByDiscord: { id: string } | null,
+	revokedBy: { displayName: string } | null,
+): string {
+	if (!revokedByDiscord && !revokedBy) return "*auteur inconnu*";
+	return auteur(revokedByDiscord, revokedBy);
+}
+
 /** Date courte, pour le nom du champ ou `<t:>` n'est pas interprete. */
 function dateCourte(date: Date): string {
 	return date.toLocaleDateString("fr-FR", {
@@ -121,10 +138,25 @@ function champSanction(
 	const statut = [`**Statut** ${SANCTION_STATUS_LABELS[s.status]}`];
 	if (s.revokedAt) {
 		statut.push(`levée le ${horodatage(s.revokedAt)}`);
-		if (s.revokedBy) statut.push(`par ${s.revokedBy.displayName}`);
+		// L'auteur vient de Discord (`/unban`, geste manuel) ou du dashboard :
+		// le meme rendu que pour l'auteur de la sanction, plutot que deux
+		// formes selon la provenance.
+		statut.push(`par ${auteurLevee(s.revokedByDiscord, s.revokedBy)}`);
 		if (s.revokeReason) statut.push(`— ${tronquer(s.revokeReason, 100)}`);
 	}
 	lignes.push(statut.join(" "));
+
+	// Sanction automatique : le message est supprime de Discord des le
+	// declenchement, l'incident en garde la seule copie. Sans cette ligne, le
+	// casier n'annonce que « Automod : Filtre de mots », sans ce qui a ete ecrit.
+	if (s.automodIncident) {
+		const contenu = s.automodIncident.messageContent;
+		lignes.push(
+			`**Message supprimé** ${
+				contenu ? tronquer(contenu, coupe) : "*(sans texte)*"
+			}`,
+		);
+	}
 
 	if (s.evidenceUrl) lignes.push(`**Preuve** ${s.evidenceUrl}`);
 
@@ -155,7 +187,9 @@ function champAvertissement(
 	];
 	if (w.revokedAt) {
 		statut.push(`le ${horodatage(w.revokedAt)}`);
-		if (w.revokedBy) statut.push(`par ${w.revokedBy.displayName}`);
+		// Un avertissement ne se leve que depuis le dashboard : pas
+		// d'equivalent Discord a chercher ici, contrairement aux sanctions.
+		statut.push(`par ${auteurLevee(null, w.revokedBy)}`);
 		if (w.revokeReason) statut.push(`— ${tronquer(w.revokeReason, 100)}`);
 	}
 	lignes.push(statut.join(" "));

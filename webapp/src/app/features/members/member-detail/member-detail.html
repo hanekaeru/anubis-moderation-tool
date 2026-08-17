@@ -223,11 +223,22 @@
               <span [matTooltip]="warning.createdAt | frDate">
                 {{ warning.createdAt | relativeTime }}
               </span>
-              @if (warning.revokeReason) {
-              <span class="dot">·</span>
-              Levée : {{ warning.revokeReason }}
-              }
             </p>
+            <!-- La levée porte son propre auteur et son propre motif : les
+                 replier dans la ligne d'émission laissait croire que le motif
+                 affiché était celui de l'avertissement. -->
+            @if (warning.revokedAt) {
+            <p class="record-revoke">
+              <mat-icon>lock_open</mat-icon>
+              Levé par {{ warning.revokedBy?.label ?? 'auteur inconnu' }}
+              <span class="dot">·</span>
+              <span [matTooltip]="warning.revokedAt | frDate">
+                {{ warning.revokedAt | relativeTime }}
+              </span>
+              <span class="dot">·</span>
+              {{ warning.revokeReason ?? 'aucun motif enregistré' }}
+            </p>
+            }
             <div class="attachments">
               @for (attachment of warning.attachments; track attachment.id) {
               <app-moderation-attachment kind="warnings" [targetId]="warning.id" [attachment]="attachment"
@@ -289,6 +300,32 @@
                 {{ sanction.createdAt | relativeTime }}
               </span>
             </p>
+            <!-- Sanction automatique : le message incriminé est supprimé de
+                 Discord dès le déclenchement, l'incident en garde la seule
+                 trace. Sans lui, la fiche n'annonce que la règle déclenchée. -->
+            @if (sanction.automod) {
+            <p class="record-automod">
+              <mat-icon>gavel</mat-icon>
+              Message supprimé :
+              <q>{{ sanction.automod.messageContent ?? '(sans texte — pièces jointes seules)' }}</q>
+              @if (sanction.automod.matched) {
+              <span class="dot">·</span>
+              déclenché par « {{ sanction.automod.matched }} »
+              }
+            </p>
+            }
+            @if (sanction.revokedAt) {
+            <p class="record-revoke">
+              <mat-icon>lock_open</mat-icon>
+              Levée par {{ sanction.revokedBy?.label ?? 'auteur inconnu' }}
+              <span class="dot">·</span>
+              <span [matTooltip]="sanction.revokedAt | frDate">
+                {{ sanction.revokedAt | relativeTime }}
+              </span>
+              <span class="dot">·</span>
+              {{ sanction.revokeReason ?? 'aucun motif enregistré' }}
+            </p>
+            }
             @if (sanction.evidenceUrl) {
             <a class="evidence" [href]="sanction.evidenceUrl" target="_blank" rel="noopener">
               <mat-icon>link</mat-icon>

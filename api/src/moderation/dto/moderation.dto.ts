@@ -189,6 +189,12 @@ export class WarningQueryDto extends PaginationDto {
 	@Matches(SNOWFLAKE)
 	userId?: string;
 
+	/** Recherche libre sur le membre : pseudo, nom affiché ou identifiant. */
+	@IsOptional()
+	@IsString()
+	@MaxLength(100)
+	member?: string;
+
 	@IsOptional()
 	@IsIn(Object.values(WarningSeverity))
 	severity?: WarningSeverity;
@@ -211,6 +217,12 @@ export class SanctionQueryDto extends PaginationDto {
 	@IsOptional()
 	@Matches(SNOWFLAKE)
 	userId?: string;
+
+	/** Recherche libre sur le membre : pseudo, nom affiché ou identifiant. */
+	@IsOptional()
+	@IsString()
+	@MaxLength(100)
+	member?: string;
 
 	@IsOptional()
 	@IsIn(Object.values(SanctionType))

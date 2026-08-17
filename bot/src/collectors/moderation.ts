@@ -26,6 +26,14 @@ interface CreateSanctionInput {
 	type: SanctionType;
 	reason: string;
 	durationSeconds?: number | null;
+	/**
+	 * Incident d'automoderation a l'origine de la sanction.
+	 *
+	 * Le message incrimine est supprime de Discord dans la foulee : ce lien est
+	 * ce qui permet de le retrouver partout ou la sanction s'affiche, plutot
+	 * que de n'annoncer qu'un motif generique.
+	 */
+	automodIncidentId?: bigint | null;
 }
 
 export async function createSanction(input: CreateSanctionInput) {
@@ -51,6 +59,7 @@ export async function createSanction(input: CreateSanctionInput) {
 			// Meme bareme que cote API : une sanction posee depuis Discord doit
 			// peser autant que la meme sanction posee depuis le dashboard.
 			points: await pointsPourSanction(input.guildId, input.type),
+			automodIncidentId: input.automodIncidentId ?? null,
 		},
 	});
 
@@ -73,9 +82,15 @@ export async function createSanction(input: CreateSanctionInput) {
  * Revoque la sanction active la plus recente d'un type donne pour ce membre.
  *
  * `revokedById` reste `null` : cette colonne pointe vers `AppUser` (compte
- * dashboard), il n'existe pas d'equivalent pour un moderateur Discord. Le
- * moderateur reel est trace dans `ModerationActivity`, qui a bien un
- * `moderatorId` Discord.
+ * dashboard), il n'existe pas d'equivalent pour un moderateur Discord. C'est
+ * `revokedByDiscordId` qui porte l'auteur ici — les deux colonnes sont
+ * exclusives, une levee vient de la webapp ou de Discord. Le moderateur reste
+ * par ailleurs trace dans `ModerationActivity`, mais un journal d'activite ne
+ * se lit pas depuis la fiche d'une sanction.
+ *
+ * L'appelant a upserte le moderateur dans `discord_users` avant cet appel :
+ * la colonne porte une cle etrangere, un moderateur jamais croise par le
+ * referentiel ferait echouer la levee entiere.
  */
 export async function revokeActiveSanction(
 	guildId: string,
@@ -96,6 +111,7 @@ export async function revokeActiveSanction(
 		data: {
 			status: "REVOKED",
 			revokedAt: new Date(),
+			revokedByDiscordId: moderatorId,
 			revokeReason: reason,
 			// L'effet Discord vient d'etre rejoue par l'appelant (timeout leve,
 			// role retire) avant cet appel : pas besoin que la tache
@@ -408,6 +424,9 @@ export async function revokeExternalSanction(input: {
 		data: {
 			status: "REVOKED",
 			revokedAt: new Date(),
+			// `garantirAuteur` a deja upserte ce moderateur (ou renvoye `null`
+			// quand l'audit log ne le donne pas) : la cle etrangere tient.
+			revokedByDiscordId: input.moderatorId,
 			revokeReason: input.reason,
 			// L'effet a deja ete retire sur Discord par la personne qui a agi.
 			discordSyncedAt: new Date(),

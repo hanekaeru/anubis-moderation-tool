@@ -439,16 +439,29 @@ export class MembersService {
 				},
 				orderBy: { createdAt: "desc" },
 				take: TIMELINE_SOURCE_LIMIT,
-				include: { moderator: true, createdBy: true },
+				include: {
+					moderator: true,
+					createdBy: true,
+					automodIncident: true,
+				},
 			});
 
 			for (const row of rows) {
+				// Sanction automatique : le motif seul ne dit que la regle
+				// declenchee (« Automod : Filtre de mots »). Le message
+				// incrimine a ete supprime de Discord, l'incident en garde la
+				// seule trace — la chronologie serait le seul endroit de la
+				// fiche a ne pas le montrer.
+				const message = row.automodIncident?.messageContent;
+
 				entries.push({
 					id: `sanction:${row.id}`,
 					kind: TimelineKind.SANCTION,
 					occurredAt: row.createdAt.toISOString(),
 					title: `Sanction : ${row.type}`,
-					description: row.reason,
+					description: message
+						? `${row.reason} — message supprimé : « ${message} »`
+						: row.reason,
 					actorLabel:
 						row.createdBy?.displayName ??
 						row.moderator?.globalName ??

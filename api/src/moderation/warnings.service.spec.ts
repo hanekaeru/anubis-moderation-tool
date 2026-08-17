@@ -4,7 +4,11 @@ import type { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
 import type { PrismaService } from "../prisma/prisma.service";
 import type { ModerationPointsService } from "./moderation-points.service";
-import type { CreateWarningDto, RevokeDto } from "./dto/moderation.dto";
+import type {
+	CreateWarningDto,
+	RevokeDto,
+	WarningQueryDto,
+} from "./dto/moderation.dto";
 import { WarningsService } from "./warnings.service";
 
 const ACTOR: AuthenticatedUser = {
@@ -186,5 +190,41 @@ describe("WarningsService.revoke", () => {
 		await expect(
 			service.revoke("warning-1", { reason: "Erreur" } as RevokeDto, ACTOR),
 		).rejects.toBeInstanceOf(BadRequestException);
+	});
+});
+
+describe("WarningsService.search", () => {
+	it("combine le filtre membre et `activeOnly` sans que leurs OR se marchent dessus", async () => {
+		// `activeOnly` pose un `OR` a la racine du `where` (jamais expire), le
+		// filtre membre un autre sous `user`. Imbriques, les deux coexistent ;
+		// a plat, le second ecraserait le premier et la liste annoncerait des
+		// avertissements expires comme etant en cours.
+		const findMany = jest.fn().mockResolvedValue([]);
+		const { service } = makeService({
+			warning: {
+				findMany,
+				count: jest.fn().mockResolvedValue(0),
+				findFirst: jest.fn(),
+				create: jest.fn(),
+				update: jest.fn(),
+			},
+		});
+
+		await service.search({
+			page: 1,
+			pageSize: 25,
+			skip: 0,
+			take: 25,
+			member: "Alice",
+			activeOnly: true,
+		} as unknown as WarningQueryDto);
+
+		const where = findMany.mock.calls[0]![0].where;
+		expect(where.user.OR).toHaveLength(3);
+		expect(where.OR).toEqual([
+			{ expiresAt: null },
+			{ expiresAt: { gt: expect.any(Date) } },
+		]);
+		expect(where.revokedAt).toBeNull();
 	});
 });

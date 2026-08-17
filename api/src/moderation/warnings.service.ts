@@ -11,6 +11,7 @@ import { GuildContextService } from "../common/guild-context.service";
 import { toActorRef, toAttachmentRef, toMemberRef } from "../common/mappers";
 import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { memberSearchFilter } from "./member-filter";
 import { ModerationPointsService } from "./moderation-points.service";
 import type {
 	CreateWarningDto,
@@ -82,6 +83,10 @@ export class WarningsService {
 		const where: Prisma.WarningWhereInput = {
 			guildId: this.guild.guildId,
 			...(query.userId ? { userId: query.userId } : {}),
+			// Le `OR` du filtre membre est imbrique sous `user` : il ne peut pas
+			// entrer en conflit avec celui de `activeOnly`, qui vit a la racine
+			// du `where`.
+			...memberSearchFilter(query.member),
 			...(query.severity ? { severity: query.severity } : {}),
 			...(query.activeOnly
 				? {

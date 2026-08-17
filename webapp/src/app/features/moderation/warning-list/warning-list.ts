@@ -7,6 +7,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
@@ -38,6 +39,7 @@ import { FrDatePipe, RelativeTimePipe } from '../../../shared/pipes/format.pipes
 		MatCheckboxModule,
 		MatFormFieldModule,
 		MatIconModule,
+		MatInputModule,
 		MatPaginatorModule,
 		MatProgressBarModule,
 		MatSelectModule,
@@ -74,6 +76,7 @@ export class WarningListPage {
 	readonly pageSize = signal(DEFAULT_PAGE_SIZE);
 
 	readonly filters = this.formBuilder.group({
+		member: [''],
 		severity: [null as WarningSeverity | null],
 		activeOnly: [false],
 	});
@@ -124,6 +127,9 @@ export class WarningListPage {
 			.searchWarnings({
 				page: this.pageIndex() + 1,
 				pageSize: this.pageSize(),
+				// Chaine vide = pas de filtre, plutot qu'un parametre vide dans
+				// chaque URL.
+				member: raw.member?.trim() || undefined,
 				severity: raw.severity ?? undefined,
 				// `false` n'est pas un filtre : ne pas l'envoyer evite de demander
 				// explicitement les avertissements inactifs.

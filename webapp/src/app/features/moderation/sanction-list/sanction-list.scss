@@ -21,8 +21,37 @@ table {
 	}
 }
 
+/* Le champ de recherche respire davantage que les deux listes deroulantes :
+   on y saisit un pseudo entier, pas un choix parmi trois. */
+.member-filter {
+	min-width: 280px;
+}
+
 .nowrap {
 	white-space: nowrap;
+}
+
+/* Message supprime par l'automod : tronque comme le motif, le texte complet
+   restant au survol. */
+.quoted {
+	display: block;
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 0.76rem;
+	font-style: italic;
+	color: var(--mat-sys-on-surface-variant);
+}
+
+/* Le motif de levee peut etre long : la colonne de statut ne s'elargit pas
+   pour autant. */
+.revoke-reason {
+	max-width: 220px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-style: italic;
 }
 
 .date {
