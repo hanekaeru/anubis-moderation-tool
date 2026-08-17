@@ -8,7 +8,7 @@ import { LOG_CHANNEL_DESCRIPTIONS, LogChannelKey } from "@anubis/shared";
 import type { Command } from "../../types";
 import * as guildConfig from "../../collectors/guildConfig";
 
-const LOGS_CATEGORY_NAME = "Logs";
+const LOGS_CATEGORY_NAME = "🗂️ • Banque de données";
 
 const LOG_CHANNELS: { key: LogChannelKey; channelName: string, topic: string }[] = [
 	{
