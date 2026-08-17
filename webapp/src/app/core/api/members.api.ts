@@ -11,6 +11,8 @@ import type {
 	TimelineEntry,
 	TimelineQuery,
 	UpdateRoleTrackingRequest,
+	VoiceSessionDto,
+	VoiceSessionQuery,
 } from '@anubis/shared';
 import { toHttpParams } from './query-params';
 
@@ -30,6 +32,12 @@ export class MembersApi {
 
 	timeline(userId: string, query: TimelineQuery): Observable<Paginated<TimelineEntry>> {
 		return this.http.get<Paginated<TimelineEntry>>(`/api/members/${userId}/timeline`, {
+			params: toHttpParams(query),
+		});
+	}
+
+	voiceSessions(userId: string, query: VoiceSessionQuery): Observable<Paginated<VoiceSessionDto>> {
+		return this.http.get<Paginated<VoiceSessionDto>>(`/api/members/${userId}/voice-sessions`, {
 			params: toHttpParams(query),
 		});
 	}

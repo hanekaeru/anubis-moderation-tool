@@ -137,7 +137,7 @@ export class StatsService {
 		const messagesByChannel: CategoryCount[] = channelStats
 			.map((row) => ({
 				key: row.channelId,
-				label: channelNames.get(row.channelId) ?? "Canal supprime",
+				label: channelNames.get(row.channelId) ?? "Canal supprimé",
 				value: row._sum.messageCount ?? 0,
 			}))
 			.sort((a, b) => b.value - a.value);
@@ -390,7 +390,7 @@ export class StatsService {
 		for (const entry of byActor.values()) {
 			if (entry.appUserId) {
 				entry.displayName =
-					names.get(entry.appUserId) ?? "Compte supprime";
+					names.get(entry.appUserId) ?? "Compte supprimé";
 			}
 		}
 

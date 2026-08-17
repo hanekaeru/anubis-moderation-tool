@@ -13,30 +13,45 @@ import {
 	MaxLength,
 	Min,
 	MinLength,
+	ValidateNested,
 } from "class-validator";
-import { SanctionStatus, SanctionType, WarningSeverity } from "@anubis/shared";
+import {
+	MAX_MODERATION_POINTS,
+	MAX_MODERATION_THRESHOLD,
+	MIN_MODERATION_POINTS,
+	SanctionStatus,
+	SanctionType,
+	WarningSeverity,
+} from "@anubis/shared";
 import { PaginationDto, ToBoolean } from "../../common/dto/pagination.dto";
 
 const SNOWFLAKE = /^\d{17,20}$/;
 
 export class CreateWarningDto {
-	@Matches(SNOWFLAKE, { message: "userId doit etre un identifiant Discord." })
+	@Matches(SNOWFLAKE, { message: "userId doit être un identifiant Discord." })
 	userId!: string;
 
 	@IsString()
-	@MinLength(3, { message: "Le motif doit faire au moins 3 caracteres." })
+	@MinLength(3, { message: "Le motif doit faire au moins 3 caractères." })
 	@MaxLength(1000)
 	reason!: string;
 
 	@IsIn(Object.values(WarningSeverity))
 	severity: WarningSeverity = "LOW";
 
+	/**
+	 * Absent = valeur du bareme pour cette gravite.
+	 *
+	 * Pas de valeur par defaut ici : un `= 1` code en dur reprendrait toujours
+	 * le dessus sur le bareme du serveur, que le formulaire envoie le champ ou
+	 * non.
+	 */
 	@IsOptional()
 	@Type(() => Number)
 	@IsInt()
-	@Min(1)
-	@Max(100)
-	points: number = 1;
+	@Min(MIN_MODERATION_POINTS)
+	@Max(MAX_MODERATION_POINTS)
+	points?: number;
 
 	@IsOptional()
 	@IsDateString()
@@ -44,14 +59,14 @@ export class CreateWarningDto {
 }
 
 export class CreateSanctionDto {
-	@Matches(SNOWFLAKE, { message: "userId doit etre un identifiant Discord." })
+	@Matches(SNOWFLAKE, { message: "userId doit être un identifiant Discord." })
 	userId!: string;
 
 	@IsIn(Object.values(SanctionType))
 	type!: SanctionType;
 
 	@IsString()
-	@MinLength(3, { message: "Le motif doit faire au moins 3 caracteres." })
+	@MinLength(3, { message: "Le motif doit faire au moins 3 caractères." })
 	@MaxLength(1000)
 	reason!: string;
 
@@ -62,7 +77,7 @@ export class CreateSanctionDto {
 	@IsOptional()
 	@Type(() => Number)
 	@IsInt()
-	@Min(60, { message: "La duree minimale est de 60 secondes." })
+	@Min(60, { message: "La durée minimale est de 60 secondes." })
 	durationSeconds?: number | null;
 
 	@IsOptional()
@@ -70,14 +85,101 @@ export class CreateSanctionDto {
 	warningId?: string | null;
 
 	@IsOptional()
-	@IsUrl({}, { message: "evidenceUrl doit etre une URL valide." })
+	@IsUrl({}, { message: "evidenceUrl doit être une URL valide." })
 	@MaxLength(500)
 	evidenceUrl?: string | null;
+
+	/** Absent = valeur du bareme pour ce type de sanction. */
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(MIN_MODERATION_POINTS)
+	@Max(MAX_MODERATION_POINTS)
+	points?: number;
+}
+
+class WarningPointsDto {
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(MIN_MODERATION_POINTS)
+	@Max(MAX_MODERATION_POINTS)
+	LOW?: number;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(MIN_MODERATION_POINTS)
+	@Max(MAX_MODERATION_POINTS)
+	MEDIUM?: number;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(MIN_MODERATION_POINTS)
+	@Max(MAX_MODERATION_POINTS)
+	HIGH?: number;
+}
+
+class SanctionPointsDto {
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(MIN_MODERATION_POINTS)
+	@Max(MAX_MODERATION_POINTS)
+	TIMEOUT?: number;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(MIN_MODERATION_POINTS)
+	@Max(MAX_MODERATION_POINTS)
+	KICK?: number;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(MIN_MODERATION_POINTS)
+	@Max(MAX_MODERATION_POINTS)
+	BAN?: number;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(MIN_MODERATION_POINTS)
+	@Max(MAX_MODERATION_POINTS)
+	SHADOWBAN?: number;
+}
+
+export class UpdateModerationPointsDto {
+	@IsOptional()
+	@ValidateNested()
+	@Type(() => WarningPointsDto)
+	warningPoints?: WarningPointsDto;
+
+	@IsOptional()
+	@ValidateNested()
+	@Type(() => SanctionPointsDto)
+	sanctionPoints?: SanctionPointsDto;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	@Max(MAX_MODERATION_THRESHOLD)
+	warnThreshold?: number;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsInt()
+	@Min(1)
+	@Max(MAX_MODERATION_THRESHOLD)
+	criticalThreshold?: number;
 }
 
 export class RevokeDto {
 	@IsString()
-	@MinLength(3, { message: "Le motif de revocation est obligatoire." })
+	@MinLength(3, { message: "Le motif de révocation est obligatoire." })
 	@MaxLength(500)
 	reason!: string;
 }
@@ -128,7 +230,7 @@ export class SanctionQueryDto extends PaginationDto {
 }
 
 export class CreateNoteDto {
-	@Matches(SNOWFLAKE, { message: "userId doit etre un identifiant Discord." })
+	@Matches(SNOWFLAKE, { message: "userId doit être un identifiant Discord." })
 	userId!: string;
 
 	@IsString()

@@ -4,6 +4,10 @@ import {
 	type WarningSeverity,
 } from "@anubis/shared";
 import prisma from "../prisma";
+import {
+	pointsPourAvertissement,
+	pointsPourSanction,
+} from "./moderationPoints";
 
 /**
  * Sanctions et avertissements.
@@ -44,6 +48,9 @@ export async function createSanction(input: CreateSanctionInput) {
 			// Une expulsion prend effet et se termine dans la foulee : la laisser
 			// ACTIVE la ferait apparaitre indefiniment comme sanction en cours.
 			status: isInstant ? "EXPIRED" : "ACTIVE",
+			// Meme bareme que cote API : une sanction posee depuis Discord doit
+			// peser autant que la meme sanction posee depuis le dashboard.
+			points: await pointsPourSanction(input.guildId, input.type),
 		},
 	});
 
@@ -238,6 +245,12 @@ interface CreateWarningInput {
 }
 
 export async function createWarning(input: CreateWarningInput) {
+	// Resolu une fois : la ligne et le journal d'activite doivent porter le
+	// meme poids, sans quoi les deux se contrediraient.
+	const points =
+		input.points ??
+		(await pointsPourAvertissement(input.guildId, input.severity));
+
 	const warning = await prisma.warning.create({
 		data: {
 			guildId: input.guildId,
@@ -245,7 +258,11 @@ export async function createWarning(input: CreateWarningInput) {
 			moderatorId: input.moderatorId,
 			reason: input.reason,
 			severity: input.severity,
-			points: input.points ?? 1,
+			points,
+			// `/warn` previent le membre juste apres : il n'y a rien a rattraper,
+			// et laisser `null` ferait envoyer un second message prive par
+			// `tasks/warningNotice.ts`.
+			discordSyncedAt: new Date(),
 		},
 	});
 
@@ -257,7 +274,7 @@ export async function createWarning(input: CreateWarningInput) {
 			targetUserId: input.userId,
 			targetType: "warning",
 			targetId: warning.id,
-			metadata: { severity: input.severity, points: input.points ?? 1 },
+			metadata: { severity: input.severity, points },
 		},
 	});
 
@@ -340,6 +357,7 @@ export async function recordExternalSanction(input: ExternalSanctionInput) {
 				? new Date(startsAt.getTime() + durationSeconds * 1000)
 				: null,
 			status: isInstant ? "EXPIRED" : "ACTIVE",
+			points: await pointsPourSanction(input.guildId, input.type),
 			discordSyncedAt: new Date(),
 		},
 	});

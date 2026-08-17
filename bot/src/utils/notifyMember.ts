@@ -1,6 +1,6 @@
 import type { User } from "discord.js";
 import { EmbedBuilder } from "discord.js";
-import * as colors from "../../utils/constantes";
+import * as colors from "./constantes";
 
 /**
  * DM best-effort. Un membre qui a ferme ses messages prives ne doit jamais

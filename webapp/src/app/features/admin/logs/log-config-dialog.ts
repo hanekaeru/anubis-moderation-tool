@@ -30,17 +30,17 @@ import { readApiError } from '../../../core/error.interceptor';
 		<mat-dialog-content>
 			<form [formGroup]="form" class="form">
 				<mat-form-field class="full">
-					<mat-label>Cle</mat-label>
+					<mat-label>Clé</mat-label>
 					<input matInput formControlName="configName" />
 					@if (editing) {
-						<mat-hint>La cle ne peut pas etre modifiee.</mat-hint>
+						<mat-hint>La clé ne peut pas être modifiée.</mat-hint>
 					}
 				</mat-form-field>
 
 				<mat-form-field class="full">
 					<mat-label>Valeur</mat-label>
 					<input matInput formControlName="configValue" />
-					<mat-hint>Identifiant de salon pour une entree LOG_CHANNEL_*.</mat-hint>
+					<mat-hint>Identifiant de salon pour une entrée LOG_CHANNEL_*.</mat-hint>
 				</mat-form-field>
 
 				<mat-form-field class="full">

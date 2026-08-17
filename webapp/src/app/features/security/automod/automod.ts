@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+	FormBuilder,
+	ReactiveFormsModule,
+	Validators,
+	type AbstractControl,
+	type ValidationErrors,
+} from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -16,13 +22,18 @@ import {
 	AUTOMOD_RULE_TYPE_LABELS,
 	AutomodAction,
 	AutomodRuleType,
+	DEFAULT_SPAM_TIMEOUT_SECONDS,
+	MAX_WORD_FILTER_PATTERNS,
 	Permission,
+	validateWordFilterPatterns,
+	type AttachmentSpamSettings,
 	type AutomodIncidentDto,
 	type AutomodRuleDto,
 	type AutomodRuleSettings,
 	type ExcessiveCapsSettings,
 	type LinksInvitesSettings,
 	type MassMentionsSettings,
+	type PatternIssue,
 	type RepetitionSettings,
 	type SpamRateSettings,
 	type WordFilterSettings,
@@ -33,6 +44,32 @@ import { HasPermissionDirective } from '../../../shared/directives/has-permissio
 import { RelativeTimePipe } from '../../../shared/pipes/format.pipes';
 
 const SNOWFLAKE = /^\d{17,20}$/;
+
+/** Une saisie multiligne, nettoyee de ses lignes vides. */
+function parLigne(valeur: unknown): string[] {
+	return String(valeur ?? '')
+		.split('\n')
+		.map((ligne) => ligne.trim())
+		.filter(Boolean);
+}
+
+/**
+ * Refuse les expressions que l'API refuserait, avant l'aller-retour.
+ *
+ * La regle qui compte reste celle de l'API : ceci n'evite qu'un formulaire
+ * renvoye en erreur, et surtout affiche *quelle* expression pose probleme —
+ * un message d'erreur global sur vingt-cinq lignes n'aiderait personne.
+ */
+function patternsValidator(control: AbstractControl): ValidationErrors | null {
+	const patterns = parLigne(control.value);
+
+	if (patterns.length > MAX_WORD_FILTER_PATTERNS) {
+		return { tropDExpressions: MAX_WORD_FILTER_PATTERNS };
+	}
+
+	const issues = validateWordFilterPatterns(patterns);
+	return issues.length ? { expressions: issues } : null;
+}
 
 /** Une carte par regle, avec un formulaire dont les champs de `settings` dependent du type. */
 interface RuleEntry {
@@ -108,10 +145,25 @@ export class AutomodPage {
 			.subscribe({
 				next: () => {
 					this.savingType.set(null);
-					this.notifications.success('Regle mise a jour.');
+					this.notifications.success('Règle mise à jour.');
 				},
 				error: () => this.savingType.set(null),
 			});
+	}
+
+	/**
+	 * Expressions refusees de la regle, ou `null` si tout passe.
+	 *
+	 * Renvoyer `null` plutot qu'un tableau vide permet au template de
+	 * distinguer « rien a signaler » (on affiche l'aide) de « des refus »
+	 * (on affiche lesquels) avec un simple `@if`.
+	 */
+	patternIssues(entry: RuleEntry): PatternIssue[] | null {
+		if (entry.type !== AutomodRuleType.WORD_FILTER) return null;
+		const control = entry.form.controls.settings.get('patterns');
+		if (!control?.touched) return null;
+		const issues = control.errors?.['expressions'] as PatternIssue[] | undefined;
+		return issues?.length ? issues : null;
 	}
 
 	private splitIds(value: string): string[] {
@@ -128,6 +180,12 @@ export class AutomodPage {
 					messageThreshold: Number(raw['messageThreshold']),
 					windowSeconds: Number(raw['windowSeconds']),
 				} satisfies SpamRateSettings;
+			case AutomodRuleType.ATTACHMENT_SPAM:
+				return {
+					attachmentThreshold: Number(raw['attachmentThreshold']),
+					windowSeconds: Number(raw['windowSeconds']),
+					imagesOnly: Boolean(raw['imagesOnly']),
+				} satisfies AttachmentSpamSettings;
 			case AutomodRuleType.MASS_MENTIONS:
 				return { mentionThreshold: Number(raw['mentionThreshold']) } satisfies MassMentionsSettings;
 			case AutomodRuleType.LINKS_INVITES:
@@ -141,10 +199,8 @@ export class AutomodPage {
 				} satisfies LinksInvitesSettings;
 			case AutomodRuleType.WORD_FILTER:
 				return {
-					words: String(raw['words'] ?? '')
-						.split('\n')
-						.map((word) => word.trim())
-						.filter(Boolean),
+					words: parLigne(raw['words']),
+					patterns: parLigne(raw['patterns']),
 				} satisfies WordFilterSettings;
 			case AutomodRuleType.EXCESSIVE_CAPS:
 				return {
@@ -168,6 +224,14 @@ export class AutomodPage {
 					windowSeconds: [s.windowSeconds, [Validators.required, Validators.min(1)]],
 				});
 			}
+			case AutomodRuleType.ATTACHMENT_SPAM: {
+				const s = settings as AttachmentSpamSettings;
+				return this.formBuilder.nonNullable.group({
+					attachmentThreshold: [s.attachmentThreshold, [Validators.required, Validators.min(1)]],
+					windowSeconds: [s.windowSeconds, [Validators.required, Validators.min(1)]],
+					imagesOnly: [s.imagesOnly],
+				});
+			}
 			case AutomodRuleType.MASS_MENTIONS: {
 				const s = settings as MassMentionsSettings;
 				return this.formBuilder.nonNullable.group({
@@ -184,7 +248,10 @@ export class AutomodPage {
 			}
 			case AutomodRuleType.WORD_FILTER: {
 				const s = settings as WordFilterSettings;
-				return this.formBuilder.nonNullable.group({ words: [s.words.join('\n')] });
+				return this.formBuilder.nonNullable.group({
+					words: [s.words.join('\n')],
+					patterns: [(s.patterns ?? []).join('\n'), [patternsValidator]],
+				});
 			}
 			case AutomodRuleType.EXCESSIVE_CAPS: {
 				const s = settings as ExcessiveCapsSettings;
@@ -207,7 +274,9 @@ export class AutomodPage {
 		return this.formBuilder.nonNullable.group({
 			enabled: [rule.enabled],
 			action: [rule.action],
-			timeoutSeconds: [rule.timeoutSeconds ?? 600, [Validators.min(1)]],
+			// Cinq minutes quand la regle n'en porte pas encore : c'est la duree
+			// que le champ propose des qu'on bascule sur l'exclusion temporaire.
+			timeoutSeconds: [rule.timeoutSeconds ?? DEFAULT_SPAM_TIMEOUT_SECONDS, [Validators.min(1)]],
 			exemptRoleIds: [rule.exemptRoleIds.join(', ')],
 			settings: this.buildSettingsGroup(rule.type, rule.settings),
 		});

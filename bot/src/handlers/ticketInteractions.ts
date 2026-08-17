@@ -57,7 +57,7 @@ export async function handleTicketOpenSelect(
 	if (await tickets.hasOpenTicket(interaction.guildId, interaction.user.id)) {
 		await interaction.followUp({
 			content:
-				"Tu as deja un ticket ouvert sur ce serveur. Utilise-le avant d'en ouvrir un nouveau.",
+				"Tu as déjà un ticket ouvert sur ce serveur. Utilise-le avant d'en ouvrir un nouveau.",
 			flags: MessageFlags.Ephemeral,
 		});
 		return;
@@ -82,7 +82,7 @@ export async function handleTicketOpenSelect(
 	await tickets.attachChannel(ticket.id, channel.id);
 
 	await interaction.followUp({
-		content: `Ton ticket a ete cree : ${channel}`,
+		content: `Ton ticket a été créé : ${channel}`,
 		flags: MessageFlags.Ephemeral,
 	});
 }
@@ -98,7 +98,7 @@ export async function handleTicketButton(
 
 	if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
 		await interaction.reply({
-			content: "Tu n'as pas la permission de gerer les tickets.",
+			content: "Tu n'as pas la permission de gérer les tickets.",
 			flags: MessageFlags.Ephemeral,
 		});
 		return;
@@ -156,7 +156,7 @@ export async function handleTicketButton(
 				],
 			});
 		} catch (err) {
-			console.error("[Tickets] Envoi du transcript echoue :", err);
+			console.error("[Tickets] Envoi du transcript échoué :", err);
 			transcriptPosted = false;
 		}
 

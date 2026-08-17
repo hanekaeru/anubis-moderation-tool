@@ -1,6 +1,7 @@
 import {
 	type ActorRef,
 	type MemberRef,
+	type ModerationAttachmentRef,
 	type RoleSummary,
 } from "@anubis/shared";
 
@@ -47,6 +48,40 @@ export function toActorRef(
 		};
 	}
 	return { kind: "system", id: null, label: "Systeme" };
+}
+
+/**
+ * Metadonnees d'une piece jointe de moderation.
+ *
+ * Les octets (`data`) ne sortent jamais par ce chemin : ils se recuperent un
+ * par un sur la route de telechargement dediee. Les embarquer dans la liste
+ * ferait transiter plusieurs mega-octets de base64 a chaque affichage.
+ */
+export function toAttachmentRef(attachment: {
+	id: string;
+	fileName: string;
+	contentType: string;
+	size: number;
+	spoiler: boolean;
+	createdAt: Date;
+	uploadedBy?: AppUserLike | null;
+	uploadedByDiscord?: DiscordUserLike | null;
+}): ModerationAttachmentRef {
+	return {
+		id: attachment.id,
+		fileName: attachment.fileName,
+		contentType: attachment.contentType,
+		size: attachment.size,
+		spoiler: attachment.spoiler,
+		// Un depot vient de la webapp (compte dashboard) ou de `/preuve`
+		// (moderateur Discord), jamais des deux : `toActorRef` tranche seul,
+		// et `null` ne subsiste que pour une piece sans auteur conserve.
+		uploadedBy:
+			attachment.uploadedBy || attachment.uploadedByDiscord
+				? toActorRef(attachment.uploadedByDiscord, attachment.uploadedBy)
+				: null,
+		createdAt: attachment.createdAt.toISOString(),
+	};
 }
 
 export function toRoleSummary(role: {

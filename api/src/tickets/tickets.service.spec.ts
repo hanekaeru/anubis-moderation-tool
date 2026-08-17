@@ -150,6 +150,7 @@ describe("TicketsService.update", () => {
 		return {
 			service: new TicketsService(prisma, guild, audit),
 			txEventCreateMany,
+			txTicketUpdate,
 			prisma,
 		};
 	}
@@ -207,5 +208,73 @@ describe("TicketsService.update", () => {
 				}),
 			],
 		});
+	});
+
+	it("remet discordSyncedAt a null a la fermeture, pour que le bot la rejoue", async () => {
+		// Le bug corrige : un ticket ouvert depuis Discord porte deja une date,
+		// posee a la creation de son salon. Sans cette remise a zero, la file de
+		// `bot/src/tasks/ticketSync.ts` (`discordSyncedAt: null`) ne le voyait
+		// jamais et la fermeture ne quittait pas la base.
+		const existing = ticketRow({ status: "OPEN" });
+		const { service, txTicketUpdate } = makeUpdateService(existing);
+
+		await service.update("ticket-1", { status: "CLOSED" } as UpdateTicketDto, ACTOR);
+
+		expect(txTicketUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ discordSyncedAt: null }),
+			}),
+		);
+	});
+
+	it("demande aussi un rejeu a la reouverture et au changement de categorie", async () => {
+		const reouverture = makeUpdateService(ticketRow({ status: "CLOSED" }));
+		await reouverture.service.update(
+			"ticket-1",
+			{ status: "OPEN" } as UpdateTicketDto,
+			ACTOR,
+		);
+
+		expect(reouverture.txTicketUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ discordSyncedAt: null }),
+			}),
+		);
+
+		// La categorie s'affiche dans l'embed de controle du salon.
+		const categorie = makeUpdateService(ticketRow({ category: "support" }));
+		await categorie.service.update(
+			"ticket-1",
+			{ category: "REPORT" } as UpdateTicketDto,
+			ACTOR,
+		);
+
+		expect(categorie.txTicketUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ discordSyncedAt: null }),
+			}),
+		);
+	});
+
+	it("ne redemande rien a Discord pour un changement qui ne le concerne pas", async () => {
+		// Priorite et assignation ne vivent que sur le dashboard : les rejouer
+		// ferait reecrire l'embed du salon pour rien a chaque tri de file.
+		const existing = ticketRow({ priority: "NORMAL", status: "OPEN" });
+		const { service, txTicketUpdate } = makeUpdateService(existing);
+
+		await service.update("ticket-1", { priority: "HIGH" } as UpdateTicketDto, ACTOR);
+
+		const [appel] = txTicketUpdate.mock.calls;
+		expect(appel[0].data).not.toHaveProperty("discordSyncedAt");
+	});
+
+	it("ne redemande rien quand le statut est renvoye a l'identique", async () => {
+		const existing = ticketRow({ status: "CLOSED" });
+		const { service, txTicketUpdate } = makeUpdateService(existing);
+
+		await service.update("ticket-1", { status: "CLOSED" } as UpdateTicketDto, ACTOR);
+
+		const [appel] = txTicketUpdate.mock.calls;
+		expect(appel[0].data).not.toHaveProperty("discordSyncedAt");
 	});
 });

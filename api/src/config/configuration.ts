@@ -30,13 +30,28 @@ export interface AppConfig {
 	security: {
 		maxFailedLogins: number;
 		lockoutMinutes: number;
+		/**
+		 * Double authentification proposee sur ce deploiement.
+		 *
+		 * **A `false`, le second facteur est court-circuite a la connexion, y
+		 * compris pour les comptes qui l'avaient active** : c'est precisement ce
+		 * qu'on attend d'un interrupteur d'urgence, et c'est aussi ce qui le rend
+		 * dangereux. Le reglage vit dans l'environnement, pas dans la base : un
+		 * bouton « desactiver la double authentification » dans le dashboard
+		 * serait exactement ce qu'un compte administrateur compromis chercherait.
+		 *
+		 * Les secrets deja enregistres ne sont **pas** effaces : remettre la
+		 * variable a `true` rend leur protection aux comptes concernes, sans
+		 * qu'ils aient a reconfigurer quoi que ce soit.
+		 */
+		twoFactorEnabled: boolean;
 	};
 }
 
 class MissingConfigError extends Error {
 	constructor(keys: string[]) {
 		super(
-			`Configuration incomplete. Variables manquantes : ${keys.join(", ")}.\n` +
+			`Configuration incomplète. Variables manquantes : ${keys.join(", ")}.\n` +
 				"Copier api/.env.example en api/.env et renseigner ces valeurs.",
 		);
 		this.name = "MissingConfigError";
@@ -81,7 +96,7 @@ export function loadConfiguration(): AppConfig {
 
 	if (accessSecret === refreshSecret) {
 		throw new Error(
-			"JWT_ACCESS_SECRET et JWT_REFRESH_SECRET doivent etre differents : " +
+			"JWT_ACCESS_SECRET et JWT_REFRESH_SECRET doivent être différents : " +
 				"un secret partage permettrait de forger un access token a partir d un refresh token.",
 		);
 	}
@@ -98,7 +113,7 @@ export function loadConfiguration(): AppConfig {
 		] as const) {
 			if (valeur.length < 32) {
 				throw new Error(
-					`${nom} doit faire au moins 32 caracteres en production.`,
+					`${nom} doit faire au moins 32 caractères en production.`,
 				);
 			}
 		}
@@ -130,6 +145,9 @@ export function loadConfiguration(): AppConfig {
 		security: {
 			maxFailedLogins: toInt(env.MAX_FAILED_LOGINS, 5),
 			lockoutMinutes: toInt(env.LOCKOUT_MINUTES, 15),
+			// Par defaut active : un deploiement qui ne dit rien doit etre le plus
+			// sur des deux, et c'est la desactivation qui demande un geste explicite.
+			twoFactorEnabled: toBool(env.TWO_FACTOR_ENABLED, true),
 		},
 	};
 }

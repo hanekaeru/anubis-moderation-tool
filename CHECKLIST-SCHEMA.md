@@ -59,27 +59,31 @@ npm run build --workspace @anubis/shared
 
 ## 5. Repercuter le changement cote Bot
 
-Le bot ecrit en base via le meme client Prisma (`src/prisma.js`), jamais en
+Le bot ecrit en base via le meme client Prisma (`src/prisma.ts`), jamais en
 SQL brut.
 
-- [ ] Verifier les collecteurs concernes : `src/collectors/referentiel.js`
-      (serveur, roles, salons, membres, historiques) et
-      `src/collectors/activite.js` (compteurs de messages).
+- [ ] Verifier les collecteurs concernes, dans `bot/src/collectors/` :
+      `referentiel.ts` (serveur, roles, salons, membres, historiques),
+      `activite.ts` (compteurs de messages), et celui du domaine touche
+      (`automod.ts`, `raid.ts`, `tickets.ts`, `voice.ts`, `giveaway.ts`,
+      `quarantine.ts`, `xpRewards.ts`, `accountSurveillance.ts`).
 - [ ] Si le champ est touche par la sync complete **et** les evenements
       incrementaux, mettre a jour les deux chemins (`synchroniserServeur` et
       le handler d'evenement correspondant).
 - [ ] Si le champ touche `message_stats` : verifier `garantirContexte()`
       (cles etrangeres vers `guilds`, `discord_users`, `channels`).
+- [ ] Si le champ pilote un effet Discord ecrit depuis la webapp : prevoir sa
+      colonne `discordSyncedAt` et le rattrapage correspondant dans
+      `bot/src/tasks/` (meme motif que `sanctionSync.ts`).
 - [ ] Reinstaller les dependances du bot si `@anubis/shared` a change de
       forme (nouveaux champs generes, etc.) :
 
     ```bash
-    npm install --prefix bot --ignore-scripts
+    npm ci --prefix bot
     ```
 
-    `--ignore-scripts` est **obligatoire** : sans lui, npm tente de recompiler
-    `canvas` (module natif casse, ABI incompatible) et l'installation entiere
-    echoue. `canvas` n'est utilise nulle part dans le code actuel.
+    A lancer **apres** `npm run build` : le bot consomme `packages/shared` par
+    une dependance `file:` et a donc besoin du client Prisma genere.
 
 ## 6. Repercuter le changement cote Dashboard (Angular)
 
@@ -101,12 +105,14 @@ SQL brut.
 ## 7. Verification finale
 
 ```bash
-npm run build
+npm run build && npm test && npm ci --prefix bot && npm run test --prefix bot && npm run bot:build
 ```
 
-Construit shared, l'API puis le dashboard dans l'ordre — c'est le controle
-qui attrape le plus de regressions (notamment les erreurs de template
-Angular qui n'apparaissent qu'a la compilation).
+`npm run build` construit shared, l'API puis le dashboard dans l'ordre — c'est
+le controle qui attrape le plus de regressions (notamment les erreurs de
+template Angular qui n'apparaissent qu'a la compilation). Le bot vient
+**apres**, puisqu'il consomme la sortie du package partage. C'est exactement la
+sequence que rejoue `.github/workflows/ci.yml`.
 
 ## Autres commandes utiles
 

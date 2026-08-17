@@ -1,0 +1,372 @@
+mat-card + mat-card {
+	margin-top: 16px;
+}
+
+mat-card-content {
+	padding-top: 8px;
+}
+
+/* Formulaire et apercu cote a cote sur grand ecran, empiles sinon : l'apercu
+   passe sous le formulaire plutot que de retrecir jusqu'a mentir sur le rendu. */
+.composer {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: minmax(0, 3fr) minmax(340px, 2fr);
+	align-items: start;
+
+	@media (max-width: 1100px) {
+		grid-template-columns: 1fr;
+	}
+}
+
+.composer mat-card {
+	margin-top: 0;
+}
+
+.preview-card {
+	position: sticky;
+	top: 16px;
+}
+
+form {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: flex-start;
+
+	mat-form-field {
+		flex: 1;
+		min-width: 180px;
+	}
+
+	mat-form-field.grow {
+		min-width: 240px;
+	}
+}
+
+.full {
+	width: 100%;
+}
+
+.color-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding-top: 6px;
+
+	label {
+		font-size: 0.75rem;
+		color: var(--mat-sys-on-surface-variant);
+	}
+
+	input[type='color'] {
+		width: 56px;
+		height: 48px;
+		padding: 2px;
+		border: 1px solid var(--mat-sys-outline-variant);
+		border-radius: 8px;
+		background: none;
+		cursor: pointer;
+	}
+}
+
+.fields-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 4px;
+
+	h3 {
+		margin: 0;
+		font-size: 0.95rem;
+		font-weight: 600;
+	}
+}
+
+.fields {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.field-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 12px;
+	border: 1px solid var(--mat-sys-outline-variant);
+	border-radius: 12px;
+
+	mat-form-field {
+		flex: 1;
+		min-width: 160px;
+	}
+
+	mat-form-field.grow {
+		min-width: 240px;
+	}
+}
+
+.counter {
+	margin: 0;
+	font-size: 0.8rem;
+	color: var(--mat-sys-on-surface-variant);
+
+	&.over {
+		color: var(--mat-sys-error);
+		font-weight: 600;
+	}
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+/* --- Apercu ---------------------------------------------------------------- */
+
+/* Fond sombre fixe, dans les deux themes du dashboard : c'est le rendu de
+   Discord qu'on reproduit, pas celui de l'application. Un apercu qui change de
+   couleur avec le theme du dashboard mentirait sur ce que verra le serveur. */
+.discord {
+	padding: 12px;
+	border-radius: 12px;
+	background: #313338;
+	color: #dbdee1;
+	font-size: 0.875rem;
+	line-height: 1.4;
+}
+
+.discord-content {
+	margin: 0 0 8px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.embed {
+	border-left: 4px solid #5865f2;
+	border-radius: 4px;
+	background: #2b2d31;
+	padding: 12px 16px 12px 12px;
+	max-width: 520px;
+}
+
+.embed-body {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+}
+
+.embed-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.embed-author {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: #f2f3f5;
+
+	img {
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		object-fit: cover;
+	}
+}
+
+.embed-title {
+	margin: 0 0 8px;
+	font-weight: 600;
+	color: #f2f3f5;
+	overflow-wrap: anywhere;
+
+	&.linked {
+		color: #00a8fc;
+	}
+}
+
+.embed-description {
+	margin: 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.embed-fields {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+	margin-top: 8px;
+}
+
+.embed-field {
+	flex: 1 1 100%;
+	min-width: 0;
+
+	/* Discord place jusqu'a trois champs « en ligne » cote a cote. */
+	&.inline {
+		flex: 1 1 30%;
+	}
+}
+
+.embed-field-name {
+	margin: 0;
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: #f2f3f5;
+	overflow-wrap: anywhere;
+}
+
+.embed-field-value {
+	margin: 2px 0 0;
+	overflow-wrap: anywhere;
+}
+
+.embed-thumbnail {
+	width: 80px;
+	height: 80px;
+	border-radius: 8px;
+	object-fit: cover;
+	flex-shrink: 0;
+}
+
+.embed-image {
+	display: block;
+	width: 100%;
+	margin-top: 12px;
+	border-radius: 8px;
+}
+
+.embed-footer {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 10px;
+	font-size: 0.75rem;
+	color: #b5bac1;
+
+	img {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		object-fit: cover;
+	}
+}
+
+/* --- Liste ----------------------------------------------------------------- */
+
+.filters .row {
+	gap: 4px;
+}
+
+.filters button.active {
+	background: var(--mat-sys-secondary-container);
+	color: var(--mat-sys-on-secondary-container);
+}
+
+.message-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+
+	> li {
+		padding: 12px 14px;
+		border: 1px solid var(--mat-sys-outline-variant);
+		border-radius: 12px;
+	}
+}
+
+.head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.spacer {
+	flex: 1;
+}
+
+.name {
+	font-weight: 600;
+}
+
+.meta {
+	margin: 6px 0 0;
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.8rem;
+}
+
+.pending {
+	font-style: italic;
+}
+
+.failure {
+	margin: 8px 0 0;
+	padding: 8px 10px;
+	border-radius: 8px;
+	background: var(--mat-sys-error-container);
+	color: var(--mat-sys-on-error-container);
+	font-size: 0.82rem;
+}
+
+/* L'etat porte une couleur, mais jamais seul : le libelle reste ecrit en toutes
+   lettres dans la pastille. */
+.tag {
+	display: inline-block;
+	padding: 2px 10px;
+	border-radius: 999px;
+	font-size: 0.8rem;
+	background: var(--mat-sys-surface-variant);
+	white-space: nowrap;
+
+	&[data-status='SENT'] {
+		background: var(--mat-sys-primary-container);
+		color: var(--mat-sys-on-primary-container);
+	}
+
+	&[data-status='FAILED'] {
+		background: var(--mat-sys-error-container);
+		color: var(--mat-sys-on-error-container);
+	}
+}
+
+.row-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 10px;
+}
+
+.danger-text {
+	color: var(--mat-sys-error);
+}
+
+code {
+	padding: 1px 5px;
+	border-radius: 4px;
+	background: var(--mat-sys-surface-variant);
+	font-size: 0.85em;
+}
+
+.empty-state {
+	padding: 24px;
+	text-align: center;
+	color: var(--mat-sys-on-surface-variant);
+}

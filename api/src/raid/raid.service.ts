@@ -116,7 +116,7 @@ export class RaidService {
 			where: { guildId, resolvedAt: null },
 		});
 		if (active) {
-			throw new ConflictException("Un confinement est deja actif sur ce serveur.");
+			throw new ConflictException("Un confinement est déjà actif sur ce serveur.");
 		}
 
 		const created = await this.prisma.raidIncident.create({

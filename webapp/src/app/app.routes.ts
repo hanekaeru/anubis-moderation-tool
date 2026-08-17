@@ -39,6 +39,12 @@ export const routes: Routes = [
 				title: 'Mon compte Discord — Anubis',
 			},
 			{
+				path: 'mon-compte/double-authentification',
+				loadComponent: () =>
+					import('./features/account/two-factor/two-factor').then((m) => m.TwoFactorPage),
+				title: 'Double authentification — Anubis',
+			},
+			{
 				path: 'membres',
 				canActivate: [permissionGuard(Permission.MEMBERS_READ)],
 				loadComponent: () =>
@@ -60,6 +66,18 @@ export const routes: Routes = [
 						(m) => m.SanctionListPage,
 					),
 				title: 'Sanctions — Anubis',
+			},
+			{
+				path: 'bareme-de-points',
+				// Lecture ouverte a qui peut lire les sanctions : le bareme explique
+				// les scores affiches sur les fiches. Seul l'enregistrement demande
+				// `moderation-points:configure`.
+				canActivate: [permissionGuard(Permission.SANCTIONS_READ)],
+				loadComponent: () =>
+					import('./features/moderation/points/points').then(
+						(m) => m.ModerationPointsPage,
+					),
+				title: 'Barème de points — Anubis',
 			},
 			{
 				path: 'avertissements',
@@ -93,13 +111,13 @@ export const routes: Routes = [
 				path: 'roles',
 				canActivate: [permissionGuard(Permission.ROLES_MANAGE)],
 				loadComponent: () => import('./features/admin/roles/roles').then((m) => m.RolesPage),
-				title: 'Roles suivis — Anubis',
+				title: 'Rôles suivis — Anubis',
 			},
 			{
 				path: 'journal',
 				canActivate: [permissionGuard(Permission.AUDIT_READ)],
 				loadComponent: () => import('./features/admin/audit/audit').then((m) => m.AuditPage),
-				title: "Journal d'activite — Anubis",
+				title: "Journal d'activité — Anubis",
 			},
 			{
 				path: 'logs',
@@ -121,10 +139,79 @@ export const routes: Routes = [
 				title: 'Anti-raid — Anubis',
 			},
 			{
+				path: 'permissions',
+				canActivate: [permissionGuard(Permission.PERMISSIONS_MANAGE)],
+				loadComponent: () =>
+					import('./features/admin/permissions/permissions').then((m) => m.PermissionsPage),
+				title: 'Permissions — Anubis',
+			},
+			{
+				path: 'vocaux',
+				canActivate: [permissionGuard(Permission.VOICE_READ)],
+				loadComponent: () => import('./features/voice/voice').then((m) => m.VoicePage),
+				title: 'Vocaux — Anubis',
+			},
+			{
+				path: 'quarantaine',
+				canActivate: [permissionGuard(Permission.QUARANTINE_READ)],
+				loadComponent: () =>
+					import('./features/security/quarantine/quarantine').then((m) => m.QuarantinePage),
+				title: 'Quarantaine — Anubis',
+			},
+			{
 				path: 'statut',
 				canActivate: [permissionGuard(Permission.STATUS_READ)],
 				loadComponent: () => import('./features/status/status').then((m) => m.StatusPage),
 				title: 'Statut — Anubis',
+			},
+			{
+				path: 'wiki',
+				canActivate: [permissionGuard(Permission.WIKI_READ)],
+				loadComponent: () => import('./features/wiki/wiki-list/wiki-list').then((m) => m.WikiListPage),
+				title: 'Wiki de modération — Anubis',
+			},
+			{
+				// Avant `wiki/:slug`, sinon « nouveau » serait lu comme un slug et
+				// l'API repondrait 404 au lieu d'ouvrir le formulaire.
+				path: 'wiki/nouveau',
+				canActivate: [permissionGuard(Permission.WIKI_WRITE)],
+				loadComponent: () =>
+					import('./features/wiki/wiki-article/wiki-article').then((m) => m.WikiArticlePage),
+				data: { creating: true },
+				title: 'Nouvel article — Anubis',
+			},
+			{
+				path: 'wiki/:slug',
+				canActivate: [permissionGuard(Permission.WIKI_READ)],
+				loadComponent: () =>
+					import('./features/wiki/wiki-article/wiki-article').then((m) => m.WikiArticlePage),
+				title: 'Wiki — Anubis',
+			},
+			{
+				path: 'concours',
+				canActivate: [permissionGuard(Permission.GIVEAWAY_READ)],
+				loadComponent: () =>
+					import('./features/giveaway/giveaway').then((m) => m.GiveawayPage),
+				title: 'Concours — Anubis',
+			},
+			{
+				path: 'messages',
+				canActivate: [permissionGuard(Permission.EMBEDS_READ)],
+				loadComponent: () => import('./features/embeds/embeds').then((m) => m.EmbedsPage),
+				title: 'Messages — Anubis',
+			},
+			{
+				path: 'experience',
+				canActivate: [permissionGuard(Permission.XP_READ)],
+				loadComponent: () => import('./features/xp/xp').then((m) => m.XpPage),
+				title: 'Expérience — Anubis',
+			},
+			{
+				path: 'sessions',
+				canActivate: [permissionGuard(Permission.SESSIONS_READ)],
+				loadComponent: () =>
+					import('./features/admin/sessions/sessions').then((m) => m.SessionsPage),
+				title: 'Sessions actives — Anubis',
 			},
 			{
 				path: 'comptes-signales',

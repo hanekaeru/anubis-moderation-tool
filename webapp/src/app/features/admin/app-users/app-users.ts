@@ -92,7 +92,7 @@ export class AppUsersPage {
 
 		this.appUsersApi.update(user.id, { role }).subscribe({
 			next: () => {
-				this.notifications.success(`Role de ${user.username} mis a jour.`);
+				this.notifications.success(`Role de ${user.username} mis à jour.`);
 				this.load();
 			},
 			// En cas de refus, on recharge pour que le selecteur revienne a l'etat
@@ -105,10 +105,10 @@ export class AppUsersPage {
 		const activating = !user.isActive;
 
 		const data: ConfirmDialogData = {
-			title: activating ? 'Reactiver le compte' : 'Desactiver le compte',
+			title: activating ? 'Réactiver le compte' : 'Désactiver le compte',
 			message: activating
 				? `${user.displayName} pourra de nouveau se connecter.`
-				: `${user.displayName} sera immediatement deconnecte et ne pourra plus se connecter.`,
+				: `${user.displayName} sera immédiatement deconnecte et ne pourra plus se connecter.`,
 			confirmLabel: activating ? 'Reactiver' : 'Desactiver',
 			destructive: !activating,
 		};
@@ -121,7 +121,7 @@ export class AppUsersPage {
 
 				this.appUsersApi.update(user.id, { isActive: activating }).subscribe({
 					next: () => {
-						this.notifications.success('Compte mis a jour.');
+						this.notifications.success('Compte mis à jour.');
 						this.load();
 					},
 				});
@@ -130,8 +130,8 @@ export class AppUsersPage {
 
 	resetPassword(user: AppUserDto): void {
 		const data: ConfirmDialogData = {
-			title: 'Reinitialiser le mot de passe',
-			message: `Un nouveau mot de passe provisoire sera genere pour ${user.displayName}, et toutes ses sessions seront fermees.`,
+			title: 'Réinitialiser le mot de passe',
+			message: `Un nouveau mot de passe provisoire sera généré pour ${user.displayName}, et toutes ses sessions seront fermées.`,
 			confirmLabel: 'Reinitialiser',
 			destructive: true,
 		};
@@ -162,10 +162,41 @@ export class AppUsersPage {
 	unlock(user: AppUserDto): void {
 		this.appUsersApi.unlock(user.id).subscribe({
 			next: () => {
-				this.notifications.success('Compte deverrouille.');
+				this.notifications.success('Compte déverrouillé.');
 				this.load();
 			},
 		});
+	}
+
+	/**
+	 * Retire la double authentification d'un compte.
+	 *
+	 * C'est la seule issue quand un telephone est perdu **et** les codes de
+	 * secours avec : il n'existe aucune recuperation par courriel. L'action
+	 * abaisse la protection du compte, elle demande donc une confirmation
+	 * explicite.
+	 */
+	resetTwoFactor(user: AppUserDto): void {
+		const data: ConfirmDialogData = {
+			title: 'Réinitialiser la double authentification',
+			message: `${user.displayName} pourra se connecter avec son seul mot de passe, et devra reconfigurer une application d'authentification. Toutes ses sessions seront fermées.`,
+			confirmLabel: 'Reinitialiser',
+			destructive: true,
+		};
+
+		this.dialog
+			.open(ConfirmDialog, { data })
+			.afterClosed()
+			.subscribe((confirmed) => {
+				if (confirmed !== true) return;
+
+				this.appUsersApi.resetTwoFactor(user.id).subscribe({
+					next: () => {
+						this.notifications.success('Double authentification réinitialisée.');
+						this.load();
+					},
+				});
+			});
 	}
 
 	isLocked(user: AppUserDto): boolean {

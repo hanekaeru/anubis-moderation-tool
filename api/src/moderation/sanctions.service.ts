@@ -16,9 +16,10 @@ import {
 import { AuditService } from "../audit/audit.service";
 import { paginate } from "../common/dto/pagination.dto";
 import { GuildContextService } from "../common/guild-context.service";
-import { toActorRef, toMemberRef } from "../common/mappers";
+import { toActorRef, toAttachmentRef, toMemberRef } from "../common/mappers";
 import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { ModerationPointsService } from "./moderation-points.service";
 import type {
 	CreateSanctionDto,
 	RevokeDto,
@@ -30,6 +31,21 @@ const SANCTION_INCLUDE = {
 	moderator: true,
 	createdBy: true,
 	revokedBy: true,
+	// Metadonnees seulement : `data` est explicitement exclu, sinon chaque
+	// liste de sanctions transporterait les octets de toutes les preuves.
+	attachments: {
+		orderBy: { createdAt: "asc" },
+		select: {
+			id: true,
+			fileName: true,
+			contentType: true,
+			size: true,
+			spoiler: true,
+			createdAt: true,
+			uploadedBy: true,
+			uploadedByDiscord: true,
+		},
+	},
 } satisfies Prisma.SanctionInclude;
 
 type SanctionRow = Prisma.SanctionGetPayload<{
@@ -44,6 +60,7 @@ export class SanctionsService {
 		private readonly prisma: PrismaService,
 		private readonly guild: GuildContextService,
 		private readonly audit: AuditService,
+		private readonly points: ModerationPointsService,
 	) { }
 
 	private toDto(row: SanctionRow): SanctionDto {
@@ -63,7 +80,11 @@ export class SanctionsService {
 			revokeReason: row.revokeReason,
 			warningId: row.warningId,
 			evidenceUrl: row.evidenceUrl,
+			points: row.points,
 			createdAt: row.createdAt.toISOString(),
+			attachments: row.attachments.map((attachment) =>
+				toAttachmentRef(attachment),
+			),
 		};
 	}
 
@@ -126,7 +147,7 @@ export class SanctionsService {
 		if (isInstant) {
 			if (dto.durationSeconds) {
 				throw new BadRequestException(
-					`Une sanction de type "${SANCTION_TYPE_LABELS[dto.type]}" ne prend pas de duree.`,
+					`Une sanction de type "${SANCTION_TYPE_LABELS[dto.type]}" ne prend pas de durée.`,
 				);
 			}
 			return null;
@@ -135,12 +156,12 @@ export class SanctionsService {
 		if (dto.type === "TIMEOUT") {
 			if (!dto.durationSeconds) {
 				throw new BadRequestException(
-					"Une exclusion temporaire doit avoir une duree.",
+					"Une exclusion temporaire doit avoir une durée.",
 				);
 			}
 			if (dto.durationSeconds > MAX_TIMEOUT_SECONDS) {
 				throw new BadRequestException(
-					"Discord limite les exclusions temporaires a 28 jours.",
+					"Discord limite les exclusions temporaires à 28 jours.",
 				);
 			}
 		}
@@ -161,7 +182,7 @@ export class SanctionsService {
 
 		if (!member) {
 			throw new NotFoundException(
-				`Membre ${dto.userId} inconnu sur ce serveur. Le bot doit l avoir enregistre au prealable.`,
+				`Membre ${dto.userId} inconnu sur ce serveur. Le bot doit l'avoir enregistré au préalable.`,
 			);
 		}
 
@@ -171,7 +192,7 @@ export class SanctionsService {
 			});
 			if (!warning) {
 				throw new BadRequestException(
-					"L avertissement lie n existe pas ou ne concerne pas ce membre.",
+					"L'avertissement lié n'existe pas ou ne concerne pas ce membre.",
 				);
 			}
 		}
@@ -196,6 +217,9 @@ export class SanctionsService {
 					: "ACTIVE",
 				warningId: dto.warningId ?? null,
 				evidenceUrl: dto.evidenceUrl ?? null,
+				// Le bareme ne donne que le defaut : une fois copie ici, le poids
+				// de cette sanction ne bouge plus, meme si le bareme change.
+				points: dto.points ?? (await this.points.pointsForSanction(dto.type)),
 				isApplied: dto.isApplied ?? undefined
 			},
 			include: SANCTION_INCLUDE,
@@ -235,7 +259,7 @@ export class SanctionsService {
 
 		if (!existing) throw new NotFoundException("Sanction introuvable.");
 		if (existing.status === "REVOKED") {
-			throw new BadRequestException("Cette sanction est deja levee.");
+			throw new BadRequestException("Cette sanction est déjà levée.");
 		}
 		// Une sanction EXPIRED n'a plus d'effet cote Discord a lever (expulsion
 		// deja executee, timeout ou shadowban deja arrive a echeance) : marquer
@@ -243,7 +267,7 @@ export class SanctionsService {
 		// aucun effet a rejouer pour ce statut.
 		if (existing.status === "EXPIRED") {
 			throw new BadRequestException(
-				"Cette sanction est deja terminee, elle ne peut pas etre levee.",
+				"Cette sanction est déjà terminée, elle ne peut pas être levée.",
 			);
 		}
 
@@ -254,6 +278,13 @@ export class SanctionsService {
 				revokedAt: new Date(),
 				revokedById: actor.id,
 				revokeReason: dto.reason,
+				// Une sanction posee par une commande du bot, ou ingeree depuis le
+				// journal d'audit Discord, porte deja une date de synchronisation.
+				// La laisser telle quelle excluait la levee de
+				// `findUnsyncedRevokedSanctions` (qui filtre sur `null`) : le timeout
+				// ou le role restait en place sur Discord, alors que la webapp
+				// affichait la sanction comme levee.
+				discordSyncedAt: null,
 			},
 			include: SANCTION_INCLUDE,
 		});
@@ -287,7 +318,7 @@ export class SanctionsService {
 		});
 
 		if (count > 0) {
-			this.logger.log(`${count} sanction(s) arrivee(s) a expiration.`);
+			this.logger.log(`${count} sanction(s) arrivée(s) à expiration.`);
 		}
 	}
 }

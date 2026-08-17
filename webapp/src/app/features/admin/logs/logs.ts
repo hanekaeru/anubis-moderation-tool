@@ -79,7 +79,7 @@ export class LogsPage {
 	remove(config: GuildConfigDto): void {
 		const data: ConfirmDialogData = {
 			title: 'Supprimer cette configuration',
-			message: `"${this.label(config)}" sera supprimee. Si c'est un salon de logs, il ne sera plus alimente tant qu'une nouvelle configuration n'est pas creee.`,
+			message: `"${this.label(config)}" sera supprimée. Si c'est un salon de logs, il ne sera plus alimenté tant qu'une nouvelle configuration n'est pas créée.`,
 			confirmLabel: 'Supprimer',
 			destructive: true,
 		};
@@ -92,7 +92,7 @@ export class LogsPage {
 
 				this.guildConfigApi.delete(config.id).subscribe({
 					next: () => {
-						this.notifications.success('Configuration supprimee.');
+						this.notifications.success('Configuration supprimée.');
 						this.load();
 					},
 				});

@@ -17,6 +17,12 @@ export const Permission = {
 	SANCTIONS_READ: "sanctions:read",
 	SANCTIONS_WRITE: "sanctions:write",
 	SANCTIONS_REVOKE: "sanctions:revoke",
+	/**
+	 * Regler le bareme de points. Sa lecture passe par `sanctions:read` : le
+	 * formulaire de sanction en a besoin pour pre-remplir les points, y compris
+	 * pour un moderateur qui n'a pas le droit de changer le bareme.
+	 */
+	MODERATION_POINTS_CONFIGURE: "moderation-points:configure",
 	TICKETS_READ: "tickets:read",
 	TICKETS_WRITE: "tickets:write",
 	STATS_READ: "stats:read",
@@ -37,6 +43,20 @@ export const Permission = {
 	QUARANTINE_READ: "quarantine:read",
 	QUARANTINE_RESPOND: "quarantine:respond",
 	QUARANTINE_CONFIGURE: "quarantine:configure",
+	VOICE_READ: "voice:read",
+	VOICE_MANAGE: "voice:manage",
+	PERMISSIONS_MANAGE: "permissions:manage",
+	WIKI_READ: "wiki:read",
+	WIKI_WRITE: "wiki:write",
+	WIKI_DELETE: "wiki:delete",
+	GIVEAWAY_READ: "giveaway:read",
+	GIVEAWAY_WRITE: "giveaway:write",
+	EMBEDS_READ: "embeds:read",
+	EMBEDS_WRITE: "embeds:write",
+	XP_READ: "xp:read",
+	XP_MANAGE: "xp:manage",
+	SESSIONS_READ: "sessions:read",
+	SESSIONS_REVOKE: "sessions:revoke",
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 
@@ -52,6 +72,14 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	Permission.ACCOUNT_FLAGS_READ,
 	Permission.STATUS_READ,
 	Permission.QUARANTINE_READ,
+	Permission.VOICE_READ,
+	// Le wiki dit ce qu'on attend de l'equipe : il n'a d'utilite que lu par
+	// tous, y compris par un compte en observation.
+	Permission.WIKI_READ,
+	Permission.GIVEAWAY_READ,
+	// Le classement d'experience ne dit rien de sensible : c'est la meme
+	// information que `/rank` rend deja publique sur le serveur.
+	Permission.XP_READ,
 ];
 
 const MODERATOR_PERMISSIONS: Permission[] = [
@@ -68,6 +96,12 @@ const MODERATOR_PERMISSIONS: Permission[] = [
 	Permission.RAID_RESPOND,
 	Permission.ACCOUNT_FLAGS_WRITE,
 	Permission.QUARANTINE_RESPOND,
+	// Animer le serveur fait partie du quotidien de l'equipe, pas de sa
+	// configuration : un concours n'ouvre aucun droit sur les membres.
+	Permission.GIVEAWAY_WRITE,
+	// Lire les messages composes par l'equipe : savoir ce qui a ete annonce
+	// fait partie du contexte d'une moderation.
+	Permission.EMBEDS_READ,
 ];
 
 const ADMIN_PERMISSIONS: Permission[] = [
@@ -86,6 +120,45 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	Permission.AUTOMOD_WRITE,
 	Permission.RAID_CONFIGURE,
 	Permission.QUARANTINE_CONFIGURE,
+	// Le bareme de points decide de ce qui fait passer un membre pour
+	// problematique : le deplacer requalifie tout le serveur d'un seul reglage.
+	// C'est de la doctrine, pas de la moderation courante.
+	Permission.MODERATION_POINTS_CONFIGURE,
+	// Les salons de creation dictent ce que le bot cree tout seul sur le
+	// serveur : le meme niveau que les autres reglages structurants.
+	Permission.VOICE_MANAGE,
+	// Le wiki fait doctrine : ce qui y est ecrit est ce qu'on reprochera a un
+	// moderateur de ne pas avoir suivi. L'ecriture reste donc au-dessus de la
+	// moderation courante — un serveur qui prefere l'ouvrir a son equipe le
+	// fait par la page Permissions, sans toucher au code.
+	Permission.WIKI_WRITE,
+	Permission.WIKI_DELETE,
+	// Publier un message signe du bot, c'est parler au nom du serveur : la
+	// portee est celle d'une annonce, pas celle d'une sanction individuelle.
+	Permission.EMBEDS_WRITE,
+	// Les paliers de recompense modifient les roles de tout le serveur des que
+	// le bot repasse : un reglage structurant, au meme titre que l'automod.
+	Permission.XP_MANAGE,
+];
+
+/**
+ * Permissions **volontairement absentes** de la matrice ci-dessus : elles ne
+ * sont portees que par le proprietaire, qui recoit `Object.values(Permission)`.
+ *
+ * Voir et couper les sessions ouvertes revient a lire les traces de connexion
+ * de toute l'equipe (adresses IP, navigateurs) et a deconnecter n'importe qui,
+ * y compris un compte de rang superieur. C'est le meme raisonnement que pour
+ * `PERMISSIONS_MANAGE` : un droit qui permet de reprendre la main sur les
+ * autres ne se delegue pas par defaut.
+ *
+ * Un serveur qui souhaite l'ouvrir a un administrateur le fait depuis la page
+ * Permissions, sans toucher au code — et cette liste dit alors ce qu'il
+ * accorde.
+ */
+export const OWNER_ONLY_PERMISSIONS: readonly Permission[] = [
+	Permission.PERMISSIONS_MANAGE,
+	Permission.SESSIONS_READ,
+	Permission.SESSIONS_REVOKE,
 ];
 
 export const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
@@ -104,6 +177,49 @@ export function roleHasPermission(
 	permission: Permission,
 ): boolean {
 	return permissionsForRole(role).includes(permission);
+}
+
+/**
+ * Le role proprietaire n'est jamais modifiable.
+ *
+ * C'est le garde-fou qui empeche de fermer la porte de l'interieur : sans lui,
+ * retirer `permissions:manage` a tout le monde rendrait la matrice
+ * definitivement inaccessible depuis le dashboard.
+ */
+export const IMMUTABLE_ROLE: AppUserRole = "OWNER";
+
+/** Ecart enregistre en base par rapport a la matrice par defaut. */
+export interface RolePermissionOverride {
+	role: AppUserRole;
+	permission: Permission;
+	granted: boolean;
+}
+
+/**
+ * Permissions effectives d'un role : `defauts ∪ accordees − retirees`.
+ *
+ * Partage entre l'API (qui l'applique) et le dashboard (qui la previsualise),
+ * pour que les deux ne puissent pas diverger.
+ */
+export function resolveRolePermissions(
+	role: AppUserRole,
+	overrides: readonly RolePermissionOverride[],
+): Permission[] {
+	if (role === IMMUTABLE_ROLE) return [...permissionsForRole(role)];
+
+	const effectives = new Set<Permission>(permissionsForRole(role));
+
+	for (const override of overrides) {
+		if (override.role !== role) continue;
+		if (override.granted) effectives.add(override.permission);
+		else effectives.delete(override.permission);
+	}
+
+	// L'ordre de `Permission` fait foi : il rend les listes comparables d'un
+	// role a l'autre et stable d'un appel a l'autre.
+	return Object.values(Permission).filter((permission) =>
+		effectives.has(permission),
+	);
 }
 
 /** Ordre hierarchique : un compte ne peut pas agir sur un rang superieur. */

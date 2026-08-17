@@ -45,14 +45,14 @@ const POLL_INTERVAL_MS = 5_000;
 const EVENT_LABELS: Record<string, string | undefined> = {
 	OPENED: 'Ticket ouvert',
 	CLAIMED: 'Pris en charge',
-	ASSIGNED: 'Assignation modifiee',
+	ASSIGNED: 'Assignation modifiée',
 	MESSAGE: 'Message',
-	STATUS_CHANGED: 'Statut modifie',
-	PRIORITY_CHANGED: 'Priorite modifiee',
+	STATUS_CHANGED: 'Statut modifié',
+	PRIORITY_CHANGED: 'Priorité modifiée',
 	INTERNAL_NOTE: 'Note interne',
-	CLOSED: 'Ticket ferme',
+	CLOSED: 'Ticket fermé',
 	REOPENED: 'Ticket rouvert',
-	TRANSCRIPT_ARCHIVED: 'Salon supprime',
+	TRANSCRIPT_ARCHIVED: 'Salon supprimé',
 };
 
 const EVENT_ICONS: Record<string, string | undefined> = {
@@ -151,7 +151,7 @@ export class TicketDetailPage {
 				this.ticket.set(ticket);
 				this.noteForm.reset({ body: '' });
 				this.savingNote.set(false);
-				this.notifications.success('Note ajoutee au ticket.');
+				this.notifications.success('Note ajoutée au ticket.');
 			},
 			error: () => this.savingNote.set(false),
 		});
@@ -187,7 +187,7 @@ export class TicketDetailPage {
 		this.ticketsApi.update(this.id(), changes).subscribe({
 			next: (ticket) => {
 				this.ticket.set(ticket);
-				this.notifications.success('Ticket mis a jour.');
+				this.notifications.success('Ticket mis à jour.');
 			},
 		});
 	}

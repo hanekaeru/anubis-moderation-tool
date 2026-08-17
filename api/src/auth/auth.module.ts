@@ -5,6 +5,7 @@ import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { TokenService } from "./token.service";
+import { TwoFactorService } from "./two-factor.service";
 
 @Module({
 	imports: [
@@ -14,7 +15,7 @@ import { TokenService } from "./token.service";
 		JwtModule.register({}),
 	],
 	controllers: [AuthController],
-	providers: [AuthService, TokenService, JwtStrategy],
-	exports: [AuthService, TokenService],
+	providers: [AuthService, TokenService, TwoFactorService, JwtStrategy],
+	exports: [AuthService, TokenService, TwoFactorService],
 })
 export class AuthModule {}

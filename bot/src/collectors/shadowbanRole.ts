@@ -39,7 +39,7 @@ async function applyChannelOverwrite(
 		await channel.permissionOverwrites.edit(role, DENY_OVERWRITE);
 	} catch (err) {
 		console.error(
-			`[Shadowban] Restriction du salon #${channel.name} echouee :`,
+			`[Shadowban] Restriction du salon #${channel.name} échouée :`,
 			err,
 		);
 	}
@@ -69,14 +69,14 @@ export async function ensureShadowbanRole(guild: Guild): Promise<Role> {
 		hoist: false,
 		mentionable: false,
 		permissions: [],
-		reason: "Role de shadowban cree automatiquement.",
+		reason: "Rôle de shadowban créé automatiquement.",
 	});
 
 	await guildConfig.upsertConfig(
 		guild.id,
 		SHADOWBAN_ROLE_CONFIG_KEY,
 		role.id,
-		"Role attribue aux membres shadowban : restreint l'acces sans exclusion Discord native.",
+		"Rôle attribué aux membres shadowban : restreint l'accès sans exclusion Discord native.",
 	);
 
 	const channels = await guild.channels.fetch();

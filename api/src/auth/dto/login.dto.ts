@@ -19,6 +19,33 @@ export class LoginDto {
 	password!: string;
 }
 
+/**
+ * Code du second facteur.
+ *
+ * Aucune contrainte de forme au-dela d'une longueur raisonnable : le champ
+ * accepte indifferemment un code temporel a six chiffres et un code de secours,
+ * et c'est le service qui distingue les deux. Contraindre la forme ici dirait a
+ * l'appelant lequel des deux il vient de saisir.
+ */
+export class TwoFactorCodeDto {
+	@IsString()
+	@MinLength(6)
+	@MaxLength(32)
+	code!: string;
+}
+
+export class TwoFactorLoginDto extends TwoFactorCodeDto {
+	@IsString()
+	@MaxLength(2048)
+	challengeToken!: string;
+}
+
+export class DisableTwoFactorDto extends TwoFactorCodeDto {
+	@IsString()
+	@MaxLength(200)
+	password!: string;
+}
+
 export class ChangePasswordDto {
 	@IsString()
 	@MaxLength(200)
@@ -26,7 +53,7 @@ export class ChangePasswordDto {
 
 	@IsString()
 	@MinLength(PASSWORD_MIN_LENGTH, {
-		message: `Le mot de passe doit faire au moins ${PASSWORD_MIN_LENGTH} caracteres.`,
+		message: `Le mot de passe doit faire au moins ${PASSWORD_MIN_LENGTH} caractères.`,
 	})
 	@MaxLength(200)
 	newPassword!: string;

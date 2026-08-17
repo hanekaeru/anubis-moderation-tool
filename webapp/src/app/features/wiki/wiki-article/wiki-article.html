@@ -1,0 +1,142 @@
+<div class="page">
+	<a class="back" routerLink="/wiki">
+		<mat-icon>arrow_back</mat-icon>
+		Wiki de modération
+	</a>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (notFound()) {
+		<mat-card appearance="outlined" class="empty">
+			<mat-card-content>
+				<mat-icon>search_off</mat-icon>
+				<strong>Article introuvable</strong>
+				<p>Il a peut-être été supprimé, ou l'adresse est incorrecte.</p>
+				<a matButton="filled" routerLink="/wiki">Retour au wiki</a>
+			</mat-card-content>
+		</mat-card>
+	}
+
+	@if (editing()) {
+		<mat-card appearance="outlined" [formGroup]="form">
+			<mat-card-header>
+				<mat-card-title>{{ creating() ? 'Nouvel article' : 'Modifier l’article' }}</mat-card-title>
+			</mat-card-header>
+
+			<mat-card-content>
+				<div class="row">
+					<mat-form-field appearance="outline" class="grow">
+						<mat-label>Titre</mat-label>
+						<input matInput formControlName="title" [maxlength]="maxTitle" />
+						@if (form.controls.title.hasError('minlength')) {
+							<mat-error>Le titre doit faire au moins 3 caractères.</mat-error>
+						}
+					</mat-form-field>
+
+					<mat-form-field appearance="outline">
+						<mat-label>Catégorie</mat-label>
+						<mat-select formControlName="category">
+							@for (cat of categories; track cat) {
+								<mat-option [value]="cat">{{ categoryLabels[cat] }}</mat-option>
+							}
+						</mat-select>
+					</mat-form-field>
+				</div>
+
+				<mat-form-field appearance="outline">
+					<mat-label>Résumé</mat-label>
+					<input matInput formControlName="summary" [maxlength]="maxSummary" />
+					<mat-hint>Affiché dans la liste, sous le titre. Facultatif.</mat-hint>
+				</mat-form-field>
+
+				<app-rich-text-editor
+					[(value)]="contentHtml"
+					[disabled]="saving()"
+					placeholder="Rédigez l’article : quels faits, quelle sanction, quelles exceptions…"
+				/>
+
+				<mat-slide-toggle formControlName="pinned">
+					Épingler en tête de sa catégorie
+				</mat-slide-toggle>
+
+				@if (errorMessage(); as message) {
+					<p class="error" role="alert">{{ message }}</p>
+				}
+			</mat-card-content>
+
+			<mat-card-actions align="end">
+				<button matButton type="button" [disabled]="saving()" (click)="cancelEditing()">
+					Annuler
+				</button>
+				<button
+					matButton="filled"
+					type="button"
+					[disabled]="saving() || form.invalid"
+					(click)="save()"
+				>
+					<mat-icon>save</mat-icon>
+					{{ creating() ? 'Créer' : 'Enregistrer' }}
+				</button>
+			</mat-card-actions>
+		</mat-card>
+	} @else if (article(); as current) {
+		<article class="article">
+			<header class="article-header">
+				<div class="category">
+					<mat-icon>{{ categoryIcons[current.category] }}</mat-icon>
+					{{ categoryLabels[current.category] }}
+					@if (current.pinned) {
+						<mat-icon class="pin" matTooltip="Article épinglé">push_pin</mat-icon>
+					}
+				</div>
+
+				<h1>{{ current.title }}</h1>
+
+				@if (current.summary) {
+					<p class="summary">{{ current.summary }}</p>
+				}
+
+				<div class="meta">
+					<span>
+						Modifié {{ current.updatedAt | relativeTime }}
+						@if (current.updatedBy) {
+							par {{ current.updatedBy.label }}
+						}
+					</span>
+					<span class="dot">·</span>
+					<span [matTooltip]="'Créé le ' + (current.createdAt | frDate)">
+						Créé
+						@if (current.createdBy) {
+							par {{ current.createdBy.label }}
+						}
+					</span>
+				</div>
+
+				<div class="actions" *appHasPermission="Permission.WIKI_WRITE">
+					<button matButton (click)="startEditing()">
+						<mat-icon>edit</mat-icon>
+						Modifier
+					</button>
+					<button
+						matButton
+						class="danger"
+						*appHasPermission="Permission.WIKI_DELETE"
+						(click)="remove()"
+					>
+						<mat-icon>delete</mat-icon>
+						Supprimer
+					</button>
+				</div>
+			</header>
+
+			<!--
+				Rendu via [innerHTML] : Angular repasse le contenu a son sanitizer.
+				L'API a deja nettoye a l'ecriture, cette passe couvre une donnee
+				ecrite avant que la regle n'existe.
+			-->
+			<div class="article-body" [innerHTML]="current.contentHtml"></div>
+		</article>
+	}
+</div>

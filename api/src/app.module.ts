@@ -10,19 +10,27 @@ import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
 import { AutomodModule } from "./automod/automod.module";
 import { CommonModule } from "./common/common.module";
+import { EmbedsModule } from "./embeds/embeds.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { PasswordChangeGuard } from "./common/guards/password-change.guard";
 import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { loadConfiguration } from "./config/configuration";
+import { GiveawayModule } from "./giveaway/giveaway.module";
 import { GuildConfigModule } from "./guild-config/guild-config.module";
 import { HealthModule } from "./health/health.module";
 import { MembersModule } from "./members/members.module";
 import { ModerationModule } from "./moderation/moderation.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { QuarantineModule } from "./quarantine/quarantine.module";
 import { RaidModule } from "./raid/raid.module";
+import { RolePermissionsModule } from "./role-permissions/role-permissions.module";
+import { SessionsModule } from "./sessions/sessions.module";
 import { StatsModule } from "./stats/stats.module";
 import { StatusModule } from "./status/status.module";
 import { TicketsModule } from "./tickets/tickets.module";
+import { VoiceModule } from "./voice/voice.module";
+import { WikiModule } from "./wiki/wiki.module";
+import { XpModule } from "./xp/xp.module";
 
 @Module({
 	imports: [
@@ -38,6 +46,9 @@ import { TicketsModule } from "./tickets/tickets.module";
 		PrismaModule,
 		CommonModule,
 		AuditModule,
+		// Avant AuthModule : sa strategie JWT resout les permissions par ce
+		// service a chaque requete.
+		RolePermissionsModule,
 		AuthModule,
 		MembersModule,
 		ModerationModule,
@@ -48,9 +59,16 @@ import { TicketsModule } from "./tickets/tickets.module";
 		HealthModule,
 		AutomodModule,
 		RaidModule,
+		QuarantineModule,
 		AccountFlagsModule,
 		AccountModule,
 		StatusModule,
+		VoiceModule,
+		WikiModule,
+		GiveawayModule,
+		SessionsModule,
+		EmbedsModule,
+		XpModule,
 	],
 	providers: [
 		// L'ordre compte : on limite le debit, puis on authentifie, puis on

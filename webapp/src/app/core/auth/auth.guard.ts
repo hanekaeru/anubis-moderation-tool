@@ -49,7 +49,7 @@ export function permissionGuard(...required: Permission[]): CanActivateFn {
 			return true;
 		}
 
-		notifications.error("Vous n'avez pas acces a cette section.");
+		notifications.error("Vous n'avez pas accès à cette section.");
 		return router.createUrlTree(['/']);
 	};
 }

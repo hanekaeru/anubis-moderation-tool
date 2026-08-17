@@ -17,14 +17,14 @@ describe("hierarchyIssue", () => {
 	it("refuse d'agir sur soi-meme", () => {
 		const guild = { ownerId: "owner" };
 		const actor = member("mod-1", 5, guild);
-		expect(hierarchyIssue(actor, actor)).toMatch(/toi-meme/);
+		expect(hierarchyIssue(actor, actor)).toMatch(/toi-même/);
 	});
 
 	it("refuse d'agir sur le proprietaire du serveur", () => {
 		const guild = { ownerId: "owner-1" };
 		const actor = member("mod-1", 5, guild);
 		const target = member("owner-1", 100, guild);
-		expect(hierarchyIssue(actor, target)).toMatch(/proprietaire/);
+		expect(hierarchyIssue(actor, target)).toMatch(/propriétaire/);
 	});
 
 	it("refuse un auteur non-proprietaire visant un role egal ou superieur", () => {
@@ -33,8 +33,8 @@ describe("hierarchyIssue", () => {
 		const equalTarget = member("member-1", 5, guild);
 		const higherTarget = member("member-2", 10, guild);
 
-		expect(hierarchyIssue(actor, equalTarget)).toMatch(/role egal ou superieur/);
-		expect(hierarchyIssue(actor, higherTarget)).toMatch(/role egal ou superieur/);
+		expect(hierarchyIssue(actor, equalTarget)).toMatch(/rôle égal ou supérieur/);
+		expect(hierarchyIssue(actor, higherTarget)).toMatch(/rôle égal ou supérieur/);
 	});
 
 	it("autorise le proprietaire du serveur quelle que soit la position des roles", () => {

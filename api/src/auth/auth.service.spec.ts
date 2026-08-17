@@ -2,9 +2,12 @@ import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { AppConfig } from "../config/configuration";
 import type { PrismaService } from "../prisma/prisma.service";
+import { permissionsForRole, type AppUserRole } from "@anubis/shared";
 import type { AuditService } from "../audit/audit.service";
+import type { RolePermissionsService } from "../role-permissions/role-permissions.service";
 import type { TokenService } from "./token.service";
-import { AuthService } from "./auth.service";
+import type { TwoFactorService } from "./two-factor.service";
+import { AuthService, isPendingSecondFactor } from "./auth.service";
 
 jest.setTimeout(20000);
 
@@ -29,7 +32,11 @@ function baseConfig(): AppConfig {
 		},
 		corsOrigins: [],
 		cookieSecure: false,
-		security: { maxFailedLogins: 5, lockoutMinutes: 15 },
+		security: {
+			maxFailedLogins: 5,
+			lockoutMinutes: 15,
+			twoFactorEnabled: true,
+		},
 	};
 }
 
@@ -46,6 +53,7 @@ function account(overrides: Record<string, unknown> = {}) {
 		failedLoginCount: 0,
 		lockedUntil: null,
 		isActive: true,
+		totpEnabledAt: null,
 		...overrides,
 	};
 }
@@ -69,7 +77,18 @@ function makeService(prismaOverrides: Record<string, unknown> = {}) {
 		accessTokenTtlSeconds: jest.fn().mockReturnValue(900),
 		revokeToken: jest.fn().mockResolvedValue("user-1"),
 		revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+		signChallengeToken: jest
+			.fn()
+			.mockReturnValue({ token: "challenge-token", expiresIn: 300 }),
+		verifyChallengeToken: jest.fn().mockReturnValue("user-1"),
 	} as unknown as TokenService;
+
+	// `available` est un accesseur en production : le double le presente comme
+	// une propriete mutable, pour que les tests puissent couper l'interrupteur.
+	const twoFactor = {
+		verifySecondFactor: jest.fn().mockResolvedValue(true),
+		available: true,
+	} as unknown as TwoFactorService & { available: boolean };
 
 	const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
 
@@ -77,7 +96,26 @@ function makeService(prismaOverrides: Record<string, unknown> = {}) {
 		get: jest.fn().mockReturnValue(baseConfig()),
 	} as unknown as ConfigService<{ app: AppConfig }, true>;
 
-	return { service: new AuthService(prisma, tokens, audit, config), prisma, tokens, audit };
+	// Les permissions viennent desormais du service de matrice, pas d'une
+	// constante : ce double se contente de renvoyer les defauts du role.
+	const rolePermissions = {
+		resolve: jest.fn(async (role: AppUserRole) => [...permissionsForRole(role)]),
+	} as unknown as RolePermissionsService;
+
+	return {
+		service: new AuthService(
+			prisma,
+			tokens,
+			audit,
+			config,
+			rolePermissions,
+			twoFactor,
+		),
+		prisma,
+		tokens,
+		audit,
+		twoFactor,
+	};
 }
 
 beforeAll(async () => {
@@ -188,8 +226,120 @@ describe("login", () => {
 		expect(audit.record).toHaveBeenCalledWith(
 			expect.objectContaining({ appUserId: "user-1", action: "auth.login" }),
 		);
+
+		if (isPendingSecondFactor(result)) {
+			throw new Error("Une session complete etait attendue.");
+		}
 		expect(result.accessToken).toBe("access-token");
 		expect(result.user.username).toBe("hanekaeru");
+	});
+});
+
+describe("double authentification", () => {
+	it("n'emet aucun jeton quand le compte est protege : seulement un defi", async () => {
+		const update = jest.fn().mockResolvedValue(account());
+		const { service, tokens, audit } = makeService({
+			appUser: {
+				findUnique: jest
+					.fn()
+					.mockResolvedValue(account({ totpEnabledAt: new Date() })),
+				update,
+			},
+		});
+
+		const result = await service.login("hanekaeru", CORRECT_PASSWORD, {});
+
+		expect(isPendingSecondFactor(result)).toBe(true);
+		expect(tokens.issueRefreshToken).not.toHaveBeenCalled();
+		// La connexion n'a pas eu lieu : ni `lastLoginAt`, ni entree de journal.
+		expect(update).not.toHaveBeenCalled();
+		expect(audit.record).not.toHaveBeenCalled();
+	});
+
+	it("ouvre la session une fois le code valide", async () => {
+		const { service, tokens, audit } = makeService({
+			appUser: {
+				findUnique: jest
+					.fn()
+					.mockResolvedValue(account({ totpEnabledAt: new Date() })),
+				update: jest.fn().mockResolvedValue(account()),
+			},
+		});
+
+		const result = await service.completeTwoFactorLogin("challenge", "123456", {});
+
+		expect(result.accessToken).toBe("access-token");
+		expect(tokens.issueRefreshToken).toHaveBeenCalled();
+		expect(audit.record).toHaveBeenCalledWith(
+			expect.objectContaining({ action: "auth.login" }),
+		);
+	});
+
+	it("compte un code errone comme un echec de connexion", async () => {
+		const update = jest.fn().mockResolvedValue(account());
+		const { service, twoFactor } = makeService({
+			appUser: {
+				findUnique: jest
+					.fn()
+					.mockResolvedValue(account({ totpEnabledAt: new Date(), failedLoginCount: 1 })),
+				update,
+			},
+		});
+
+		(twoFactor.verifySecondFactor as jest.Mock).mockResolvedValue(false);
+
+		await expect(
+			service.completeTwoFactorLogin("challenge", "000000", {}),
+		).rejects.toBeInstanceOf(UnauthorizedException);
+
+		expect(update).toHaveBeenCalledWith({
+			where: { id: "user-1" },
+			data: { failedLoginCount: 2 },
+		});
+	});
+
+	it("refuse un defi expire ou forge", async () => {
+		const { service, tokens } = makeService();
+		(tokens.verifyChallengeToken as jest.Mock).mockReturnValue(null);
+
+		await expect(
+			service.completeTwoFactorLogin("n-importe-quoi", "123456", {}),
+		).rejects.toBeInstanceOf(UnauthorizedException);
+	});
+
+	// Un compte desactive entre les deux etapes ne doit pas passer : le defi ne
+	// prouve que le mot de passe, pas l'etat courant du compte.
+	it("refuse un compte desactive entre les deux etapes", async () => {
+		const { service } = makeService({
+			appUser: {
+				findUnique: jest.fn().mockResolvedValue(account({ isActive: false })),
+			},
+		});
+
+		await expect(
+			service.completeTwoFactorLogin("challenge", "123456", {}),
+		).rejects.toBeInstanceOf(UnauthorizedException);
+	});
+
+	// C'est tout l'objet de `TWO_FACTOR_ENABLED=false` : un compte deja protege
+	// se connecte avec son seul mot de passe, sans avoir rien a defaire.
+	it("court-circuite le second facteur quand le deploiement l'a coupe", async () => {
+		const { service, twoFactor, tokens } = makeService({
+			appUser: {
+				findUnique: jest
+					.fn()
+					.mockResolvedValue(account({ totpEnabledAt: new Date() })),
+				update: jest.fn().mockResolvedValue(account()),
+			},
+		});
+
+		twoFactor.available = false;
+
+		const result = await service.login("hanekaeru", CORRECT_PASSWORD, {});
+
+		expect(isPendingSecondFactor(result)).toBe(false);
+		expect(tokens.signChallengeToken).not.toHaveBeenCalled();
+		expect(tokens.issueRefreshToken).toHaveBeenCalled();
 	});
 });
 
@@ -244,9 +394,9 @@ describe("changePassword", () => {
 });
 
 describe("toSessionUser", () => {
-	it("derive les permissions du role et formate lastLoginAt", () => {
+	it("derive les permissions du role et formate lastLoginAt", async () => {
 		const { service } = makeService();
-		const session = service.toSessionUser(
+		const session = await service.toSessionUser(
 			account({ lastLoginAt: new Date("2026-01-01T00:00:00.000Z") }),
 		);
 
@@ -255,9 +405,9 @@ describe("toSessionUser", () => {
 		expect(session.lastLoginAt).toBe("2026-01-01T00:00:00.000Z");
 	});
 
-	it("renvoie lastLoginAt a null quand le compte ne s'est jamais connecte", () => {
+	it("renvoie lastLoginAt a null quand le compte ne s'est jamais connecte", async () => {
 		const { service } = makeService();
-		const session = service.toSessionUser(account({ lastLoginAt: null }));
+		const session = await service.toSessionUser(account({ lastLoginAt: null }));
 		expect(session.lastLoginAt).toBeNull();
 	});
 });

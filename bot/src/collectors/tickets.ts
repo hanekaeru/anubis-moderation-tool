@@ -50,7 +50,7 @@ export async function loadTicketChannelsCache(guildId: string): Promise<void> {
 	}
 
 	if (tickets.length) {
-		console.log(`[Tickets] ${tickets.length} salon(s) de ticket rattache(s).`);
+		console.log(`[Tickets] ${tickets.length} salon(s) de ticket rattaché(s).`);
 	}
 }
 
@@ -140,7 +140,7 @@ export async function createTicket(input: CreateTicketInput) {
 	}
 
 	throw new Error(
-		"Impossible d'attribuer un numero de ticket apres plusieurs tentatives.",
+		"Impossible d'attribuer un numéro de ticket après plusieurs tentatives.",
 	);
 }
 
@@ -168,7 +168,7 @@ async function downloadAttachment(
 ): Promise<{ fileName: string; contentType: string; size: number; data: Buffer } | null> {
 	if (attachment.size > MAX_ATTACHMENT_BYTES) {
 		console.warn(
-			`[Tickets] Piece jointe "${attachment.fileName}" ignoree (${attachment.size} octets > plafond).`,
+			`[Tickets] Pièce jointe "${attachment.fileName}" ignorée (${attachment.size} octets > plafond).`,
 		);
 		return null;
 	}
@@ -186,7 +186,7 @@ async function downloadAttachment(
 		};
 	} catch (err) {
 		console.error(
-			`[Tickets] Telechargement de la piece jointe "${attachment.fileName}" echoue :`,
+			`[Tickets] Téléchargement de la pièce jointe "${attachment.fileName}" échoué :`,
 			err,
 		);
 		return null;
@@ -358,7 +358,7 @@ export async function buildTranscript(ticketId: string): Promise<string> {
 			} | null;
 			const contenu = payload?.content ?? "";
 			const pieces = payload?.attachments?.length
-				? ` [pieces jointes : ${payload.attachments.map((a) => a.fileName).join(", ")}]`
+				? ` [pièces jointes : ${payload.attachments.map((a) => a.fileName).join(", ")}]`
 				: "";
 			lignes.push(`[${horodatage}] ${auteur} : ${contenu}${pieces}`);
 		} else {

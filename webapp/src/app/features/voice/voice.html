@@ -1,0 +1,217 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Vocaux</h1>
+			<p class="subtitle">
+				Salons de création et vue en direct des vocaux occupés. Entrer dans un salon de création
+				génère un salon dédié, supprimé automatiquement une fois vide.
+			</p>
+		</div>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (live(); as etat) {
+		<section class="card-grid">
+			<app-stat-card
+				label="Salons occupés"
+				[value]="etat.channels.length"
+				icon="volume_up"
+			/>
+			<app-stat-card label="Membres en vocal" [value]="etat.totalOccupants" icon="group" />
+			<app-stat-card
+				label="Salons temporaires ouverts"
+				[value]="etat.temporaryChannels"
+				icon="auto_awesome_motion"
+			/>
+			<app-stat-card
+				label="Salons de création"
+				[value]="hubs().length"
+				[hint]="hubsSansSalon() ? hubsSansSalon() + ' à créer sur Discord' : 'Tous créés'"
+				icon="add_circle"
+			/>
+		</section>
+	}
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>En direct</mat-card-title>
+			<mat-card-subtitle>
+				@if (live(); as etat) {
+					Relevé {{ etat.checkedAt | relativeTime }}
+				}
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			@if (channels().length) {
+				<ul class="live-list">
+					@for (salon of channels(); track salon.channelId) {
+						<li>
+							<div class="live-head">
+								<mat-icon>{{ salon.locked ? 'lock' : 'volume_up' }}</mat-icon>
+								<span class="live-name">{{ salon.name }}</span>
+								@if (salon.temporary) {
+									<span class="tag" [matTooltip]="'Créé par : ' + salon.hubName">Temporaire</span>
+								}
+								<span class="spacer"></span>
+								<span class="live-count">
+									{{ salon.occupantCount }}
+									{{ salon.occupantCount > 1 ? 'personnes' : 'personne' }}
+								</span>
+							</div>
+
+							<p class="live-meta">
+								<span [matTooltip]="salon.since | frDate">
+									Ouvert {{ salon.since | relativeTime }}
+								</span>
+							</p>
+
+							<ul class="occupants">
+								@for (occupant of salon.occupants; track occupant.userId) {
+									<li [class.owner]="occupant.owner">
+										@if (occupant.owner) {
+											<mat-icon matTooltip="Propriétaire du salon">star</mat-icon>
+										}
+										{{ occupant.displayName ?? occupant.username }}
+									</li>
+								}
+							</ul>
+						</li>
+					}
+				</ul>
+			} @else if (!loading()) {
+				<p class="empty-state">Aucun salon vocal occupé actuellement.</p>
+			}
+		</mat-card-content>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Salons de création</mat-card-title>
+			<mat-card-subtitle>
+				Après toute modification, lance <code>/create_parties</code> sur Discord pour créer les
+				salons manquants.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<div class="table-scroll">
+				<table mat-table [dataSource]="hubs()">
+					<ng-container matColumnDef="name">
+						<th mat-header-cell *matHeaderCellDef>Nom</th>
+						<td mat-cell *matCellDef="let hub">{{ hub.name }}</td>
+					</ng-container>
+
+					<ng-container matColumnDef="pattern">
+						<th mat-header-cell *matHeaderCellDef>Nom des salons créés</th>
+						<td mat-cell *matCellDef="let hub"><code>{{ hub.namePattern }}</code></td>
+					</ng-container>
+
+					<ng-container matColumnDef="userLimit">
+						<th mat-header-cell *matHeaderCellDef>Places</th>
+						<td mat-cell *matCellDef="let hub">
+							{{ hub.userLimit === 0 ? 'Illimité' : hub.userLimit }}
+						</td>
+					</ng-container>
+
+					<ng-container matColumnDef="state">
+						<th mat-header-cell *matHeaderCellDef>État</th>
+						<td mat-cell *matCellDef="let hub">
+							<span class="tag" [attr.data-active]="hub.enabled">
+								{{ hub.enabled ? 'Actif' : 'Désactivé' }}
+							</span>
+							@if (hub.enabled && !hub.channelId) {
+								<span class="tag tag-warn" matTooltip="Lance /create_parties sur Discord">
+									Salon à créer
+								</span>
+							}
+							@if (hub.activeChannels) {
+								<span class="tag">{{ hub.activeChannels }} ouvert(s)</span>
+							}
+						</td>
+					</ng-container>
+
+					<ng-container matColumnDef="actions">
+						<th mat-header-cell *matHeaderCellDef></th>
+						<td mat-cell *matCellDef="let hub">
+							<div class="row-actions" *appHasPermission="Permission.VOICE_MANAGE">
+								<button
+									matIconButton
+									[matTooltip]="hub.enabled ? 'Désactiver' : 'Activer'"
+									(click)="toggleEnabled(hub)"
+								>
+									<mat-icon>{{ hub.enabled ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+								</button>
+								<button matIconButton matTooltip="Modifier" (click)="edit(hub)">
+									<mat-icon>edit</mat-icon>
+								</button>
+								<button matIconButton matTooltip="Supprimer" (click)="remove(hub)">
+									<mat-icon>delete</mat-icon>
+								</button>
+							</div>
+						</td>
+					</ng-container>
+
+					<tr mat-header-row *matHeaderRowDef="hubColumns"></tr>
+					<tr mat-row *matRowDef="let row; columns: hubColumns"></tr>
+				</table>
+			</div>
+
+			@if (hubs().length === 0) {
+				<p class="empty-state">Aucun salon de création configuré.</p>
+			}
+		</mat-card-content>
+	</mat-card>
+
+	<mat-card appearance="outlined" [formGroup]="form" *appHasPermission="Permission.VOICE_MANAGE">
+		<mat-card-header>
+			<mat-card-title>
+				{{ editingId() ? 'Modifier le salon de création' : 'Ajouter un salon de création' }}
+			</mat-card-title>
+		</mat-card-header>
+
+		<mat-card-content>
+			<div class="row">
+				<mat-form-field>
+					<mat-label>Nom du salon de création</mat-label>
+					<input matInput formControlName="name" placeholder="Partie Rapide (5v5)" />
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Nom des salons créés</mat-label>
+					<input matInput formControlName="namePattern" />
+					<mat-hint>{{ '{name}' }} et {{ '{index}' }} sont remplacés ; {{ '{index}' }} est obligatoire.</mat-hint>
+					@if (form.controls.namePattern.hasError('pattern')) {
+						<mat-error>Le gabarit doit contenir {{ '{index}' }}.</mat-error>
+					}
+				</mat-form-field>
+			</div>
+
+			<div class="row">
+				<mat-form-field>
+					<mat-label>Places (0 = illimité)</mat-label>
+					<input matInput type="number" formControlName="userLimit" min="0" max="99" />
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Ordre d'affichage</mat-label>
+					<input matInput type="number" formControlName="position" min="0" />
+				</mat-form-field>
+			</div>
+
+			<mat-slide-toggle formControlName="enabled">Salon de création actif</mat-slide-toggle>
+		</mat-card-content>
+
+		<mat-card-actions align="end">
+			@if (editingId()) {
+				<button matButton (click)="cancelEdit()">Annuler</button>
+			}
+			<button matButton="filled" [disabled]="saving()" (click)="save()">
+				{{ editingId() ? 'Enregistrer' : 'Ajouter' }}
+			</button>
+		</mat-card-actions>
+	</mat-card>
+</div>

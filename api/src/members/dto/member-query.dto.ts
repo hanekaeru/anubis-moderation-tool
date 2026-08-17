@@ -37,7 +37,7 @@ export class MemberQueryDto extends PaginationDto {
 
 	@IsOptional()
 	@Matches(/^\d{17,20}$/, {
-		message: "roleId doit etre un identifiant Discord.",
+		message: "roleId doit être un identifiant Discord.",
 	})
 	roleId?: string;
 
@@ -73,6 +73,9 @@ export class UpdateRoleTrackingDto {
 	@IsBoolean()
 	trackHistory!: boolean;
 }
+
+/** Aucun filtre pour l'instant : seule la pagination compte. */
+export class VoiceSessionQueryDto extends PaginationDto {}
 
 export class TimelineQueryDto extends PaginationDto {
 	@IsOptional()

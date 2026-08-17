@@ -201,10 +201,25 @@ export class TicketsService {
 			dto.status !== "CLOSED" &&
 			existing.status === "CLOSED";
 
+		/**
+		 * Ce que Discord doit refleter : le statut (droit d'ecriture de l'ouvreur
+		 * et embed de controle) et la categorie (affichee dans cet embed). La
+		 * priorite et l'assignation ne vivent que sur le dashboard.
+		 *
+		 * Remettre `discordSyncedAt` a `null` est ce qui replace le ticket dans la
+		 * file de `bot/src/tasks/ticketSync.ts`. Sans cela, un ticket ouvert
+		 * depuis Discord porte deja une date — posee a la creation du salon — et
+		 * une fermeture faite depuis la webapp ne quittait jamais la base.
+		 */
+		const rejouerSurDiscord =
+			(dto.status !== undefined && dto.status !== existing.status) ||
+			(dto.category !== undefined && dto.category !== existing.category);
+
 		const data: Prisma.TicketUpdateInput = {
 			...(dto.status ? { status: dto.status } : {}),
 			...(dto.priority ? { priority: dto.priority } : {}),
 			...(dto.category ? { category: dto.category } : {}),
+			...(rejouerSurDiscord ? { discordSyncedAt: null } : {}),
 			...(dto.assigneeId !== undefined
 				? {
 						assignee: dto.assigneeId
@@ -342,7 +357,7 @@ export class TicketsService {
 			where: { id: attachmentId, ticketId, ticket: { guildId: this.guild.guildId } },
 		});
 
-		if (!attachment) throw new NotFoundException("Piece jointe introuvable.");
+		if (!attachment) throw new NotFoundException("Pièce jointe introuvable.");
 
 		return attachment;
 	}

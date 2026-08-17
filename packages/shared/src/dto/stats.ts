@@ -8,11 +8,6 @@ export interface TimeSeriesPoint {
 	value: number;
 }
 
-export interface NamedSeries {
-	name: string;
-	points: TimeSeriesPoint[];
-}
-
 export interface CategoryCount {
 	key: string;
 	label: string;
@@ -53,10 +48,6 @@ export const STATS_PERIOD_LABELS: Record<StatsPeriod, string> = {
 	"90d": "90 jours",
 	"365d": "1 an",
 };
-
-export interface StatsQuery {
-	period?: StatsPeriod;
-}
 
 /** Ce qui alimente les graphiques de la fiche membre. */
 export interface MemberActivityStats {

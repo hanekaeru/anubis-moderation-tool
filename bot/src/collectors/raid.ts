@@ -8,7 +8,7 @@ import {
 	type GuildMember,
 } from "discord.js";
 import { LogChannelKey } from "@anubis/shared";
-import * as colors from "../../utils/constantes";
+import * as colors from "../utils/constantes";
 import prisma from "../prisma";
 import * as guildConfig from "./guildConfig";
 
@@ -48,9 +48,9 @@ async function alertStaff(
 
 	const embed = new EmbedBuilder()
 		.setColor(colors.danger)
-		.setTitle("🚨 Confinement anti-raid declenche")
+		.setTitle("🚨 Confinement anti-raid déclenché")
 		.setDescription(
-			`${joinCount} arrivees en ${windowSeconds}s. Salons verrouilles, verification renforcee, en attente d'action du staff.`,
+			`${joinCount} arrivées en ${windowSeconds}s. Salons verrouillés, vérification renforcée, en attente d'action du staff.`,
 		)
 		.setTimestamp();
 
@@ -141,7 +141,7 @@ export async function recordJoin(member: GuildMember): Promise<void> {
 		},
 	});
 
-	console.log(`[Raid] Confinement declenche sur ${guild.name} (${arrivals.length} arrivees).`);
+	console.log(`[Raid] Confinement déclenché sur ${guild.name} (${arrivals.length} arrivées).`);
 	await alertStaff(guild, arrivals.length, config.windowSeconds, config.alertRoleId);
 }
 
@@ -170,7 +170,7 @@ export async function applyPendingLockdowns(client: Client): Promise<void> {
 			const config = await prisma.raidConfig.findUnique({ where: { guildId: incident.guildId } });
 			await alertStaff(guild, incident.joinCount, incident.windowSeconds, config?.alertRoleId ?? null);
 		} catch (err) {
-			console.error(`[Raid] Application du confinement ${incident.id} echouee :`, err);
+			console.error(`[Raid] Application du confinement ${incident.id} échouée :`, err);
 		}
 	}
 }
@@ -202,9 +202,9 @@ export async function applyPendingResolutions(client: Client): Promise<void> {
 				data: { discordSyncedAt: new Date() },
 			});
 
-			console.log(`[Raid] Confinement ${incident.id} leve sur ${guild.name}.`);
+			console.log(`[Raid] Confinement ${incident.id} levé sur ${guild.name}.`);
 		} catch (err) {
-			console.error(`[Raid] Levee du confinement ${incident.id} echouee :`, err);
+			console.error(`[Raid] Levée du confinement ${incident.id} échouée :`, err);
 		}
 	}
 }

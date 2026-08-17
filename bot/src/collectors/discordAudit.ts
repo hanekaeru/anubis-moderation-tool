@@ -102,7 +102,7 @@ export async function chercherAction(
 			permissionSignalee.add(guild.id);
 			console.warn(
 				`[Audit] Permission "Voir le journal d'audit" absente sur ${guild.name} : ` +
-					"les sanctions posees a la main seront enregistrees sans auteur.",
+					"les sanctions posées à la main seront enregistrées sans auteur.",
 			);
 		}
 		return null;

@@ -1,7 +1,7 @@
 import { EmbedBuilder, PermissionFlagsBits, type GuildMember } from "discord.js";
 import { ACCOUNT_FLAG_TYPE_LABELS, AccountFlagType, LogChannelKey, SanctionType } from "@anubis/shared";
 import { Prisma } from "@anubis/shared/prisma";
-import * as colors from "../../utils/constantes";
+import * as colors from "../utils/constantes";
 import prisma from "../prisma";
 import * as guildConfig from "./guildConfig";
 
@@ -97,9 +97,9 @@ async function alertStaff(member: GuildMember, flags: FlagResult[]): Promise<voi
 
 	const embed = new EmbedBuilder()
 		.setColor(colors.warning)
-		.setTitle("👀 Compte a surveiller")
+		.setTitle("👀 Compte à surveiller")
 		.setDescription(
-			`${member} vient d'arriver — aucune action automatique, a verifier par le staff.`,
+			`${member} vient d'arriver — aucune action automatique, a vérifier par le staff.`,
 		)
 		.addFields(
 			flags.map((flag) => ({

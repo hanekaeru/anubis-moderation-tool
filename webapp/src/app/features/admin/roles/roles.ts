@@ -85,8 +85,8 @@ export class RolesPage {
 				this.setPending(role.id, false);
 				this.notifications.success(
 					trackHistory
-						? `Les mouvements de « ${role.name} » sont de nouveau historises.`
-						: `« ${role.name} » n'apparaitra plus dans les chronologies.`,
+						? `Les mouvements de « ${role.name} » sont de nouveau historisés.`
+						: `« ${role.name} » n'apparaîtra plus dans les chronologies.`,
 				);
 			},
 			// L'interrupteur reste sur son ancienne valeur puisque la liste n'a

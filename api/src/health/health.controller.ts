@@ -30,7 +30,7 @@ export class HealthController {
 			// 503 et non 500 : l'API repond, c'est sa dependance qui manque. La
 			// distinction est ce qui permet a une supervision de reagir correctement.
 			throw new ServiceUnavailableException(
-				"Base de donnees injoignable.",
+				"Base de données injoignable.",
 			);
 		}
 

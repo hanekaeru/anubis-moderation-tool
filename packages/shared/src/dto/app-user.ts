@@ -11,6 +11,8 @@ export interface AppUserDto {
 	discordUserId: Snowflake | null;
 	lastLoginAt: IsoDateString | null;
 	lockedUntil: IsoDateString | null;
+	/** Double authentification active : lisible, jamais modifiable a distance. */
+	twoFactorEnabled: boolean;
 	createdAt: IsoDateString;
 	createdByLabel: string | null;
 }
@@ -77,26 +79,39 @@ export interface AuditLogQuery extends PaginationQuery {
  */
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
 	"auth.login": "Connexion",
-	"auth.logout": "Deconnexion",
-	"auth.password_changed": "Mot de passe change",
-	"warning.create": "Avertissement emis",
-	"warning.revoke": "Avertissement leve",
-	"sanction.create": "Sanction appliquee",
-	"sanction.revoke": "Sanction levee",
-	"note.create": "Note ajoutee",
-	"note.update": "Note modifiee",
-	"note.delete": "Note supprimee",
-	"ticket.update": "Ticket mis a jour",
-	"ticket.close": "Ticket ferme",
+	"auth.logout": "Déconnexion",
+	"auth.password_changed": "Mot de passe changé",
+	"auth.two_factor_enabled": "Double authentification activée",
+	"auth.two_factor_disabled": "Double authentification désactivée",
+	"auth.two_factor_recovery_codes_regenerated": "Codes de secours régénérés",
+	"auth.two_factor_reset": "Double authentification réinitialisée",
+	"session.revoke": "Session révoquée",
+	"session.revoke_all": "Sessions d'un compte révoquées",
+	"embed.create": "Message composé",
+	"embed.update": "Message modifié",
+	"embed.send": "Message envoyé sur Discord",
+	"embed.delete": "Message supprimé",
+	"xp.reward.create": "Palier de récompense ajouté",
+	"xp.reward.update": "Palier de récompense modifié",
+	"xp.reward.delete": "Palier de récompense supprimé",
+	"warning.create": "Avertissement émis",
+	"warning.revoke": "Avertissement levé",
+	"sanction.create": "Sanction appliquée",
+	"sanction.revoke": "Sanction levée",
+	"note.create": "Note ajoutée",
+	"note.update": "Note modifiée",
+	"note.delete": "Note supprimée",
+	"ticket.update": "Ticket mis à jour",
+	"ticket.close": "Ticket fermé",
 	"ticket.note": "Note interne sur un ticket",
-	"appuser.create": "Compte staff cree",
-	"appuser.update": "Compte staff modifie",
-	"appuser.reset_password": "Mot de passe reinitialise",
-	"appuser.unlock": "Compte staff deverrouille",
-	"role.tracking": "Suivi de role modifie",
-	"guildconfig.create": "Configuration ajoutee",
-	"guildconfig.update": "Configuration modifiee",
-	"guildconfig.delete": "Configuration supprimee",
+	"appuser.create": "Compte staff créé",
+	"appuser.update": "Compte staff modifié",
+	"appuser.reset_password": "Mot de passe réinitialisé",
+	"appuser.unlock": "Compte staff déverrouillé",
+	"role.tracking": "Suivi de rôle modifié",
+	"guildconfig.create": "Configuration ajoutée",
+	"guildconfig.update": "Configuration modifiée",
+	"guildconfig.delete": "Configuration supprimée",
 };
 
 /** Familles d'actions, pour le filtre de l'ecran de journal. */
@@ -110,5 +125,8 @@ export const AUDIT_ACTION_GROUPS: ReadonlyArray<{
 	{ label: "Notes", prefix: "note." },
 	{ label: "Tickets", prefix: "ticket." },
 	{ label: "Comptes du staff", prefix: "appuser." },
+	{ label: "Sessions", prefix: "session." },
+	{ label: "Messages composés", prefix: "embed." },
+	{ label: "Expérience", prefix: "xp." },
 	{ label: "Configuration", prefix: "guildconfig." },
 ];

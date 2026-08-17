@@ -1,0 +1,205 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Concours</h1>
+			<p class="subtitle">
+				Les concours se jouent à la réaction. Le dashboard enregistre, le bot publie l'embed,
+				pose la réaction et tire au sort à l'échéance.
+			</p>
+		</div>
+	</header>
+
+	<mat-card appearance="outlined" *appHasPermission="Permission.GIVEAWAY_WRITE">
+		<mat-card-header>
+			<mat-card-title>
+				{{ editingId() ? 'Modifier le concours' : 'Nouveau concours' }}
+			</mat-card-title>
+			<mat-card-subtitle>
+				@if (editingId()) {
+					L'embed déjà publié sera corrigé au prochain passage du bot.
+				} @else {
+					Le concours démarre dès que le bot a publié son message.
+				}
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content [formGroup]="form">
+			<div class="row">
+				<mat-form-field class="grow">
+					<mat-label>Titre</mat-label>
+					<input matInput formControlName="title" maxlength="160" />
+				</mat-form-field>
+
+				<mat-form-field class="grow">
+					<mat-label>Lot</mat-label>
+					<input matInput formControlName="prize" maxlength="200" />
+					<mat-hint>Ce que le gagnant remporte.</mat-hint>
+				</mat-form-field>
+			</div>
+
+			<mat-form-field class="full">
+				<mat-label>Description</mat-label>
+				<textarea matInput formControlName="description" rows="3" maxlength="2000"></textarea>
+			</mat-form-field>
+
+			<mat-form-field class="full">
+				<mat-label>Image de l'embed (URL)</mat-label>
+				<input matInput formControlName="imageUrl" placeholder="https://exemple.com/lot.png" />
+				<mat-hint>Facultatif. L'image est affichée dans l'embed du concours.</mat-hint>
+				@if (form.controls.imageUrl.hasError('pattern')) {
+					<mat-error>L'adresse doit commencer par http:// ou https://.</mat-error>
+				}
+			</mat-form-field>
+
+			<div class="row">
+				<mat-form-field>
+					<mat-label>Réaction de participation</mat-label>
+					<input matInput formControlName="reactionEmoji" [placeholder]="defaultEmoji" />
+					<mat-hint>Un emoji, ou &lt;:nom:id&gt; pour un emoji du serveur.</mat-hint>
+					@if (form.controls.reactionEmoji.hasError('emoji')) {
+						<mat-error>Cet emoji n'est pas utilisable comme réaction.</mat-error>
+					}
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Nombre de gagnants</mat-label>
+					<input matInput type="number" formControlName="winnerCount" min="1" [max]="maxWinners" />
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Durée (minutes)</mat-label>
+					<input matInput type="number" formControlName="durationMinutes" min="1" />
+					<mat-hint>Comptée à partir de l'enregistrement.</mat-hint>
+				</mat-form-field>
+			</div>
+
+			<div class="row">
+				<mat-form-field class="grow">
+					<mat-label>Salon de publication</mat-label>
+					<input matInput formControlName="channelId" placeholder="123456789012345678" />
+					<mat-hint>
+						@if (editing()?.status === Status.RUNNING) {
+							Non modifiable : l'embed est déjà publié.
+						} @else {
+							Identifiant du salon Discord où publier l'embed.
+						}
+					</mat-hint>
+				</mat-form-field>
+
+				<mat-form-field class="grow">
+					<mat-label>Salon d'annonce du gagnant</mat-label>
+					<input matInput formControlName="announceChannelId" placeholder="123456789012345678" />
+					<mat-hint>Facultatif — à défaut, le salon du concours.</mat-hint>
+				</mat-form-field>
+			</div>
+		</mat-card-content>
+
+		<mat-card-actions align="end">
+			@if (editingId()) {
+				<button matButton (click)="cancelEdit()">Abandonner les modifications</button>
+			}
+			<button matButton="filled" (click)="save()" [disabled]="saving()">
+				{{ editingId() ? 'Enregistrer' : 'Lancer le concours' }}
+			</button>
+		</mat-card-actions>
+	</mat-card>
+
+	<mat-card appearance="outlined" class="list">
+		<mat-card-header>
+			<mat-card-title>Concours du serveur</mat-card-title>
+		</mat-card-header>
+
+		<mat-card-content>
+			<mat-chip-listbox class="filters" [multiple]="false">
+				<mat-chip-option [selected]="statusFilter() === null" (click)="filterBy(null)">
+					Tous
+				</mat-chip-option>
+				@for (status of statuses; track status) {
+					<mat-chip-option [selected]="statusFilter() === status" (click)="filterBy(status)">
+						{{ statusLabels[status] }}
+					</mat-chip-option>
+				}
+			</mat-chip-listbox>
+
+			@if (loading()) {
+				<mat-progress-bar mode="indeterminate" />
+			}
+
+			<ul class="giveaway-list">
+				@for (giveaway of giveaways(); track giveaway.id) {
+					<li>
+						<div class="head">
+							<span class="tag" [attr.data-status]="giveaway.status">
+								{{ statusLabels[giveaway.status] }}
+							</span>
+							<span class="name">{{ giveaway.title }}</span>
+							<span class="spacer"></span>
+
+							<span class="entries" [matTooltip]="'Participations enregistrées'">
+								<mat-icon>group</mat-icon>
+								{{ giveaway.entryCount }}
+							</span>
+						</div>
+
+						<p class="meta">
+							Lot : <strong>{{ giveaway.prize }}</strong> ·
+							{{ giveaway.winnerCount }} gagnant(s) · réaction {{ giveaway.reactionEmoji }} ·
+							salon <code>{{ giveaway.channelId }}</code>
+							@if (giveaway.announceChannelId) {
+								· annonce dans <code>{{ giveaway.announceChannelId }}</code>
+							}
+						</p>
+
+						<p class="meta">
+							@if (giveaway.status === Status.ENDED) {
+								Terminé {{ giveaway.endedAt | relativeTime }}
+							} @else if (giveaway.status === Status.CANCELLED) {
+								Annulé
+							} @else {
+								Fin {{ giveaway.endsAt | relativeTime }} ({{ giveaway.endsAt | frDate }})
+							}
+							· créé par {{ giveaway.createdBy.label }}
+							@if (!giveaway.discordSyncedAt) {
+								· <em>en attente du bot</em>
+							}
+						</p>
+
+						@if (giveaway.winners.length) {
+							<ul class="winners">
+								@for (winner of giveaway.winners; track winner.userId) {
+									<li>
+										<mat-icon>emoji_events</mat-icon>
+										{{ winner.globalName ?? winner.username }}
+									</li>
+								}
+							</ul>
+						}
+
+						<div class="row-actions" *appHasPermission="Permission.GIVEAWAY_WRITE">
+							@if (canEdit(giveaway)) {
+								<button matButton (click)="edit(giveaway)">
+									<mat-icon>edit</mat-icon>
+									Modifier
+								</button>
+								<button matButton (click)="cancel(giveaway)">
+									<mat-icon>cancel</mat-icon>
+									Annuler
+								</button>
+							}
+							@if (giveaway.status === Status.ENDED && giveaway.entryCount > 0) {
+								<button matButton (click)="reroll(giveaway)">
+									<mat-icon>casino</mat-icon>
+									Tirer à nouveau
+								</button>
+							}
+						</div>
+					</li>
+				}
+			</ul>
+
+			@if (!loading() && giveaways().length === 0) {
+				<p class="empty-state">Aucun concours pour l'instant.</p>
+			}
+		</mat-card-content>
+	</mat-card>
+</div>

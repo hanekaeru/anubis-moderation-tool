@@ -4,11 +4,18 @@ import { Router } from '@angular/router';
 import { Observable, catchError, map, of, tap } from 'rxjs';
 import type {
 	ChangePasswordRequest,
+	DisableTwoFactorRequest,
 	LoginRequest,
 	LoginResponse,
+	LoginResult,
 	Permission,
 	SessionUser,
+	TwoFactorLoginRequest,
+	TwoFactorRecoveryCodesResponse,
+	TwoFactorSetupResponse,
+	TwoFactorStatus,
 } from '@anubis/shared';
+import { isTwoFactorChallenge } from '@anubis/shared';
 
 /**
  * Etat de session du dashboard.
@@ -47,15 +54,71 @@ export class AuthService {
 		return permissions.some((permission) => granted.includes(permission));
 	}
 
-	login(credentials: LoginRequest): Observable<SessionUser> {
+	/**
+	 * Premier facteur.
+	 *
+	 * Le resultat est l'un **ou** l'autre : une session ouverte, ou un defi de
+	 * second facteur. Il est rendu tel quel a l'appelant, qui seul sait quel
+	 * ecran afficher ensuite — la session n'est appliquee que dans le premier
+	 * cas.
+	 */
+	login(credentials: LoginRequest): Observable<LoginResult> {
 		return this.http
-			.post<LoginResponse>('/api/auth/login', credentials, {
+			.post<LoginResult>('/api/auth/login', credentials, {
+				withCredentials: true,
+			})
+			.pipe(
+				tap((result) => {
+					if (!isTwoFactorChallenge(result)) this.applySession(result);
+				}),
+			);
+	}
+
+	/** Second facteur : c'est ici que la session s'ouvre pour un compte protege. */
+	completeTwoFactorLogin(request: TwoFactorLoginRequest): Observable<SessionUser> {
+		return this.http
+			.post<LoginResponse>('/api/auth/login/double-authentification', request, {
 				withCredentials: true,
 			})
 			.pipe(
 				tap((response) => this.applySession(response)),
 				map((response) => response.user),
 			);
+	}
+
+	twoFactorStatus(): Observable<TwoFactorStatus> {
+		return this.http.get<TwoFactorStatus>('/api/auth/double-authentification');
+	}
+
+	prepareTwoFactor(): Observable<TwoFactorSetupResponse> {
+		return this.http.post<TwoFactorSetupResponse>(
+			'/api/auth/double-authentification/preparation',
+			{},
+		);
+	}
+
+	enableTwoFactor(code: string): Observable<TwoFactorRecoveryCodesResponse> {
+		return this.http
+			.post<TwoFactorRecoveryCodesResponse>(
+				'/api/auth/double-authentification/activation',
+				{ code },
+			)
+			// Le profil porte `twoFactorEnabled` : sans relecture, l'en-tete et la
+			// page continueraient d'annoncer un compte non protege.
+			.pipe(tap(() => this.refreshMe().subscribe()));
+	}
+
+	disableTwoFactor(request: DisableTwoFactorRequest): Observable<void> {
+		return this.http
+			.post<void>('/api/auth/double-authentification/desactivation', request)
+			.pipe(tap(() => this.refreshMe().subscribe()));
+	}
+
+	regenerateRecoveryCodes(code: string): Observable<TwoFactorRecoveryCodesResponse> {
+		return this.http.post<TwoFactorRecoveryCodesResponse>(
+			'/api/auth/double-authentification/codes-de-secours',
+			{ code },
+		);
 	}
 
 	/**

@@ -30,6 +30,21 @@ function averagePing(): number | null {
 	return Math.round(total / pingSamples.length);
 }
 
+/**
+ * Dernier battement ecrit par l'execution precedente, ou `null` au tout premier
+ * demarrage. A lire **avant** le premier `recordHeartbeat`, qui l'ecrase.
+ *
+ * Sert de date de fin plausible a ce qui est reste ouvert pendant l'arret (voir
+ * `collectors/voice.ts`).
+ */
+export async function lastKnownHeartbeat(): Promise<Date | null> {
+	const row = await prisma.botHeartbeat.findUnique({
+		where: { id: HEARTBEAT_ID },
+		select: { lastHeartbeatAt: true },
+	});
+	return row?.lastHeartbeatAt ?? null;
+}
+
 export async function recordHeartbeat(client: Client): Promise<void> {
 	const wsPingMs = normalizePing(client.ws.ping);
 

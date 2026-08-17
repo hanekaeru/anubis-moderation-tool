@@ -64,7 +64,7 @@ export class GuildConfigService {
 
 		if (existing) {
 			throw new ConflictException(
-				`Une configuration "${dto.configName}" existe deja pour ce serveur.`,
+				`Une configuration "${dto.configName}" existe déjà pour ce serveur.`,
 			);
 		}
 

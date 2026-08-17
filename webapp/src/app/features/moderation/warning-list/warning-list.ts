@@ -98,7 +98,7 @@ export class WarningListPage {
 			title: "Lever l'avertissement",
 			message: `Avertissement visant ${warning.member.username} : ${warning.reason}`,
 			confirmLabel: 'Lever',
-			reasonLabel: 'Motif de la levee',
+			reasonLabel: 'Motif de la levée',
 		};
 
 		this.dialog
@@ -109,7 +109,7 @@ export class WarningListPage {
 
 				this.moderationApi.revokeWarning(warning.id, { reason }).subscribe({
 					next: () => {
-						this.notifications.success('Avertissement leve.');
+						this.notifications.success('Avertissement levé.');
 						this.load();
 					},
 				});

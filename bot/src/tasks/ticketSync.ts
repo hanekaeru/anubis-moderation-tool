@@ -46,7 +46,7 @@ export async function checkPendingTicketSync(client: Client): Promise<void> {
 			await syncControlMessage(channel, ticket, isClosed);
 		} catch (err) {
 			console.error(
-				`[Tickets] Synchronisation Discord du ticket ${ticket.id} echouee :`,
+				`[Tickets] Synchronisation Discord du ticket ${ticket.id} échouée :`,
 				err,
 			);
 		}

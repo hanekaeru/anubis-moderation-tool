@@ -1,0 +1,215 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Expérience</h1>
+			<p class="subtitle">
+				Classement des membres et rôles attribués automatiquement à partir d'un niveau.
+				L'expérience est comptée par le bot ; cette page la lit.
+			</p>
+		</div>
+	</header>
+
+	@if (overview(); as stats) {
+		<div class="card-grid">
+			<mat-card appearance="outlined">
+				<mat-card-content>
+					<p class="stat-label">Membres classés</p>
+					<p class="stat-value">{{ stats.rankedMemberCount }}</p>
+				</mat-card-content>
+			</mat-card>
+			<mat-card appearance="outlined">
+				<mat-card-content>
+					<p class="stat-label">Expérience cumulée</p>
+					<p class="stat-value">{{ stats.totalXp }}</p>
+				</mat-card-content>
+			</mat-card>
+			<mat-card appearance="outlined">
+				<mat-card-content>
+					<p class="stat-label">Niveau le plus élevé</p>
+					<p class="stat-value">{{ stats.highestLevel }}</p>
+				</mat-card-content>
+			</mat-card>
+			<mat-card appearance="outlined">
+				<mat-card-content>
+					<p class="stat-label">Paliers de récompense</p>
+					<p class="stat-value">{{ stats.rewards.length }}</p>
+				</mat-card-content>
+			</mat-card>
+		</div>
+	}
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Paliers de récompense</mat-card-title>
+			<mat-card-subtitle>
+				Le bot pose le rôle dès qu'un membre atteint le niveau, et rattrape les membres
+				déjà éligibles quelques minutes après l'ajout d'un palier.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			@if (rewards().length === 0) {
+				<p class="empty-state">Aucun palier réglé.</p>
+			}
+
+			<ul class="reward-list">
+				@for (reward of rewards(); track reward.id) {
+					<li>
+						<div class="reward-head">
+							<span class="level">Niveau {{ reward.level }}</span>
+							<span
+								class="role"
+								[style.border-color]="roleColor(reward)"
+								[class.unknown]="!reward.roleName"
+							>
+								{{ roleLabel(reward) }}
+							</span>
+							@if (reward.replacePrevious) {
+								<span
+									class="tag"
+									matTooltip="Les rôles des paliers inférieurs sont retirés"
+								>
+									Rang exclusif
+								</span>
+							}
+							<span class="spacer"></span>
+							<span class="meta">
+								{{ reward.eligibleMemberCount }} membre(s) éligible(s) —
+								{{ xpForLevel(reward.level) }} XP
+							</span>
+						</div>
+
+						@if (!reward.roleName) {
+							<!-- Le referentiel ne connait pas ce role : ni le bot ne pourra
+							     l'attribuer, ni personne ici ne saura de quel role il s'agit. -->
+							<p class="warn">
+								Ce rôle est introuvable sur le serveur. Le bot ne pourra pas
+								l'attribuer.
+							</p>
+						}
+
+						<div class="row-actions" *appHasPermission="Permission.XP_MANAGE">
+							<button matButton (click)="editReward(reward)">
+								<mat-icon>edit</mat-icon>
+								Modifier
+							</button>
+							<button matButton class="danger-text" (click)="removeReward(reward)">
+								<mat-icon>delete</mat-icon>
+								Supprimer
+							</button>
+						</div>
+					</li>
+				}
+			</ul>
+
+			<form
+				*appHasPermission="Permission.XP_MANAGE"
+				[formGroup]="rewardForm"
+				(ngSubmit)="saveReward()"
+				class="reward-form"
+			>
+				<mat-form-field class="grow">
+					<mat-label>Identifiant du rôle</mat-label>
+					<input matInput formControlName="roleId" required />
+					<mat-hint>Clic droit sur le rôle → Copier l'identifiant</mat-hint>
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Niveau</mat-label>
+					<input matInput type="number" formControlName="level" min="1" [max]="maxLevel" required />
+					<mat-hint>{{ xpForLevel(rewardForm.controls.level.value) }} XP</mat-hint>
+				</mat-form-field>
+
+				<mat-checkbox formControlName="replacePrevious">
+					Retirer les rôles des paliers inférieurs
+				</mat-checkbox>
+
+				<div class="actions">
+					<button matButton="filled" type="submit" [disabled]="saving()">
+						{{ editingRewardId() ? 'Enregistrer' : 'Ajouter le palier' }}
+					</button>
+					@if (editingRewardId()) {
+						<button matButton type="button" (click)="cancelRewardEdit()">Annuler</button>
+					}
+				</div>
+			</form>
+		</mat-card-content>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Classement</mat-card-title>
+		</mat-card-header>
+
+		<mat-card-content>
+			<form [formGroup]="searchForm" (ngSubmit)="applySearch()" class="search">
+				<mat-form-field class="grow">
+					<mat-label>Rechercher un membre</mat-label>
+					<input matInput formControlName="term" placeholder="Pseudo ou identifiant" />
+				</mat-form-field>
+				<button matButton="filled" type="submit">Rechercher</button>
+			</form>
+
+			@if (loading()) {
+				<mat-progress-bar mode="indeterminate" />
+			}
+
+			@if (!loading() && rows().length === 0) {
+				<p class="empty-state">Aucun membre ne correspond.</p>
+			}
+
+			<ul class="rank-list">
+				@for (row of rows(); track row.member.userId) {
+					<li>
+						<span class="rank">#{{ row.rank }}</span>
+
+						@if (row.member.avatarUrl) {
+							<img class="avatar" [src]="row.member.avatarUrl" alt="" />
+						} @else {
+							<span class="avatar placeholder">
+								<mat-icon>person</mat-icon>
+							</span>
+						}
+
+						<div class="member">
+							<span class="pseudo">
+								{{ row.member.globalName ?? row.member.username }}
+							</span>
+							<p class="meta">
+								Niveau {{ row.level }} — {{ row.xp }} XP, encore
+								{{ row.xpToNextLevel }} avant le niveau {{ row.level + 1 }}
+							</p>
+
+							<!-- La barre double le texte ci-dessus, elle ne le remplace pas :
+							     une progression lue uniquement dans une barre est perdue pour
+							     qui ne la voit pas. -->
+							<div
+								class="progress"
+								role="progressbar"
+								[attr.aria-valuenow]="row.xpIntoLevel"
+								[attr.aria-valuemin]="0"
+								[attr.aria-valuemax]="row.xpForLevel"
+							>
+								<span [style.width.%]="row.ratio * 100"></span>
+							</div>
+						</div>
+
+						@if (row.rewardRoleIds.length) {
+							<span class="tag" matTooltip="Rôles de palier mérités">
+								{{ row.rewardRoleIds.length }} rôle(s)
+							</span>
+						}
+					</li>
+				}
+			</ul>
+
+			<mat-paginator
+				[length]="total()"
+				[pageIndex]="pageIndex()"
+				[pageSize]="pageSize()"
+				[pageSizeOptions]="[10, 25, 50, 100]"
+				(page)="onPage($event)"
+			/>
+		</mat-card-content>
+	</mat-card>
+</div>

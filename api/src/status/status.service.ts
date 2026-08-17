@@ -50,7 +50,7 @@ export class StatusService {
 		if (!api.database.reachable) {
 			problems.push({
 				severity: "critical",
-				message: "Base de donnees injoignable depuis l'API.",
+				message: "Base de données injoignable depuis l'API.",
 			});
 		}
 
@@ -58,18 +58,18 @@ export class StatusService {
 			problems.push({
 				severity: "critical",
 				message:
-					"Le bot n'a jamais signale son etat : il n'a probablement jamais demarre depuis cette base.",
+					"Le bot n'a jamais signalé son état : il n'a probablement jamais démarré depuis cette base.",
 			});
 		} else if (!bot.online) {
 			problems.push({
 				severity: "critical",
 				message:
-					"Le bot est hors ligne : aucune sanction ni action posee depuis la webapp ne sera appliquee sur Discord.",
+					"Le bot est hors ligne : aucune sanction ni action posée depuis la webapp ne sera appliquée sur Discord.",
 			});
 		} else if (bot.avgPingMs !== null && bot.avgPingMs > HIGH_PING_MS) {
 			problems.push({
 				severity: "warning",
-				message: `Latence Discord elevee (${bot.avgPingMs} ms en moyenne).`,
+				message: `Latence Discord élevée (${bot.avgPingMs} ms en moyenne).`,
 			});
 		}
 
@@ -77,7 +77,7 @@ export class StatusService {
 			problems.push({
 				severity: "warning",
 				message:
-					"Un confinement anti-raid est actif : les salons concernes restent verrouilles.",
+					"Un confinement anti-raid est actif : les salons concernés restent verrouillés.",
 			});
 		}
 

@@ -55,12 +55,22 @@ async function bootstrap(): Promise<void> {
 
 	const logger = new Logger("Bootstrap");
 	logger.log(
-		`API demarree sur http://localhost:${appConfig.port}/${appConfig.globalPrefix}` +
+		`API démarrée sur http://localhost:${appConfig.port}/${appConfig.globalPrefix}` +
 			(appConfig.globalPrefix
 				? ""
-				: " (aucun prefixe : il est retire par le proxy)"),
+				: " (aucun préfixe : il est retiré par le proxy)"),
 	);
 	logger.log(`Serveur Discord administre : ${appConfig.guildId}`);
+
+	// Une desactivation oubliee apres une phase de test est exactement le genre
+	// de reglage qui survit a la mise en production sans que personne ne s'en
+	// apercoive : elle se rappelle a chaque demarrage.
+	if (!appConfig.security.twoFactorEnabled) {
+		logger.warn(
+			"TWO_FACTOR_ENABLED=false : la double authentification n'est pas demandée, " +
+				"y compris aux comptes qui l'ont activée.",
+		);
+	}
 }
 
 void bootstrap();

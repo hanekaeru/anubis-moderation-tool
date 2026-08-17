@@ -1,0 +1,329 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Messages</h1>
+			<p class="subtitle">
+				Composez un embed, choisissez le salon, envoyez. La publication appartient au
+				bot : un message envoyé ici apparaît « en attente » puis « envoyé » quelques
+				secondes plus tard.
+			</p>
+		</div>
+	</header>
+
+	@if (loading() || saving()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	<div class="composer" *appHasPermission="Permission.EMBEDS_WRITE">
+		<mat-card appearance="outlined" class="form-card">
+			<mat-card-header>
+				<mat-card-title>
+					{{ editing() ? 'Modifier « ' + editing()!.name + ' »' : 'Nouveau message' }}
+				</mat-card-title>
+				<mat-card-subtitle>
+					Le nom sert uniquement à retrouver le message dans cette liste ; il n'apparaît
+					jamais sur Discord.
+				</mat-card-subtitle>
+			</mat-card-header>
+
+			<mat-card-content>
+				<form [formGroup]="form" (ngSubmit)="save()">
+					<div class="row">
+						<mat-form-field class="grow">
+							<mat-label>Nom interne</mat-label>
+							<input matInput formControlName="name" required />
+						</mat-form-field>
+
+						<mat-form-field>
+							<mat-label>Identifiant du salon</mat-label>
+							<input matInput formControlName="channelId" required />
+							<mat-hint>Clic droit sur le salon → Copier l'identifiant</mat-hint>
+						</mat-form-field>
+					</div>
+
+					<mat-form-field class="full">
+						<mat-label>Texte hors embed</mat-label>
+						<textarea
+							matInput
+							formControlName="content"
+							rows="2"
+							placeholder="Mention de rôle, phrase d'accroche…"
+						></textarea>
+					</mat-form-field>
+
+					<div class="row">
+						<mat-form-field class="grow">
+							<mat-label>Titre</mat-label>
+							<input matInput formControlName="title" />
+						</mat-form-field>
+
+						<div class="color-field">
+							<label for="embed-color">Couleur</label>
+							<input id="embed-color" type="color" formControlName="color" />
+						</div>
+					</div>
+
+					<mat-form-field class="full">
+						<mat-label>Description</mat-label>
+						<textarea matInput formControlName="description" rows="5"></textarea>
+					</mat-form-field>
+
+					<mat-form-field class="full">
+						<mat-label>Lien du titre</mat-label>
+						<input matInput formControlName="url" placeholder="https://…" />
+						<mat-hint>Rend le titre cliquable. Sans titre, il est ignoré.</mat-hint>
+					</mat-form-field>
+
+					<div class="row">
+						<mat-form-field class="grow">
+							<mat-label>Auteur affiché</mat-label>
+							<input matInput formControlName="authorName" />
+						</mat-form-field>
+						<mat-form-field class="grow">
+							<mat-label>Icône de l'auteur</mat-label>
+							<input matInput formControlName="authorIconUrl" placeholder="https://…" />
+						</mat-form-field>
+					</div>
+
+					<div class="row">
+						<mat-form-field class="grow">
+							<mat-label>Vignette (en haut à droite)</mat-label>
+							<input matInput formControlName="thumbnailUrl" placeholder="https://…" />
+						</mat-form-field>
+						<mat-form-field class="grow">
+							<mat-label>Grande image</mat-label>
+							<input matInput formControlName="imageUrl" placeholder="https://…" />
+						</mat-form-field>
+					</div>
+
+					<div class="row">
+						<mat-form-field class="grow">
+							<mat-label>Pied de page</mat-label>
+							<input matInput formControlName="footerText" />
+						</mat-form-field>
+						<mat-form-field class="grow">
+							<mat-label>Icône du pied de page</mat-label>
+							<input matInput formControlName="footerIconUrl" placeholder="https://…" />
+						</mat-form-field>
+					</div>
+
+					<mat-checkbox formControlName="showTimestamp">
+						Afficher l'horodatage
+					</mat-checkbox>
+
+					<div class="fields-head">
+						<h3>Champs</h3>
+						<button matButton type="button" (click)="addField()">
+							<mat-icon>add</mat-icon>
+							Ajouter un champ
+						</button>
+					</div>
+
+					<div formArrayName="fields" class="fields">
+						@for (field of fields.controls; track $index) {
+							<div [formGroupName]="$index" class="field-row">
+								<mat-form-field>
+									<mat-label>Intitulé</mat-label>
+									<input matInput formControlName="name" required />
+								</mat-form-field>
+								<mat-form-field class="grow">
+									<mat-label>Valeur</mat-label>
+									<input matInput formControlName="value" required />
+								</mat-form-field>
+								<mat-checkbox formControlName="inline">Sur la même ligne</mat-checkbox>
+								<button
+									matIconButton
+									type="button"
+									matTooltip="Retirer ce champ"
+									(click)="removeField($index)"
+								>
+									<mat-icon>delete</mat-icon>
+								</button>
+							</div>
+						}
+						@if (fields.length === 0) {
+							<p class="meta">Aucun champ. Les champs affichent des paires intitulé / valeur.</p>
+						}
+					</div>
+
+					<p class="counter" [class.over]="overLimit()">
+						{{ characterCount() }} / {{ totalLimit }} caractères
+						@if (overLimit()) {
+							— Discord refusera cet embed.
+						}
+					</p>
+
+					<div class="actions">
+						<button
+							matButton="filled"
+							type="submit"
+							[disabled]="saving() || overLimit()"
+						>
+							{{ editing() ? 'Enregistrer' : 'Enregistrer le brouillon' }}
+						</button>
+						@if (editing()) {
+							<button matButton type="button" (click)="cancelEdit()">Annuler</button>
+						}
+					</div>
+				</form>
+			</mat-card-content>
+		</mat-card>
+
+		<mat-card appearance="outlined" class="preview-card">
+			<mat-card-header>
+				<mat-card-title>Aperçu</mat-card-title>
+				<mat-card-subtitle>Rendu approché ; Discord reste seul juge.</mat-card-subtitle>
+			</mat-card-header>
+
+			<mat-card-content>
+				@if (isEmpty()) {
+					<p class="empty-state">Rien à afficher pour l'instant.</p>
+				} @else {
+					<div class="discord">
+						@if (preview().content) {
+							<p class="discord-content">{{ preview().content }}</p>
+						}
+
+						<div class="embed" [style.border-left-color]="preview().color">
+							<div class="embed-body">
+								<div class="embed-text">
+									@if (preview().authorName) {
+										<div class="embed-author">
+											@if (preview().authorIconUrl) {
+												<img [src]="preview().authorIconUrl" alt="" />
+											}
+											<span>{{ preview().authorName }}</span>
+										</div>
+									}
+
+									@if (preview().title) {
+										<p class="embed-title" [class.linked]="!!preview().url">
+											{{ preview().title }}
+										</p>
+									}
+
+									@if (preview().description) {
+										<p class="embed-description">{{ preview().description }}</p>
+									}
+
+									@if (preview().fields.length) {
+										<div class="embed-fields">
+											@for (field of preview().fields; track $index) {
+												<div class="embed-field" [class.inline]="field.inline">
+													<p class="embed-field-name">{{ field.name }}</p>
+													<p class="embed-field-value">{{ field.value }}</p>
+												</div>
+											}
+										</div>
+									}
+								</div>
+
+								@if (preview().thumbnailUrl) {
+									<img class="embed-thumbnail" [src]="preview().thumbnailUrl" alt="" />
+								}
+							</div>
+
+							@if (preview().imageUrl) {
+								<img class="embed-image" [src]="preview().imageUrl" alt="" />
+							}
+
+							@if (preview().footerText || preview().showTimestamp) {
+								<div class="embed-footer">
+									@if (preview().footerIconUrl) {
+										<img [src]="preview().footerIconUrl" alt="" />
+									}
+									<span>
+										{{ preview().footerText }}
+										@if (preview().footerText && preview().showTimestamp) {
+											&nbsp;•&nbsp;
+										}
+										@if (preview().showTimestamp) {
+											aujourd'hui
+										}
+									</span>
+								</div>
+							}
+						</div>
+					</div>
+				}
+			</mat-card-content>
+		</mat-card>
+	</div>
+
+	<mat-card appearance="outlined" class="filters">
+		<mat-card-content>
+			<div class="row">
+				<button matButton [class.active]="statusFilter() === null" (click)="filterBy(null)">
+					Tous
+				</button>
+				@for (status of statuses; track status) {
+					<button
+						matButton
+						[class.active]="statusFilter() === status"
+						(click)="filterBy(status)"
+					>
+						{{ statusLabels[status] }}
+					</button>
+				}
+			</div>
+		</mat-card-content>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-content>
+			@if (!loading() && messages().length === 0) {
+				<p class="empty-state">Aucun message enregistré.</p>
+			}
+
+			<ul class="message-list">
+				@for (message of messages(); track message.id) {
+					<li>
+						<div class="head">
+							<span class="name">{{ message.name }}</span>
+							<span class="tag" [attr.data-status]="message.status">
+								{{ statusLabels[message.status] }}
+							</span>
+							<span class="spacer"></span>
+							<span class="meta">{{ message.updatedAt | relativeTime }}</span>
+						</div>
+
+						<p class="meta">
+							Salon <code>{{ message.channelId }}</code> — par
+							{{ message.createdBy.label }}, le {{ message.createdAt | frDate }}
+							@if (message.sentAt) {
+								— publié le {{ message.sentAt | frDate }}
+							}
+						</p>
+
+						@if (message.status === Status.QUEUED) {
+							<p class="meta pending">
+								En attente du bot — la publication a lieu dans les secondes qui suivent.
+							</p>
+						}
+
+						@if (message.lastError; as error) {
+							<p class="failure">Discord a refusé l'envoi : {{ error }}</p>
+						}
+
+						<div class="row-actions" *appHasPermission="Permission.EMBEDS_WRITE">
+							<button matButton (click)="edit(message)">
+								<mat-icon>edit</mat-icon>
+								Modifier
+							</button>
+							@if (message.status !== Status.QUEUED) {
+								<button matButton (click)="send(message)">
+									<mat-icon>send</mat-icon>
+									{{ message.messageId ? 'Republier' : 'Envoyer' }}
+								</button>
+							}
+							<button matButton class="danger-text" (click)="remove(message)">
+								<mat-icon>delete</mat-icon>
+								Supprimer
+							</button>
+						</div>
+					</li>
+				}
+			</ul>
+		</mat-card-content>
+	</mat-card>
+</div>

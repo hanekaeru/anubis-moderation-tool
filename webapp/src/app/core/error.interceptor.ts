@@ -11,7 +11,7 @@ export function readApiError(error: unknown): string {
 	}
 
 	if (error.status === 0) {
-		return "L'API est injoignable. Verifiez qu'elle est demarree.";
+		return "L'API est injoignable. Vérifiez qu'elle est démarrée.";
 	}
 
 	const body = error.error as Partial<ApiErrorBody> | null;

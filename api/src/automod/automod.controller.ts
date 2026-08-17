@@ -30,7 +30,7 @@ export class AutomodController {
 		@CurrentUser() actor: AuthenticatedUser,
 	): Promise<AutomodRuleDto> {
 		if (!Object.values(AutomodRuleType).includes(type as AutomodRuleType)) {
-			throw new BadRequestException("Type de regle inconnu.");
+			throw new BadRequestException("Type de règle inconnu.");
 		}
 		return this.automod.upsertRule(type as AutomodRuleType, dto, actor);
 	}

@@ -26,12 +26,12 @@
             {{ statusLabels[data.status] }}
           </span>
           <span class="dot">·</span>
-          Arrive le {{ data.joinedAt | frDate }}
+          Arrivé le {{ data.joinedAt | frDate }}
           <span class="dot">·</span>
-          Compte cree le {{ data.accountCreatedAt | frDate }}
+          Compte crée le {{ data.accountCreatedAt | frDate }}
           @if (data.joinCount > 1) {
           <span class="dot">·</span>
-          {{ data.joinCount }} arrivees successives
+          {{ data.joinCount }} arrivées successives
           }
         </p>
 
@@ -64,7 +64,7 @@
     <mat-card-content>
       <mat-icon>person_search</mat-icon>
       <div>
-        <strong>Signalements de securite</strong>
+        <strong>Signalements de sécurité</strong>
         <p>
           @for (flag of accountFlags(); track flag.id; let last = $last) {
           {{ accountFlagLabels[flag.type] }}{{ last ? '' : ', ' }}
@@ -76,12 +76,34 @@
   </mat-card>
   }
 
+  @if (data.moderationScore.risk !== 'CLEAN') {
+  <mat-card appearance="outlined" class="score-banner" [attr.data-risk]="data.moderationScore.risk">
+    <mat-card-content>
+      <mat-icon>{{ data.moderationScore.risk === 'CRITICAL' ? 'gpp_bad' : 'gpp_maybe' }}</mat-icon>
+      <div>
+        <strong>{{ riskLabels[data.moderationScore.risk] }}</strong>
+        <p>
+          {{ data.moderationScore.total }} point(s) actifs —
+          {{ data.moderationScore.warnings }} d'avertissements,
+          {{ data.moderationScore.sanctions }} de sanctions.
+          @if (data.moderationScore.risk === 'WATCH') {
+          Seuil problématique à {{ data.moderationScore.criticalThreshold }}.
+          }
+        </p>
+      </div>
+      <a matButton routerLink="/bareme-de-points">Barème</a>
+    </mat-card-content>
+  </mat-card>
+  }
+
   <section class="card-grid counters">
+    <app-stat-card label="Score de modération" [value]="data.moderationScore.total"
+      [hint]="scoreHint(data.moderationScore)" icon="scale" />
     <app-stat-card label="Avertissements" [value]="data.counters.warnings"
       [hint]="data.counters.activeWarnings + ' en cours'" icon="flag" />
     <app-stat-card label="Sanctions" [value]="data.counters.sanctions"
       [hint]="data.counters.activeSanctions + ' en cours'" icon="gavel" />
-    <app-stat-card label="Messages" [value]="data.counters.messagesTotal" hint="Depuis le debut du suivi" icon="chat" />
+    <app-stat-card label="Messages" [value]="data.counters.messagesTotal" hint="Depuis le début du suivi" icon="chat" />
     <app-stat-card label="Temps en vocal" [value]="data.counters.voiceMinutesTotal * 60 | duration" icon="mic" />
     <app-stat-card label="XP" [value]="data.xp" icon="military_tech" />
     <app-stat-card label="Tickets ouverts" [value]="data.counters.ticketsOpened" icon="confirmation_number" />
@@ -115,7 +137,7 @@
           }
         </ol>
         } @else {
-        <p class="empty-state">Aucun evenement enregistre pour ce membre.</p>
+        <p class="empty-state">Aucun événement enregistré pour ce membre.</p>
         }
       </div>
     </mat-tab>
@@ -127,11 +149,11 @@
             <mat-form-field class="full">
               <mat-label>Nouvelle note</mat-label>
               <textarea matInput rows="3" formControlName="body" maxlength="4000"
-                placeholder="Observation interne, contexte, decision prise..."></textarea>
+                placeholder="Observation interne, contexte, décision prise..."></textarea>
             </mat-form-field>
 
             <div class="note-form-actions">
-              <mat-slide-toggle formControlName="pinned">Epingler</mat-slide-toggle>
+              <mat-slide-toggle formControlName="pinned">Épingler</mat-slide-toggle>
               <button matButton="filled" type="submit" [disabled]="savingNote()">Ajouter</button>
             </div>
           </form>
@@ -150,11 +172,11 @@
                 {{ note.createdAt | relativeTime }}
               </span>
               @if (note.pinned) {
-              <mat-icon class="pin-icon" matTooltip="Note epinglee">push_pin</mat-icon>
+              <mat-icon class="pin-icon" matTooltip="Note épinglée">push_pin</mat-icon>
               }
               <span class="spacer"></span>
               @if (note.canEdit) {
-              <button matIconButton [attr.aria-label]="note.pinned ? 'Desepingler' : 'Epingler'"
+              <button matIconButton [attr.aria-label]="note.pinned ? 'Désépingler' : 'Épingler'"
                 (click)="togglePin(note)">
                 <mat-icon>push_pin</mat-icon>
               </button>
@@ -181,11 +203,11 @@
           <li [class.inactive]="!warning.isActive">
             <div class="record-head">
               <span class="record-title">
-                Gravite : {{ severityLabels[warning.severity] }} ·
+                Gravité : {{ severityLabels[warning.severity] }} ·
                 {{ warning.points }} point(s)
               </span>
               @if (!warning.isActive) {
-              <span class="tag">Levee</span>
+              <span class="tag">Levée</span>
               }
               <span class="spacer"></span>
               @if (warning.isActive) {
@@ -203,9 +225,27 @@
               </span>
               @if (warning.revokeReason) {
               <span class="dot">·</span>
-              Levee : {{ warning.revokeReason }}
+              Levée : {{ warning.revokeReason }}
               }
             </p>
+            <div class="attachments">
+              @for (attachment of warning.attachments; track attachment.id) {
+              <app-moderation-attachment kind="warnings" [targetId]="warning.id" [attachment]="attachment"
+                [removable]="canWrite(Permission.WARNINGS_WRITE)"
+                (remove)="removeAttachment('warnings', warning.id, $event)" />
+              }
+              <button matButton *appHasPermission="Permission.WARNINGS_WRITE"
+                [disabled]="uploadingFor() === warning.id" (click)="pickAttachment('warnings', warning.id)">
+                <mat-icon>attach_file</mat-icon>
+                Joindre
+              </button>
+              <button matButton *appHasPermission="Permission.WARNINGS_WRITE"
+                matTooltip="Masquée sur la fiche tant que le staff ne l'affiche pas"
+                [disabled]="uploadingFor() === warning.id" (click)="pickAttachment('warnings', warning.id, true)">
+                <mat-icon>visibility_off</mat-icon>
+                Joindre (sensible)
+              </button>
+            </div>
           </li>
           }
         </ul>
@@ -228,8 +268,8 @@
                 sanction.status === 'ACTIVE'
                 ? 'En cours'
                 : sanction.status === 'REVOKED'
-                ? 'Levee'
-                : 'Terminee'
+                ? 'Levée'
+                : 'Terminée'
                 }}
               </span>
               <span class="spacer"></span>
@@ -243,7 +283,7 @@
             <p class="record-meta">
               {{ sanction.issuedBy.label }}
               <span class="dot">·</span>
-              Duree : {{ sanction.durationSeconds | duration: 'Permanent' }}
+              Durée : {{ sanction.durationSeconds | duration: 'Permanent' }}
               <span class="dot">·</span>
               <span [matTooltip]="sanction.createdAt | frDate">
                 {{ sanction.createdAt | relativeTime }}
@@ -255,6 +295,24 @@
               Preuve
             </a>
             }
+            <div class="attachments">
+              @for (attachment of sanction.attachments; track attachment.id) {
+              <app-moderation-attachment kind="sanctions" [targetId]="sanction.id" [attachment]="attachment"
+                [removable]="canWrite(Permission.SANCTIONS_WRITE)"
+                (remove)="removeAttachment('sanctions', sanction.id, $event)" />
+              }
+              <button matButton *appHasPermission="Permission.SANCTIONS_WRITE"
+                [disabled]="uploadingFor() === sanction.id" (click)="pickAttachment('sanctions', sanction.id)">
+                <mat-icon>attach_file</mat-icon>
+                Joindre
+              </button>
+              <button matButton *appHasPermission="Permission.SANCTIONS_WRITE"
+                matTooltip="Masquée sur la fiche tant que le staff ne l'affiche pas"
+                [disabled]="uploadingFor() === sanction.id" (click)="pickAttachment('sanctions', sanction.id, true)">
+                <mat-icon>visibility_off</mat-icon>
+                Joindre (sensible)
+              </button>
+            </div>
           </li>
           }
         </ul>
@@ -264,11 +322,45 @@
       </div>
     </mat-tab>
 
-    <mat-tab label="Activite">
+    <mat-tab [label]="'Sessions vocales (' + voiceSessions().length + ')'">
+      <div class="tab-body">
+        @if (voiceSessions().length) {
+        <ul class="records">
+          @for (session of voiceSessions(); track session.id) {
+          <li [class.inactive]="!session.ongoing">
+            <div class="record-head">
+              <span class="record-title">{{ session.channelName ?? 'Salon supprimé' }}</span>
+              @if (session.ongoing) {
+              <span class="tag tag-active">En cours</span>
+              }
+              <span class="spacer"></span>
+              <span class="record-title">{{ session.durationSeconds | duration }}</span>
+            </div>
+            <p class="record-meta">
+              <span [matTooltip]="session.joinedAt | frDate">
+                Arrivée {{ session.joinedAt | relativeTime }}
+              </span>
+              @if (session.leftAt) {
+              <span class="dot">·</span>
+              <span [matTooltip]="session.leftAt | frDate">
+                Départ {{ session.leftAt | relativeTime }}
+              </span>
+              }
+            </p>
+          </li>
+          }
+        </ul>
+        } @else {
+        <p class="empty-state">Aucune session vocale enregistrée.</p>
+        }
+      </div>
+    </mat-tab>
+
+    <mat-tab label="Activité">
       <div class="tab-body">
         <div class="activity-header">
           <mat-button-toggle-group [value]="activityPeriod()" (change)="changeActivityPeriod($event.value)"
-            aria-label="Periode analysee">
+            aria-label="Période analysée">
             @for (value of periods; track value) {
             <mat-button-toggle [value]="value">{{ periodLabels[value] }}</mat-button-toggle>
             }
@@ -289,14 +381,14 @@
             [hasData]="hasVoice()" />
           <app-chart-card title="Canaux les plus actifs" [options]="channelsChart()"
             [hasData]="stats.messagesByChannel.length > 0" />
-          <app-chart-card title="Repartition par heure" subtitle="Cumul depuis le debut du suivi (UTC)"
+          <app-chart-card title="Répartition par heure" subtitle="Cumul depuis le début du suivi (UTC)"
             [options]="hoursChart()" [hasData]="hasHeatmap()" />
           <app-chart-card class="wide" title="Rythme hebdomadaire"
             subtitle="Messages par jour de semaine et par heure (UTC)" [options]="heatmapChart()" [height]="320"
             [hasData]="hasHeatmap()" />
         </section>
         } @else {
-        <p class="empty-state">Aucune donnee d'activite disponible.</p>
+        <p class="empty-state">Aucune donnée d'activité disponible.</p>
         }
       </div>
     </mat-tab>

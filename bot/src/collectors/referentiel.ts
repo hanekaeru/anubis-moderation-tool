@@ -307,7 +307,7 @@ export async function garantirContexte(
 		contexteConnu.add(cle);
 		return true;
 	} catch (err) {
-		console.error("[Referentiel] Contexte non garanti :", err);
+		console.error("[Référentiel] Contexte non garanti :", err);
 		return false;
 	}
 }
@@ -321,7 +321,7 @@ export async function garantirContexte(
  */
 export async function synchroniserServeur(guild: Guild): Promise<void> {
 	const debut = Date.now();
-	console.log(`[Referentiel] Synchronisation de ${guild.name}...`);
+	console.log(`[Référentiel] Synchronisation de ${guild.name}...`);
 
 	await upsertGuild(guild);
 
@@ -346,8 +346,8 @@ export async function synchroniserServeur(guild: Guild): Promise<void> {
 		}
 	} catch (err) {
 		console.error(
-			"[Referentiel] Membres non recuperes. Activez l'intent privilegie " +
-			'"Server Members" dans le portail developpeur Discord, puis ajoutez ' +
+			"[Référentiel] Membres non récupérés. Activez l'intent privilégié " +
+			'"Server Members" dans le portail développeur Discord, puis ajoutez ' +
 			"GatewayIntentBits.GuildMembers aux intents du client.",
 			err instanceof Error ? err.message : err,
 		);
@@ -369,12 +369,12 @@ export async function synchroniserServeur(guild: Guild): Promise<void> {
 			data: { status: MemberStatus.LEFT, leftAt: new Date() },
 		});
 		if (count > 0) {
-			console.log(`[Referentiel] ${count} depart(s) rattrape(s).`);
+			console.log(`[Référentiel] ${count} départ(s) rattrape(s).`);
 		}
 	}
 
 	console.log(
-		`[Referentiel] ${guild.name} : ${roles.size} role(s), ${salons.size} salon(s), ` +
+		`[Référentiel] ${guild.name} : ${roles.size} rôle(s), ${salons.size} salon(s), ` +
 		`${membresSynchronises} membre(s) en ${Date.now() - debut} ms.`,
 	);
 }

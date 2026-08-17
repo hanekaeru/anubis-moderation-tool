@@ -292,10 +292,10 @@ class CollecteurActivite {
 			]);
 
 			console.log(
-				`[Activite] ${stats.length} agregat(s) et ${profils.length} creneau(x) enregistre(s).`,
+				`[Activité] ${stats.length} agrégat(s) et ${profils.length} créneau(x) enregistré(s).`,
 			);
 		} catch (err) {
-			console.error("[Activite] Erreur lors de la sauvegarde BDD :", err);
+			console.error("[Activité] Erreur lors de la sauvegarde BDD :", err);
 			this.restaurer(stats, profils);
 		} finally {
 			this.enCours = false;

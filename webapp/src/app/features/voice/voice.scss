@@ -1,0 +1,137 @@
+mat-card + mat-card {
+	margin-top: 16px;
+}
+
+mat-card-content {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding-top: 8px;
+}
+
+.card-grid {
+	margin-bottom: 16px;
+}
+
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+
+	mat-form-field {
+		flex: 1;
+		min-width: 220px;
+	}
+}
+
+.live-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+
+	> li {
+		padding: 12px 14px;
+		border: 1px solid var(--mat-sys-outline-variant);
+		border-radius: 12px;
+	}
+}
+
+.live-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+
+	mat-icon {
+		color: var(--mat-sys-on-surface-variant);
+	}
+}
+
+.live-name {
+	font-weight: 600;
+}
+
+.live-count {
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.85rem;
+	white-space: nowrap;
+}
+
+.live-meta {
+	margin: 4px 0 0;
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.8rem;
+}
+
+.occupants {
+	list-style: none;
+	margin: 10px 0 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+
+	li {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 10px;
+		border-radius: 999px;
+		background: var(--mat-sys-surface-variant);
+		font-size: 0.8rem;
+	}
+
+	li.owner {
+		background: var(--mat-sys-primary-container);
+		color: var(--mat-sys-on-primary-container);
+	}
+
+	mat-icon {
+		font-size: 14px;
+		width: 14px;
+		height: 14px;
+	}
+}
+
+.spacer {
+	flex: 1;
+}
+
+.row-actions {
+	display: flex;
+	gap: 2px;
+}
+
+code {
+	padding: 1px 5px;
+	border-radius: 4px;
+	background: var(--mat-sys-surface-variant);
+	font-size: 0.85em;
+}
+
+.tag {
+	display: inline-block;
+	margin-right: 4px;
+	padding: 2px 10px;
+	border-radius: 999px;
+	font-size: 0.8rem;
+	background: var(--mat-sys-surface-variant);
+
+	&[data-active='true'] {
+		background: var(--mat-sys-primary-container);
+		color: var(--mat-sys-on-primary-container);
+	}
+
+	&.tag-warn {
+		background: var(--mat-sys-error-container);
+		color: var(--mat-sys-on-error-container);
+	}
+}
+
+.empty-state {
+	padding: 24px;
+	text-align: center;
+	color: var(--mat-sys-on-surface-variant);
+}

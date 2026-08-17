@@ -1,0 +1,226 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Double authentification</h1>
+			<p class="subtitle">
+				Un code temporel demandé à chaque connexion, en plus du mot de passe.
+			</p>
+		</div>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (recoveryCodes(); as codes) {
+		<mat-card appearance="outlined" class="codes-card">
+			<mat-card-content>
+				<div class="codes-head">
+					<mat-icon>key</mat-icon>
+					<div>
+						<h2>Codes de secours</h2>
+						<p>
+							Notez-les maintenant : ils ne seront plus jamais affichés. Chacun ne
+							sert qu'une fois, et ils sont votre seule issue si vous perdez votre
+							téléphone.
+						</p>
+					</div>
+				</div>
+
+				<ul class="codes">
+					@for (code of codes; track code) {
+						<li><code>{{ code }}</code></li>
+					}
+				</ul>
+
+				<div class="actions">
+					<button matButton="filled" type="button" (click)="copyCodes()">
+						<mat-icon>content_copy</mat-icon>
+						Copier
+					</button>
+					<button matButton type="button" (click)="dismissCodes()">
+						Je les ai notés
+					</button>
+				</div>
+			</mat-card-content>
+		</mat-card>
+	}
+
+	@if (errorMessage(); as message) {
+		<p class="error" role="alert">{{ message }}</p>
+	}
+
+	@if (unavailable()) {
+		<mat-card appearance="outlined">
+			<mat-card-content>
+				<div class="state off">
+					<mat-icon>gpp_maybe</mat-icon>
+					<div>
+						<strong>Désactivée sur ce serveur</strong>
+						<p class="meta">
+							La double authentification n'est pas demandée à la connexion, et ne
+							peut pas être configurée. C'est un réglage de déploiement
+							(<code>TWO_FACTOR_ENABLED</code>), pas un choix de votre compte.
+						</p>
+						@if (enabled()) {
+							<!-- Le secret existe toujours en base : le dire evite de croire
+							     qu'il faudra tout reconfigurer au retour. -->
+							<p class="meta">
+								Votre configuration est conservée : elle reprendra effet dès que la
+								double authentification sera réactivée sur le serveur, sans que
+								vous ayez à rescanner quoi que ce soit.
+							</p>
+						}
+					</div>
+				</div>
+			</mat-card-content>
+		</mat-card>
+	} @else if (!loading() && status(); as state) {
+		@if (state.enabled) {
+			<mat-card appearance="outlined">
+				<mat-card-content>
+					<div class="state on">
+						<mat-icon>verified_user</mat-icon>
+						<div>
+							<strong>Protection active</strong>
+							<p class="meta">
+								Activée le {{ state.enabledAt | frDate }} —
+								{{ state.remainingRecoveryCodes }} code(s) de secours restant(s).
+							</p>
+						</div>
+					</div>
+
+					@if (state.remainingRecoveryCodes <= 2) {
+						<p class="warn">
+							Il vous reste très peu de codes de secours. Générez-en de nouveaux tant
+							que vous avez accès à votre application.
+						</p>
+					}
+				</mat-card-content>
+			</mat-card>
+
+			<mat-card appearance="outlined">
+				<mat-card-header>
+					<mat-card-title>Régénérer les codes de secours</mat-card-title>
+					<mat-card-subtitle>
+						Les codes précédents cessent immédiatement de fonctionner.
+					</mat-card-subtitle>
+				</mat-card-header>
+				<mat-card-content>
+					<form [formGroup]="regenerateForm" (ngSubmit)="regenerate()" class="inline-form">
+						<mat-form-field>
+							<mat-label>Code de votre application</mat-label>
+							<input matInput formControlName="code" autocomplete="one-time-code" required />
+						</mat-form-field>
+						<button matButton="filled" type="submit" [disabled]="busy()">
+							Générer
+						</button>
+					</form>
+				</mat-card-content>
+			</mat-card>
+
+			<mat-card appearance="outlined">
+				<mat-card-header>
+					<mat-card-title>Désactiver</mat-card-title>
+					<mat-card-subtitle>
+						Mot de passe et code sont tous deux requis : c'est aussi difficile que de
+						se connecter.
+					</mat-card-subtitle>
+				</mat-card-header>
+				<mat-card-content>
+					<form [formGroup]="disableForm" (ngSubmit)="disable()" class="inline-form">
+						<mat-form-field>
+							<mat-label>Mot de passe</mat-label>
+							<input
+								matInput
+								type="password"
+								formControlName="password"
+								autocomplete="current-password"
+								required
+							/>
+						</mat-form-field>
+						<mat-form-field>
+							<mat-label>Code ou code de secours</mat-label>
+							<input matInput formControlName="code" autocomplete="one-time-code" required />
+						</mat-form-field>
+						<button matButton="filled" type="submit" class="danger" [disabled]="busy()">
+							Désactiver
+						</button>
+					</form>
+				</mat-card-content>
+			</mat-card>
+		} @else if (setup(); as configuration) {
+			<mat-card appearance="outlined">
+				<mat-card-header>
+					<mat-card-title>Scannez ce code</mat-card-title>
+					<mat-card-subtitle>
+						Google Authenticator, Aegis, 1Password, Bitwarden — n'importe quelle
+						application de codes temporels convient.
+					</mat-card-subtitle>
+				</mat-card-header>
+				<mat-card-content>
+					<div class="setup">
+						<img
+							[src]="configuration.qrCodeDataUri"
+							alt="QR code de configuration de la double authentification"
+							width="240"
+							height="240"
+						/>
+
+						<div class="setup-details">
+							<p class="meta">
+								Si vous ne pouvez pas scanner, saisissez cette clé à la main :
+							</p>
+							<code class="secret">{{ configuration.secret }}</code>
+
+							<form [formGroup]="activationForm" (ngSubmit)="enable()" class="inline-form">
+								<mat-form-field>
+									<mat-label>Code affiché par l'application</mat-label>
+									<input
+										matInput
+										formControlName="code"
+										autocomplete="one-time-code"
+										inputmode="numeric"
+										required
+									/>
+									@if (
+										activationForm.controls.code.touched &&
+										activationForm.controls.code.invalid
+									) {
+										<mat-error>Code à {{ codeLength }} chiffres requis.</mat-error>
+									}
+								</mat-form-field>
+								<button matButton="filled" type="submit" [disabled]="busy()">
+									Activer
+								</button>
+								<button matButton type="button" (click)="cancelSetup()">Annuler</button>
+							</form>
+						</div>
+					</div>
+				</mat-card-content>
+			</mat-card>
+		} @else {
+			<mat-card appearance="outlined">
+				<mat-card-content>
+					<div class="state off">
+						<mat-icon>gpp_maybe</mat-icon>
+						<div>
+							<strong>Protection inactive</strong>
+							<p class="meta">
+								Votre mot de passe est le seul obstacle à une connexion sur votre
+								compte.
+							</p>
+						</div>
+					</div>
+
+					<div class="actions">
+						<button matButton="filled" type="button" (click)="prepare()" [disabled]="busy()">
+							<mat-icon>shield</mat-icon>
+							Activer la double authentification
+						</button>
+					</div>
+				</mat-card-content>
+			</mat-card>
+		}
+	}
+</div>

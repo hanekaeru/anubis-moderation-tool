@@ -38,7 +38,7 @@ export class PasswordChangeGuard implements CanActivate {
 		if (autorisee) return true;
 
 		throw new ForbiddenException(
-			"Mot de passe provisoire : changez-le avant d acceder au reste de l application.",
+			"Mot de passe provisoire : changez-le avant d'accéder au reste de l'application.",
 		);
 	}
 }

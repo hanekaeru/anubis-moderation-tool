@@ -1,0 +1,206 @@
+mat-card + mat-card,
+.card-grid + mat-card {
+	margin-top: 16px;
+}
+
+mat-card-content {
+	padding-top: 8px;
+}
+
+.stat-label {
+	margin: 0;
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.8rem;
+}
+
+.stat-value {
+	margin: 4px 0 0;
+	font-size: 1.6rem;
+	font-weight: 600;
+	letter-spacing: -0.02em;
+}
+
+.spacer {
+	flex: 1;
+}
+
+.meta {
+	margin: 4px 0 0;
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.8rem;
+}
+
+.warn {
+	margin: 8px 0 0;
+	padding: 8px 10px;
+	border-radius: 8px;
+	background: var(--mat-sys-error-container);
+	color: var(--mat-sys-on-error-container);
+	font-size: 0.82rem;
+}
+
+/* --- Paliers --------------------------------------------------------------- */
+
+.reward-list {
+	list-style: none;
+	margin: 0 0 16px;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+
+	> li {
+		padding: 12px 14px;
+		border: 1px solid var(--mat-sys-outline-variant);
+		border-radius: 12px;
+	}
+}
+
+.reward-head {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.level {
+	font-weight: 600;
+}
+
+/* La couleur du role est reprise en bordure, jamais en fond : un role tres
+   clair ou tres sombre rendrait le libelle illisible dans l'un des deux
+   themes. */
+.role {
+	display: inline-block;
+	padding: 2px 10px;
+	border: 2px solid var(--mat-sys-outline);
+	border-radius: 999px;
+	font-size: 0.85rem;
+
+	&.unknown {
+		border-style: dashed;
+		color: var(--mat-sys-on-surface-variant);
+	}
+}
+
+.tag {
+	display: inline-block;
+	padding: 2px 10px;
+	border-radius: 999px;
+	font-size: 0.78rem;
+	background: var(--mat-sys-surface-variant);
+	white-space: nowrap;
+}
+
+.reward-form,
+.search {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 12px;
+	margin-top: 8px;
+
+	mat-form-field {
+		min-width: 160px;
+	}
+
+	mat-form-field.grow {
+		flex: 1;
+		min-width: 240px;
+	}
+
+	mat-checkbox,
+	button {
+		margin-top: 12px;
+	}
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.row-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 10px;
+}
+
+/* --- Classement ------------------------------------------------------------ */
+
+.rank-list {
+	list-style: none;
+	margin: 8px 0 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+
+	> li {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 14px;
+		border: 1px solid var(--mat-sys-outline-variant);
+		border-radius: 12px;
+	}
+}
+
+.rank {
+	min-width: 48px;
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	color: var(--mat-sys-on-surface-variant);
+}
+
+.avatar {
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	object-fit: cover;
+	flex-shrink: 0;
+}
+
+.avatar.placeholder {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--mat-sys-surface-variant);
+	color: var(--mat-sys-on-surface-variant);
+}
+
+.member {
+	flex: 1;
+	min-width: 0;
+}
+
+.pseudo {
+	font-weight: 500;
+}
+
+.progress {
+	margin-top: 6px;
+	height: 6px;
+	border-radius: 999px;
+	background: var(--mat-sys-surface-variant);
+	overflow: hidden;
+
+	span {
+		display: block;
+		height: 100%;
+		background: var(--mat-sys-primary);
+	}
+}
+
+.danger-text {
+	color: var(--mat-sys-error);
+}
+
+.empty-state {
+	padding: 24px;
+	text-align: center;
+	color: var(--mat-sys-on-surface-variant);
+}

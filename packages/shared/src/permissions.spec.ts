@@ -1,5 +1,6 @@
 import { AppUserRole } from "./enums";
 import {
+	OWNER_ONLY_PERMISSIONS,
 	Permission,
 	ROLE_RANK,
 	permissionsForRole,
@@ -30,6 +31,17 @@ describe("permissionsForRole", () => {
 	it("OWNER possede toutes les permissions declarees", () => {
 		const owner = permissionsForRole(AppUserRole.OWNER);
 		expect(new Set(owner)).toEqual(new Set(Object.values(Permission)));
+	});
+
+	// Ce que ADMIN herite est cumulatif : ajouter une permission a la matrice
+	// sans y penser la distribuerait a tous les administrateurs. Ce test rend
+	// l'oubli visible pour les droits qui ne doivent revenir qu'au proprietaire.
+	it("n'accorde a ADMIN aucune permission reservee au proprietaire", () => {
+		const admin = permissionsForRole(AppUserRole.ADMIN);
+
+		for (const permission of OWNER_ONLY_PERMISSIONS) {
+			expect(admin).not.toContain(permission);
+		}
 	});
 });
 

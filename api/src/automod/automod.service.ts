@@ -1,9 +1,13 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import type { AutomodRule, Prisma } from "@anubis/shared/prisma";
 import {
 	AutomodAction,
 	AutomodRuleType,
+	DEFAULT_AUTOMOD_ACTIONS,
 	DEFAULT_AUTOMOD_SETTINGS,
+	MAX_WORD_FILTER_PATTERNS,
+	MAX_WORD_FILTER_WORDS,
+	validateWordFilterPatterns,
 	type AutomodIncidentDto,
 	type AutomodRuleDto,
 	type AutomodRuleSettings,
@@ -39,15 +43,23 @@ export class AutomodService {
 		};
 	}
 
-	/** Virtuelle : une regle jamais enregistree, affichee avec ses valeurs par defaut. */
+	/**
+	 * Virtuelle : une regle jamais enregistree, affichee avec ses valeurs par
+	 * defaut.
+	 *
+	 * `enabled` reste `false` quoi qu'il arrive : les defauts pre-remplissent le
+	 * formulaire, ils n'activent jamais une regle sans decision explicite.
+	 */
 	private defaultDto(type: AutomodRuleType): AutomodRuleDto {
+		const { action, timeoutSeconds } = DEFAULT_AUTOMOD_ACTIONS[type];
+
 		return {
 			id: "",
 			guildId: this.guild.guildId,
 			type,
 			enabled: false,
-			action: AutomodAction.LOG_ONLY,
-			timeoutSeconds: null,
+			action,
+			timeoutSeconds,
 			settings: DEFAULT_AUTOMOD_SETTINGS[type],
 			exemptRoleIds: [],
 			updatedAt: new Date(0).toISOString(),
@@ -66,12 +78,47 @@ export class AutomodService {
 		);
 	}
 
+	/**
+	 * Le filtre de mots est la seule regle dont les reglages peuvent bloquer le
+	 * bot : une expression a explosion combinatoire fige la boucle d'evenements
+	 * pour tout le serveur, et rien cote bot ne peut l'interrompre une fois
+	 * partie. Le refus se fait donc ici, a l'ecriture, pas a l'usage.
+	 */
+	private validateWordFilter(settings: Record<string, unknown>): void {
+		const words = Array.isArray(settings.words) ? settings.words : [];
+		if (words.length > MAX_WORD_FILTER_WORDS) {
+			throw new BadRequestException(
+				`Le filtre accepte au maximum ${MAX_WORD_FILTER_WORDS} mots.`,
+			);
+		}
+
+		const patterns = Array.isArray(settings.patterns) ? settings.patterns : [];
+		if (patterns.length > MAX_WORD_FILTER_PATTERNS) {
+			throw new BadRequestException(
+				`Le filtre accepte au maximum ${MAX_WORD_FILTER_PATTERNS} expressions régulières.`,
+			);
+		}
+
+		const issues = validateWordFilterPatterns(patterns.map(String));
+		if (issues.length) {
+			throw new BadRequestException(
+				`Expression(s) refusée(s) : ${issues
+					.map((issue) => `« ${issue.pattern} » (${issue.reason})`)
+					.join(", ")}.`,
+			);
+		}
+	}
+
 	async upsertRule(
 		type: AutomodRuleType,
 		dto: UpdateAutomodRuleDto,
 		actor: AuthenticatedUser,
 	): Promise<AutomodRuleDto> {
 		const guildId = this.guild.guildId;
+
+		if (type === "WORD_FILTER" && dto.settings) {
+			this.validateWordFilter(dto.settings);
+		}
 
 		const existing = await this.prisma.automodRule.findUnique({
 			where: { guildId_type: { guildId, type } },

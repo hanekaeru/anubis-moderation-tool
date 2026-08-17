@@ -9,7 +9,7 @@ import {
 	type TextChannel,
 } from "discord.js";
 import { TICKET_TRANSCRIPT_CHANNEL_CONFIG_KEY } from "@anubis/shared";
-import * as colors from "../../utils/constantes";
+import * as colors from "./constantes";
 import * as guildConfig from "../collectors/guildConfig";
 
 /**
@@ -72,7 +72,7 @@ export async function ensureTranscriptChannel(guild: Guild): Promise<TextChannel
 		guild.id,
 		TICKET_TRANSCRIPT_CHANNEL_CONFIG_KEY,
 		channel.id,
-		"Salon d'archive des transcripts de tickets supprimes.",
+		"Salon d'archive des transcripts de tickets supprimés.",
 	);
 
 	return channel;
@@ -111,15 +111,15 @@ export function openEmbed(
 	return new EmbedBuilder()
 		.setColor(colors.info)
 		.setTitle(`Ticket #${number} — ${categoryLabel}`)
-		.setDescription(`Bienvenue <@${openerId}>, l'equipe va prendre en charge ta demande.`)
+		.setDescription(`Bienvenue <@${openerId}>, l'équipe va prendre en charge ta demande.`)
 		.setTimestamp();
 }
 
 export function closedEmbed(number: number, categoryLabel: string): EmbedBuilder {
 	return new EmbedBuilder()
 		.setColor(colors.warning)
-		.setTitle(`Ticket #${number} — ${categoryLabel} (ferme)`)
-		.setDescription("Ce ticket est ferme. Un membre du staff peut le rouvrir ou le supprimer.")
+		.setTitle(`Ticket #${number} — ${categoryLabel} (fermé)`)
+		.setDescription("Ce ticket est fermé. Un membre du staff peut le rouvrir ou le supprimer.")
 		.setTimestamp();
 }
 

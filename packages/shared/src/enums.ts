@@ -108,6 +108,7 @@ export type AppUserRole = (typeof AppUserRole)[keyof typeof AppUserRole];
 
 export const AutomodRuleType = {
 	SPAM_RATE: "SPAM_RATE",
+	ATTACHMENT_SPAM: "ATTACHMENT_SPAM",
 	MASS_MENTIONS: "MASS_MENTIONS",
 	LINKS_INVITES: "LINKS_INVITES",
 	WORD_FILTER: "WORD_FILTER",
@@ -124,6 +125,16 @@ export const AutomodAction = {
 } as const;
 export type AutomodAction = (typeof AutomodAction)[keyof typeof AutomodAction];
 
+export const WikiCategory = {
+	SANCTIONS: "SANCTIONS",
+	BEHAVIOR: "BEHAVIOR",
+	PROCEDURES: "PROCEDURES",
+	TOOLS: "TOOLS",
+	ONBOARDING: "ONBOARDING",
+	OTHER: "OTHER",
+} as const;
+export type WikiCategory = (typeof WikiCategory)[keyof typeof WikiCategory];
+
 export const AccountFlagType = {
 	NEW_ACCOUNT: "NEW_ACCOUNT",
 	DEFAULT_AVATAR: "DEFAULT_AVATAR",
@@ -133,6 +144,24 @@ export const AccountFlagType = {
 } as const;
 export type AccountFlagType =
 	(typeof AccountFlagType)[keyof typeof AccountFlagType];
+
+export const GiveawayStatus = {
+	SCHEDULED: "SCHEDULED",
+	RUNNING: "RUNNING",
+	ENDED: "ENDED",
+	CANCELLED: "CANCELLED",
+} as const;
+export type GiveawayStatus =
+	(typeof GiveawayStatus)[keyof typeof GiveawayStatus];
+
+export const EmbedMessageStatus = {
+	DRAFT: "DRAFT",
+	QUEUED: "QUEUED",
+	SENT: "SENT",
+	FAILED: "FAILED",
+} as const;
+export type EmbedMessageStatus =
+	(typeof EmbedMessageStatus)[keyof typeof EmbedMessageStatus];
 
 /** Libelles francais, pour ne pas les repeter dans chaque composant. */
 export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
@@ -144,8 +173,8 @@ export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
 
 export const SANCTION_STATUS_LABELS: Record<SanctionStatus, string> = {
 	ACTIVE: "En cours",
-	EXPIRED: "Terminee",
-	REVOKED: "Levee",
+	EXPIRED: "Terminée",
+	REVOKED: "Levée",
 };
 
 export const WARNING_SEVERITY_LABELS: Record<WarningSeverity, string> = {
@@ -191,6 +220,7 @@ export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
 
 export const AUTOMOD_RULE_TYPE_LABELS: Record<AutomodRuleType, string> = {
 	SPAM_RATE: "Débit de messages",
+	ATTACHMENT_SPAM: "Envoi répété d'images",
 	MASS_MENTIONS: "Mentions massives",
 	LINKS_INVITES: "Liens et invitations",
 	WORD_FILTER: "Filtre de mots",
@@ -200,6 +230,8 @@ export const AUTOMOD_RULE_TYPE_LABELS: Record<AutomodRuleType, string> = {
 
 export const AUTOMOD_RULE_TYPE_DESCRIPTIONS: Record<AutomodRuleType, string> = {
 	SPAM_RATE: "Trop de messages en peu de temps de la part d'un même membre.",
+	ATTACHMENT_SPAM:
+		"Trop d'images ou de pièces jointes en peu de temps de la part d'un même membre.",
 	MASS_MENTIONS: "Trop de mentions (membres ou rôles) dans un seul message.",
 	LINKS_INVITES: "Liens ou invitations Discord non autorisés.",
 	WORD_FILTER: "Mots ou expressions interdits sur le serveur.",
@@ -221,6 +253,54 @@ export const ACCOUNT_FLAG_TYPE_LABELS: Record<AccountFlagType, string> = {
 	JOINED_AFTER_BAN: "Arrivée juste après un bannissement",
 };
 
+export const GIVEAWAY_STATUS_LABELS: Record<GiveawayStatus, string> = {
+	SCHEDULED: "Programmé",
+	RUNNING: "En cours",
+	ENDED: "Terminé",
+	CANCELLED: "Annulé",
+};
+
+export const EMBED_MESSAGE_STATUS_LABELS: Record<EmbedMessageStatus, string> = {
+	DRAFT: "Brouillon",
+	QUEUED: "En attente d'envoi",
+	SENT: "Envoyé",
+	FAILED: "Échec",
+};
+
+export const WIKI_CATEGORY_LABELS: Record<WikiCategory, string> = {
+	SANCTIONS: "Sanctions",
+	BEHAVIOR: "Comportement",
+	PROCEDURES: "Procédures",
+	TOOLS: "Outils",
+	ONBOARDING: "Prise de poste",
+	OTHER: "Divers",
+};
+
+/**
+ * Ordre d'affichage des categories du wiki.
+ *
+ * L'ordre de declaration de l'enum ne fait pas foi cote base : c'est celui-ci
+ * qui range les sections de la page, du plus consulte au plus annexe.
+ */
+export const WIKI_CATEGORY_ORDER: WikiCategory[] = [
+	WikiCategory.SANCTIONS,
+	WikiCategory.BEHAVIOR,
+	WikiCategory.PROCEDURES,
+	WikiCategory.TOOLS,
+	WikiCategory.ONBOARDING,
+	WikiCategory.OTHER,
+];
+
+/** Icone Material par categorie, partagee par la liste et la fiche. */
+export const WIKI_CATEGORY_ICONS: Record<WikiCategory, string> = {
+	SANCTIONS: "gavel",
+	BEHAVIOR: "diversity_3",
+	PROCEDURES: "checklist",
+	TOOLS: "build",
+	ONBOARDING: "school",
+	OTHER: "article",
+};
+
 /**
  * Cles `config_name` reservees pour les salons de logs, ecrites par
  * `/create_logs` (bot) et affichees par la page Logs (dashboard).
@@ -234,6 +314,7 @@ export const LogChannelKey = {
 	MEMBERS: "LOG_CHANNEL_MEMBERS",
 	MESSAGES: "LOG_CHANNEL_MESSAGES",
 	SERVER: "LOG_CHANNEL_SERVER",
+	VOICE: "LOG_CHANNEL_VOICE",
 } as const;
 export type LogChannelKey = (typeof LogChannelKey)[keyof typeof LogChannelKey];
 
@@ -242,6 +323,7 @@ export const LOG_CHANNEL_LABELS: Record<LogChannelKey, string> = {
 	LOG_CHANNEL_MEMBERS: "Journal des membres",
 	LOG_CHANNEL_MESSAGES: "Journal des messages",
 	LOG_CHANNEL_SERVER: "Journal du serveur",
+	LOG_CHANNEL_VOICE: "Journal des vocaux",
 };
 
 export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
@@ -249,7 +331,9 @@ export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
 		"Avertissements, sanctions et actions de modération.",
 	LOG_CHANNEL_MEMBERS: "Arrivées et départs de membres.",
 	LOG_CHANNEL_MESSAGES: "Messages édités ou supprimés.",
-	LOG_CHANNEL_SERVER: "Salons et roles crées, modifiés ou supprimés.",
+	LOG_CHANNEL_SERVER: "Salons et rôles créés, modifiés ou supprimés.",
+	LOG_CHANNEL_VOICE:
+		"Salons vocaux temporaires : créations, arrivées, départs, propriété et signalements.",
 };
 
 /**

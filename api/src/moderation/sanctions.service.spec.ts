@@ -3,6 +3,7 @@ import type { AuditService } from "../audit/audit.service";
 import type { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
 import type { PrismaService } from "../prisma/prisma.service";
+import type { ModerationPointsService } from "./moderation-points.service";
 import type { CreateSanctionDto, RevokeDto } from "./dto/moderation.dto";
 import { SanctionsService } from "./sanctions.service";
 
@@ -31,6 +32,7 @@ const SANCTION_ROW = {
 	warningId: null,
 	evidenceUrl: null,
 	createdAt: new Date("2026-01-01T00:00:00.000Z"),
+	attachments: [],
 	user: { id: "250902879667879937", username: "member", globalName: null, avatarUrl: null },
 	moderator: null,
 	createdBy: { id: "app-1", displayName: "Mod" },
@@ -55,7 +57,18 @@ function makeService(prismaOverrides: Record<string, unknown> = {}) {
 	const guild = { guildId: "guild-1" } as unknown as GuildContextService;
 	const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
 
-	return { service: new SanctionsService(prisma, guild, audit), prisma, audit };
+	// Bareme fige : les tests portent sur la logique de sanction, pas sur la
+	// lecture du bareme, qui a ses propres tests.
+	const points = {
+		pointsForSanction: jest.fn().mockResolvedValue(3),
+	} as unknown as ModerationPointsService;
+
+	return {
+		service: new SanctionsService(prisma, guild, audit, points),
+		prisma,
+		audit,
+		points,
+	};
 }
 
 function createDto(overrides: Partial<CreateSanctionDto> = {}): CreateSanctionDto {
@@ -238,6 +251,35 @@ describe("SanctionsService.revoke", () => {
 		);
 		expect(audit.record).toHaveBeenCalledWith(
 			expect.objectContaining({ action: "sanction.revoke" }),
+		);
+	});
+
+	it("remet discordSyncedAt a null pour que le bot rejoue la levee", async () => {
+		// Une sanction posee par `/mute` ou ingeree du journal d'audit Discord
+		// porte deja une date de synchronisation. Sans cette remise a zero, la
+		// levee n'entrait jamais dans `findUnsyncedRevokedSanctions` : le timeout
+		// restait en place sur Discord alors que la webapp l'affichait comme levee.
+		const update = jest.fn().mockResolvedValue({ ...SANCTION_ROW, status: "REVOKED" });
+		const { service } = makeService({
+			sanction: {
+				findFirst: jest.fn().mockResolvedValue({
+					...SANCTION_ROW,
+					discordSyncedAt: new Date("2026-08-15T10:00:00.000Z"),
+				}),
+				findMany: jest.fn(),
+				count: jest.fn(),
+				create: jest.fn(),
+				update,
+				updateMany: jest.fn(),
+			},
+		});
+
+		await service.revoke("sanction-1", revokeDto(), ACTOR);
+
+		expect(update).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ discordSyncedAt: null }),
+			}),
 		);
 	});
 });

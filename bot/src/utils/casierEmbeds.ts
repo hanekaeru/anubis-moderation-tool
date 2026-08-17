@@ -14,7 +14,7 @@ import {
 	formatDurationSeconds,
 } from "@anubis/shared";
 import type { Casier, CasierEntry } from "../collectors/casier";
-import { danger, info, warning } from "../../utils/constantes";
+import { danger, info, warning } from "./constantes";
 
 /**
  * Rendu du casier : un seul embed par page, une entree par champ.
@@ -114,13 +114,13 @@ function champSanction(
 	const lignes = [
 		tronquer(s.reason, coupe),
 		`**Par** ${auteur(s.moderator, s.createdBy)} le ${horodatage(s.startsAt)}` +
-			` · **Duree** ${formatDurationSeconds(s.durationSeconds)}` +
+			` · **Durée** ${formatDurationSeconds(s.durationSeconds)}` +
 			(s.expiresAt ? ` · **Echeance** ${horodatage(s.expiresAt)}` : ""),
 	];
 
 	const statut = [`**Statut** ${SANCTION_STATUS_LABELS[s.status]}`];
 	if (s.revokedAt) {
-		statut.push(`levee le ${horodatage(s.revokedAt)}`);
+		statut.push(`levée le ${horodatage(s.revokedAt)}`);
 		if (s.revokedBy) statut.push(`par ${s.revokedBy.displayName}`);
 		if (s.revokeReason) statut.push(`— ${tronquer(s.revokeReason, 100)}`);
 	}
@@ -151,7 +151,7 @@ function champAvertissement(
 	];
 
 	const statut = [
-		`**Statut** ${actif ? "En cours" : w.revokedAt ? "Leve" : "Expire"}`,
+		`**Statut** ${actif ? "En cours" : w.revokedAt ? "Levé" : "Expiré"}`,
 	];
 	if (w.revokedAt) {
 		statut.push(`le ${horodatage(w.revokedAt)}`);
@@ -178,12 +178,12 @@ function champNote(
 			// `updatedAt` bouge a chaque ecriture : ne le signaler que s'il s'ecarte
 			// reellement de la creation, sinon toute note paraitrait modifiee.
 			(n.updatedAt.getTime() - n.createdAt.getTime() > 1000
-				? ` · **Modifiee** ${horodatage(n.updatedAt)}`
+				? ` · **Modifiée** ${horodatage(n.updatedAt)}`
 				: ""),
 	];
 
 	return {
-		name: `${EMOJI.NOTE} Note${n.pinned ? " epinglee" : ""} · ${dateCourte(n.createdAt)}`,
+		name: `${EMOJI.NOTE} Note${n.pinned ? " épinglée" : ""} · ${dateCourte(n.createdAt)}`,
 		value: ecreter(lignes.join("\n"), MAX_VALEUR_CHAMP),
 		inline: false,
 	};
@@ -229,12 +229,12 @@ function enTete(casier: Casier): string {
 		`${EMOJI.SANCTION} **${sanctions}** sanction(s) · ` +
 			`${EMOJI.WARNING} **${warnings}** avertissement(s) · ` +
 			`${EMOJI.NOTE} **${notes}** note(s)`,
-		`-# ${casier.entries.length} entree(s), de la plus recente a la plus ancienne.`,
+		`-# ${casier.entries.length} entrée(s), de la plus récente a la plus ancienne.`,
 	];
 
 	if (casier.truncated) {
 		lignes.push(
-			"-# Casier volumineux : seules les entrees les plus recentes sont affichees.",
+			"-# Casier volumineux : seules les entrées les plus récentes sont affichées.",
 		);
 	}
 

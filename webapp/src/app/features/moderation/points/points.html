@@ -1,0 +1,121 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Barème de points</h1>
+			<p class="subtitle">
+				Le poids de chaque décision dans le score affiché sur la fiche d'un membre.
+			</p>
+		</div>
+	</header>
+
+	<mat-card appearance="outlined" class="explain">
+		<mat-card-content>
+			<mat-icon>info</mat-icon>
+			<p>
+				Le barème ne vaut que pour la suite : chaque avertissement et chaque sanction copie son
+				poids au moment où il est prononcé, puis le garde. Modifier ces valeurs ne rejoue donc
+				pas le passé — les scores déjà calculés ne bougeront pas, seules les décisions à venir
+				suivront le nouveau barème.
+			</p>
+		</mat-card-content>
+	</mat-card>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	<form [formGroup]="form" (ngSubmit)="save()">
+		<div class="grid">
+			<mat-card appearance="outlined">
+				<mat-card-header>
+					<mat-card-title>Avertissements</mat-card-title>
+					<mat-card-subtitle>Par gravité</mat-card-subtitle>
+				</mat-card-header>
+				<mat-card-content>
+					@for (severity of severities; track severity) {
+						<mat-form-field>
+							<mat-label>{{ severityLabels[severity] }}</mat-label>
+							<input matInput type="number" [formControlName]="severity" min="0" max="100" />
+							<span matTextSuffix>pt</span>
+						</mat-form-field>
+					}
+				</mat-card-content>
+			</mat-card>
+
+			<mat-card appearance="outlined">
+				<mat-card-header>
+					<mat-card-title>Sanctions</mat-card-title>
+					<mat-card-subtitle>Par type</mat-card-subtitle>
+				</mat-card-header>
+				<mat-card-content>
+					@for (type of sanctionTypes; track type) {
+						<mat-form-field>
+							<mat-label>{{ sanctionLabels[type] }}</mat-label>
+							<input matInput type="number" [formControlName]="type" min="0" max="100" />
+							<span matTextSuffix>pt</span>
+						</mat-form-field>
+					}
+				</mat-card-content>
+			</mat-card>
+
+			<mat-card appearance="outlined">
+				<mat-card-header>
+					<mat-card-title>Seuils</mat-card-title>
+					<mat-card-subtitle>Ce qui fait basculer une fiche</mat-card-subtitle>
+				</mat-card-header>
+				<mat-card-content>
+					<mat-form-field>
+						<mat-label>À surveiller à partir de</mat-label>
+						<input matInput type="number" formControlName="warnThreshold" min="1" />
+						<span matTextSuffix>pt</span>
+					</mat-form-field>
+
+					<mat-form-field>
+						<mat-label>Problématique à partir de</mat-label>
+						<input matInput type="number" formControlName="criticalThreshold" min="1" />
+						<span matTextSuffix>pt</span>
+					</mat-form-field>
+
+					@if (thresholdsInverted()) {
+						<p class="warn-inline">
+							<mat-icon>warning</mat-icon>
+							Le seuil « problématique » est sous le seuil « à surveiller » : toute fiche qui
+							atteint l'un atteindra l'autre, et sera signalée comme problématique.
+						</p>
+					}
+				</mat-card-content>
+			</mat-card>
+		</div>
+
+		<mat-card appearance="outlined" class="preview">
+			<mat-card-header>
+				<mat-card-title>Ce que ça déclenche</mat-card-title>
+				<mat-card-subtitle>
+					Avec le barème ci-dessus, pour un membre qui n'a rien d'autre à son actif
+				</mat-card-subtitle>
+			</mat-card-header>
+			<mat-card-content>
+				<ul class="preview-list">
+					@for (row of preview(); track row.label) {
+						<li>
+							<span class="case">{{ row.label }}</span>
+							<span class="score">{{ row.score }} pt</span>
+							<span class="tag" [class]="'risk-' + row.risk">{{ riskLabels[row.risk] }}</span>
+						</li>
+					}
+				</ul>
+			</mat-card-content>
+		</mat-card>
+
+		<div class="actions" *appHasPermission="Permission.MODERATION_POINTS_CONFIGURE">
+			<button
+				matButton="filled"
+				type="submit"
+				[disabled]="form.invalid || form.pristine || saving()"
+			>
+				<mat-icon>save</mat-icon>
+				Enregistrer le barème
+			</button>
+		</div>
+	</form>
+</div>

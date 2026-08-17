@@ -23,7 +23,7 @@ export class CreateAppUserDto {
 	@MaxLength(USERNAME_MAX_LENGTH)
 	@Matches(new RegExp(USERNAME_PATTERN), {
 		message:
-			"L identifiant ne peut contenir que des lettres, chiffres, points, tirets et underscores.",
+			"L'identifiant ne peut contenir que des lettres, chiffres, points, tirets et underscores.",
 	})
 	username!: string;
 
@@ -39,7 +39,7 @@ export class CreateAppUserDto {
 	@IsOptional()
 	@IsString()
 	@MinLength(PASSWORD_MIN_LENGTH, {
-		message: `Le mot de passe doit faire au moins ${PASSWORD_MIN_LENGTH} caracteres.`,
+		message: `Le mot de passe doit faire au moins ${PASSWORD_MIN_LENGTH} caractères.`,
 	})
 	@MaxLength(200)
 	password?: string;

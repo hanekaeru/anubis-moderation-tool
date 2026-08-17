@@ -12,12 +12,12 @@
 				</a>
 				<h1>#{{ data.number }} — {{ data.subject }}</h1>
 				<p class="subtitle">
-					Categorie {{ categoryLabels[data.category] }}
+					Catégorie {{ categoryLabels[data.category] }}
 					<span class="dot">·</span>
 					Ouvert {{ data.openedAt | relativeTime }}
 					@if (data.closedAt) {
 						<span class="dot">·</span>
-						Ferme {{ data.closedAt | relativeTime }}
+						Fermé {{ data.closedAt | relativeTime }}
 					}
 				</p>
 			</div>
@@ -66,7 +66,7 @@
 							}
 						</ol>
 					} @else {
-						<p class="empty-state">Aucun evenement enregistre sur ce ticket.</p>
+						<p class="empty-state">Aucun événement enregistré sur ce ticket.</p>
 					}
 
 					<div *appHasPermission="Permission.TICKETS_WRITE" class="note-form">
@@ -78,7 +78,7 @@
 									rows="3"
 									formControlName="body"
 									maxlength="4000"
-									placeholder="Visible du staff uniquement, jamais envoyee sur Discord"
+									placeholder="Visible du staff uniquement, jamais envoyée sur Discord"
 								></textarea>
 							</mat-form-field>
 							<div class="note-actions">
@@ -108,7 +108,7 @@
 							</mat-form-field>
 
 							<mat-form-field class="full">
-								<mat-label>Priorite</mat-label>
+								<mat-label>Priorité</mat-label>
 								<mat-select
 									[value]="data.priority"
 									(selectionChange)="changePriority($event.value)"
@@ -133,7 +133,7 @@
 								</a>
 							</dd>
 
-							<dt>Assigne a</dt>
+							<dt>Assigné à</dt>
 							<dd>
 								@if (data.assignee) {
 									<app-member-avatar
@@ -143,11 +143,11 @@
 										[size]="28"
 									/>
 								} @else {
-									<span class="muted">Non assigne</span>
+									<span class="muted">Non assigné</span>
 								}
 							</dd>
 
-							<dt>Premiere reponse</dt>
+							<dt>Première réponse</dt>
 							<dd>
 								@if (data.firstResponseSeconds !== null) {
 									{{ data.firstResponseSeconds | duration }}
@@ -156,7 +156,7 @@
 								}
 							</dd>
 
-							<dt>Duree de traitement</dt>
+							<dt>Durée de traitement</dt>
 							<dd>
 								@if (resolutionLabel() !== null) {
 									{{ resolutionLabel() | duration }}
@@ -166,7 +166,7 @@
 							</dd>
 
 							@if (data.closedBy) {
-								<dt>Ferme par</dt>
+								<dt>Fermé par</dt>
 								<dd>{{ data.closedBy.label }}</dd>
 							}
 

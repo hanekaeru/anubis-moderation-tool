@@ -3,8 +3,10 @@ import {
 	AUTOMOD_RULE_TYPE_LABELS,
 	AutomodAction,
 	AutomodRuleType,
+	DEFAULT_SPAM_TIMEOUT_SECONDS,
 	LogChannelKey,
 	SanctionType,
+	type AttachmentSpamSettings,
 	type AutomodRuleSettings,
 	type ExcessiveCapsSettings,
 	type LinksInvitesSettings,
@@ -14,7 +16,7 @@ import {
 	type WordFilterSettings,
 } from "@anubis/shared";
 import { Prisma } from "@anubis/shared/prisma";
-import * as colors from "../../utils/constantes";
+import * as colors from "../utils/constantes";
 import prisma from "../prisma";
 import * as guildConfig from "./guildConfig";
 import * as moderation from "./moderation";
@@ -38,6 +40,8 @@ interface RuleRow {
 	timeoutSeconds: number | null;
 	settings: AutomodRuleSettings;
 	exemptRoleIds: string[];
+	/** Sert de cle de cache aux expressions compilees du filtre de mots. */
+	updatedAt: Date;
 }
 
 const rulesCache = new Map<string, { rules: RuleRow[]; expiresAt: number }>();
@@ -55,6 +59,7 @@ async function getEnabledRules(guildId: string): Promise<RuleRow[]> {
 		timeoutSeconds: row.timeoutSeconds,
 		settings: row.settings as unknown as AutomodRuleSettings,
 		exemptRoleIds: row.exemptRoleIds,
+		updatedAt: row.updatedAt,
 	}));
 
 	rulesCache.set(guildId, { rules, expiresAt: Date.now() + RULES_CACHE_TTL_MS });
@@ -64,6 +69,12 @@ async function getEnabledRules(guildId: string): Promise<RuleRow[]> {
 // Buffers memoire pour les regles a fenetre glissante / a etat.
 /** `${guildId}:${userId}` -> horodatages des derniers messages, pour SPAM_RATE. */
 const spamBuffer = new Map<string, number[]>();
+/**
+ * `${guildId}:${userId}` -> horodatages des dernieres pieces jointes, pour
+ * ATTACHMENT_SPAM. Un envoi de dix images pose dix horodatages : le seuil porte
+ * sur les fichiers, pas sur les messages.
+ */
+const attachmentBuffer = new Map<string, number[]>();
 /** `${guildId}:${userId}` -> dernier message + nombre de repetitions, pour REPETITION. */
 const lastMessageByUser = new Map<string, { content: string; count: number }>();
 
@@ -93,6 +104,54 @@ function checkSpamRate(message: Message<true>, rule: RuleRow): Trigger | null {
 	if (timestamps.length > settings.messageThreshold) {
 		return { rule, details: { count: timestamps.length, windowSeconds: settings.windowSeconds } };
 	}
+	return null;
+}
+
+/**
+ * Envoi repete d'images ou de pieces jointes.
+ *
+ * Distincte de `SPAM_RATE` parce que les deux ne voient pas la meme chose :
+ * dix images postees en un seul message ne comptent que pour un message, et
+ * passeraient donc sous un seuil de debit. C'est pourtant la forme la plus
+ * courante d'inondation d'un salon.
+ *
+ * Les integrations d'images (`message.embeds` d'un lien direct vers un
+ * fichier) comptent aussi : sans elles, coller dix liens d'images echapperait
+ * a la regle tout en produisant exactement le meme resultat a l'ecran.
+ */
+function checkAttachmentSpam(message: Message<true>, rule: RuleRow): Trigger | null {
+	const settings = rule.settings as AttachmentSpamSettings;
+
+	const attachments = [...message.attachments.values()].filter((attachment) =>
+		settings.imagesOnly ? Boolean(attachment.contentType?.startsWith("image/")) : true,
+	);
+
+	const embedImages = message.embeds.filter(
+		(embed) => embed.image ?? embed.thumbnail ?? embed.data.type === "image",
+	);
+
+	const posted = attachments.length + embedImages.length;
+	if (posted === 0) return null;
+
+	const key = `${message.guild.id}:${message.author.id}`;
+	const now = Date.now();
+	const windowMs = settings.windowSeconds * 1000;
+
+	const timestamps = (attachmentBuffer.get(key) ?? []).filter((t) => now - t < windowMs);
+	for (let index = 0; index < posted; index += 1) timestamps.push(now);
+	attachmentBuffer.set(key, timestamps);
+
+	if (timestamps.length > settings.attachmentThreshold) {
+		return {
+			rule,
+			details: {
+				count: timestamps.length,
+				windowSeconds: settings.windowSeconds,
+				imagesOnly: settings.imagesOnly,
+			},
+		};
+	}
+
 	return null;
 }
 
@@ -128,11 +187,56 @@ function checkLinksInvites(message: Message<true>, rule: RuleRow): Trigger | nul
 	return null;
 }
 
+/**
+ * Expressions compilees, par regle.
+ *
+ * Compiler a chaque message coute cher pour rien : le jeu ne change qu'a
+ * l'enregistrement de la regle. La cle inclut la date de mise a jour, ce qui
+ * fait tomber l'entree d'elle-meme des que le dashboard modifie le filtre —
+ * sans quoi le bot garderait l'ancien jeu jusqu'a son redemarrage.
+ */
+const patternsCache = new Map<string, RegExp[]>();
+
+function compiledPatterns(rule: RuleRow): RegExp[] {
+	const settings = rule.settings as WordFilterSettings;
+	const cle = `${rule.id}:${rule.updatedAt.getTime()}`;
+
+	const enCache = patternsCache.get(cle);
+	if (enCache) return enCache;
+
+	const compilees: RegExp[] = [];
+	for (const pattern of settings.patterns ?? []) {
+		try {
+			compilees.push(new RegExp(pattern, "iu"));
+		} catch {
+			// L'API refuse deja les expressions invalides : n'en arriver ici
+			// signifie qu'une ligne a ete ecrite hors de l'API. On l'ignore
+			// plutot que de laisser une regle casser tout le filtre.
+			console.warn(`[Automod] Expression ignorée (invalide) : ${pattern}`);
+		}
+	}
+
+	patternsCache.clear();
+	patternsCache.set(cle, compilees);
+	return compilees;
+}
+
 function checkWordFilter(message: Message<true>, rule: RuleRow): Trigger | null {
 	const settings = rule.settings as WordFilterSettings;
 	const content = message.content.toLowerCase();
+
 	const matched = settings.words.find((word) => word && content.includes(word.toLowerCase()));
-	return matched ? { rule, details: { matched } } : null;
+	if (matched) return { rule, details: { matched, via: "mot" } };
+
+	for (const pattern of compiledPatterns(rule)) {
+		// `lastIndex` n'a pas a etre remis a zero : les expressions sont
+		// compilees sans le drapeau `g`, elles ne conservent pas de position.
+		if (pattern.test(message.content)) {
+			return { rule, details: { matched: pattern.source, via: "expression" } };
+		}
+	}
+
+	return null;
 }
 
 function checkExcessiveCaps(message: Message<true>, rule: RuleRow): Trigger | null {
@@ -172,6 +276,7 @@ function checkRepetition(message: Message<true>, rule: RuleRow): Trigger | null 
 
 const CHECKS: Record<AutomodRuleType, (message: Message<true>, rule: RuleRow) => Trigger | null> = {
 	SPAM_RATE: checkSpamRate,
+	ATTACHMENT_SPAM: checkAttachmentSpam,
 	MASS_MENTIONS: checkMassMentions,
 	LINKS_INVITES: checkLinksInvites,
 	WORD_FILTER: checkWordFilter,
@@ -190,7 +295,7 @@ async function alertStaff(message: Message<true>, trigger: Trigger): Promise<voi
 		.setColor(colors.warning)
 		.setTitle(`Automod — ${AUTOMOD_RULE_TYPE_LABELS[trigger.rule.type]}`)
 		.setDescription(`${message.author} dans ${message.channel} — action : ${trigger.rule.action}`)
-		.addFields({ name: "Message", value: message.content.slice(0, 1000) || "(vide ou pieces jointes)" })
+		.addFields({ name: "Message", value: message.content.slice(0, 1000) || "(vide ou pièces jointes)" })
 		.setTimestamp();
 
 	await channel.send({ embeds: [embed] }).catch(() => undefined);
@@ -226,8 +331,16 @@ async function handleTrigger(
 		await message.delete().catch(() => undefined);
 	}
 
+	// Les fenetres glissantes sont purgees des le declenchement : sans cela, les
+	// horodatages deja au-dessus du seuil y restent et chaque message suivant
+	// redeclenche la regle, ouvrant un incident et une sanction de plus a chaque
+	// fois pour une seule et meme inondation.
+	const bufferKey = `${message.guild.id}:${message.author.id}`;
+	spamBuffer.delete(bufferKey);
+	attachmentBuffer.delete(bufferKey);
+
 	if (rule.action === AutomodAction.DELETE_AND_TIMEOUT) {
-		const durationSeconds = rule.timeoutSeconds ?? 600;
+		const durationSeconds = rule.timeoutSeconds ?? DEFAULT_SPAM_TIMEOUT_SECONDS;
 
 		await member.timeout(durationSeconds * 1000, `Automod : ${rule.type}`).catch(() => undefined);
 

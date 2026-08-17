@@ -64,7 +64,7 @@ export async function checkExpiredShadowbans(client: Client): Promise<void> {
 				);
 			} catch (err) {
 				console.error(
-					`[Shadowban] Levee automatique echouee pour ${sanction.userId} :`,
+					`[Shadowban] Levée automatique échouée pour ${sanction.userId} :`,
 					err,
 				);
 			}
@@ -105,7 +105,7 @@ export async function checkRevokedSanctions(client: Client): Promise<void> {
 			if (sanction.type === SanctionType.BAN) {
 				await guild.members.unban(
 					sanction.userId,
-					sanction.revokeReason ?? "Sanction levee depuis le dashboard.",
+					sanction.revokeReason ?? "Sanction levée depuis le dashboard.",
 				);
 			} else {
 				const member = await guild.members
@@ -117,13 +117,13 @@ export async function checkRevokedSanctions(client: Client): Promise<void> {
 						member,
 						sanction.type,
 						sanction.revokeReason ??
-						"Sanction levee depuis le dashboard.",
+						"Sanction levée depuis le dashboard.",
 					);
 				}
 			}
 		} catch (err) {
 			console.error(
-				`[Moderation] Synchronisation Discord echouee pour la sanction ${sanction.id} :`,
+				`[Modération] Synchronisation Discord échouée pour la sanction ${sanction.id} :`,
 				err,
 			);
 		}
@@ -170,7 +170,7 @@ export async function checkAppliedSanctions(client: Client): Promise<void> {
 			await moderation.markDiscordAppliedSanction(sanction.id);
 		} catch (err) {
 			console.error(
-				`[Moderation] Application webapp de la sanction ${sanction.id} echouee :`,
+				`[Modération] Application webapp de la sanction ${sanction.id} échouée :`,
 				err,
 			);
 		}
@@ -209,7 +209,7 @@ async function checkAppliedInstantSanctions(client: Client): Promise<void> {
 			await moderation.markDiscordAppliedSanction(sanction.id);
 		} catch (err) {
 			console.error(
-				`[Moderation] Application webapp de la sanction instantanee ${sanction.id} echouee :`,
+				`[Modération] Application webapp de la sanction instantanée ${sanction.id} échouée :`,
 				err,
 			);
 		}

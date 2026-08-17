@@ -1,7 +1,7 @@
 {
-	"name": "divinium-bot",
+	"name": "@anubis/bot",
 	"version": "1.0.0",
-	"description": "Discord Mod Bot and Utilities",
+	"description": "Bot Discord d'Anubis — collecte le serveur et applique les decisions du dashboard",
 	"main": "dist/index.js",
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",

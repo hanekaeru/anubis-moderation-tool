@@ -40,7 +40,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 				const body = payload as { message?: string | string[] };
 				if (Array.isArray(body.message)) {
 					// Sortie de ValidationPipe : une liste de messages a plat.
-					message = "Donnees invalides.";
+					message = "Données invalides.";
 					details = { _: body.message };
 				} else if (typeof body.message === "string") {
 					message = body.message;

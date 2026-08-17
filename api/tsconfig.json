@@ -26,7 +26,10 @@
 		// notamment `@types/jasmine`, hoiste par le webapp, dont le global
 		// `expect` entre en collision avec celui de Jest et casse `rejects`,
 		// `any`, `objectContaining` dans les specs.
-		"types": ["node", "jest"]
+		// `multer` y figure pour le type `Express.Multer.File` des pieces
+		// jointes de moderation : la liste etant exhaustive, un `@types/*`
+		// absent d'ici reste invisible meme une fois installe.
+		"types": ["node", "jest", "multer"]
 	},
 	"include": ["src/**/*.ts"],
 	"exclude": ["node_modules", "dist"]
