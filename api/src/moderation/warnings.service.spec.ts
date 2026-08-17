@@ -3,6 +3,7 @@ import type { AuditService } from "../audit/audit.service";
 import type { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
 import type { PrismaService } from "../prisma/prisma.service";
+import type { ModerationPointsService } from "./moderation-points.service";
 import type { CreateWarningDto, RevokeDto } from "./dto/moderation.dto";
 import { WarningsService } from "./warnings.service";
 
@@ -28,7 +29,8 @@ function warningRow(overrides: Record<string, unknown> = {}) {
 		revokedBy: null,
 		revokeReason: null,
 		createdAt: new Date("2026-01-01T00:00:00.000Z"),
-		user: { id: "250902879667879937", username: "member", globalName: null, avatarHash: null },
+		attachments: [],
+		user: { id: "250902879667879937", username: "member", globalName: null, avatarUrl: null },
 		moderator: null,
 		createdBy: { id: "app-1", displayName: "Mod" },
 		...overrides,
@@ -52,7 +54,16 @@ function makeService(prismaOverrides: Record<string, unknown> = {}) {
 	const guild = { guildId: "guild-1" } as unknown as GuildContextService;
 	const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
 
-	return { service: new WarningsService(prisma, guild, audit), prisma, audit };
+	const points = {
+		pointsForWarning: jest.fn().mockResolvedValue(1),
+	} as unknown as ModerationPointsService;
+
+	return {
+		service: new WarningsService(prisma, guild, audit, points),
+		prisma,
+		audit,
+		points,
+	};
 }
 
 function createDto(overrides: Partial<CreateWarningDto> = {}): CreateWarningDto {

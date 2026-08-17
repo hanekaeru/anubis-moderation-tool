@@ -74,7 +74,7 @@ export class ChangePasswordPage {
 			next: () => {
 				this.submitting.set(false);
 				// Le serveur a revoque toutes les sessions : il faut se reconnecter.
-				this.notifications.success('Mot de passe modifie. Reconnectez-vous avec le nouveau.');
+				this.notifications.success('Mot de passe modifié. Reconnectez-vous avec le nouveau.');
 				void this.router.navigate(['/connexion']);
 			},
 			error: (error: unknown) => {

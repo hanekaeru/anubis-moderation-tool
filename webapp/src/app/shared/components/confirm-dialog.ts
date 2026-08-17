@@ -33,7 +33,7 @@ export interface ConfirmDialogData {
 				<mat-form-field class="full">
 					<mat-label>{{ data.reasonLabel }}</mat-label>
 					<textarea matInput rows="3" [(ngModel)]="reason" maxlength="500"></textarea>
-					<mat-hint>Obligatoire, 3 caracteres minimum.</mat-hint>
+					<mat-hint>Obligatoire, 3 caractères minimum.</mat-hint>
 				</mat-form-field>
 			}
 		</mat-dialog-content>

@@ -4,6 +4,10 @@ import {
 	type WarningSeverity,
 } from "@anubis/shared";
 import prisma from "../prisma";
+import {
+	pointsPourAvertissement,
+	pointsPourSanction,
+} from "./moderationPoints";
 
 /**
  * Sanctions et avertissements.
@@ -44,6 +48,9 @@ export async function createSanction(input: CreateSanctionInput) {
 			// Une expulsion prend effet et se termine dans la foulee : la laisser
 			// ACTIVE la ferait apparaitre indefiniment comme sanction en cours.
 			status: isInstant ? "EXPIRED" : "ACTIVE",
+			// Meme bareme que cote API : une sanction posee depuis Discord doit
+			// peser autant que la meme sanction posee depuis le dashboard.
+			points: await pointsPourSanction(input.guildId, input.type),
 		},
 	});
 
@@ -132,8 +139,14 @@ export async function findExpiredActiveSanctions(type: SanctionType) {
 }
 
 /**
- * Sanctions qui sont encore active dont l'effet côté Discord n'a pas encore
- * été ajouté par le bot.
+ * Sanctions encore actives dont l'effet côté Discord n'a pas encore été
+ * ajouté par le bot — typiquement posées depuis la webapp.
+ *
+ * Volontairement sans condition sur `expiresAt` : une sanction permanente
+ * (BAN sans durée, SHADOWBAN permanent) a `expiresAt = null` et doit quand
+ * même être appliquée. Une condition `expiresAt > now()` ici les aurait
+ * exclues indéfiniment — c'est ce qui empêchait un bannissement permanent ou
+ * un shadowban permanent posé depuis la webapp de jamais atteindre Discord.
  */
 export async function findActiveSanctions(types: SanctionType[]) {
 	return prisma.sanction.findMany({
@@ -141,7 +154,26 @@ export async function findActiveSanctions(types: SanctionType[]) {
 			type: { in: types },
 			status: "ACTIVE",
 			isApplied: false,
-			expiresAt: { not: null, gt: new Date() },
+		},
+	});
+}
+
+/**
+ * Sanctions instantanées (KICK) posées depuis la webapp, pas encore
+ * répercutées côté Discord.
+ *
+ * Une sanction instantanée passe directement au statut `EXPIRED` a la
+ * creation (l'action n'a pas de duree) : elle ne peut donc jamais remonter
+ * via `findActiveSanctions`, qui filtre sur `status: "ACTIVE"`. Sans cette
+ * requete dediee, une expulsion posee depuis la webapp n'expulsait jamais
+ * personne sur Discord — elle etait juste marquee comme si de rien n'etait.
+ */
+export async function findUnappliedInstantSanctions(types: SanctionType[]) {
+	return prisma.sanction.findMany({
+		where: {
+			type: { in: types },
+			status: "EXPIRED",
+			isApplied: false,
 		},
 	});
 }
@@ -213,6 +245,12 @@ interface CreateWarningInput {
 }
 
 export async function createWarning(input: CreateWarningInput) {
+	// Resolu une fois : la ligne et le journal d'activite doivent porter le
+	// meme poids, sans quoi les deux se contrediraient.
+	const points =
+		input.points ??
+		(await pointsPourAvertissement(input.guildId, input.severity));
+
 	const warning = await prisma.warning.create({
 		data: {
 			guildId: input.guildId,
@@ -220,7 +258,11 @@ export async function createWarning(input: CreateWarningInput) {
 			moderatorId: input.moderatorId,
 			reason: input.reason,
 			severity: input.severity,
-			points: input.points ?? 1,
+			points,
+			// `/warn` previent le membre juste apres : il n'y a rien a rattraper,
+			// et laisser `null` ferait envoyer un second message prive par
+			// `tasks/warningNotice.ts`.
+			discordSyncedAt: new Date(),
 		},
 	});
 
@@ -232,7 +274,7 @@ export async function createWarning(input: CreateWarningInput) {
 			targetUserId: input.userId,
 			targetType: "warning",
 			targetId: warning.id,
-			metadata: { severity: input.severity, points: input.points ?? 1 },
+			metadata: { severity: input.severity, points },
 		},
 	});
 
@@ -315,6 +357,7 @@ export async function recordExternalSanction(input: ExternalSanctionInput) {
 				? new Date(startsAt.getTime() + durationSeconds * 1000)
 				: null,
 			status: isInstant ? "EXPIRED" : "ACTIVE",
+			points: await pointsPourSanction(input.guildId, input.type),
 			discordSyncedAt: new Date(),
 		},
 	});

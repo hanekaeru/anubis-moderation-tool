@@ -1,0 +1,142 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Quarantaine</h1>
+			<p class="subtitle">
+				Blocage des arrivants tant que le règlement n'est pas accepté. Aucune expulsion
+				automatique : le rôle est retiré au clic sur le bouton, ou levé manuellement ici.
+			</p>
+		</div>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (misconfigured()) {
+		<mat-card appearance="outlined" class="banner active">
+			<mat-card-content>
+				<mat-icon>warning</mat-icon>
+				<div>
+					<strong>Quarantaine activée sans rôle</strong>
+					<p>Aucun arrivant ne sera bloqué tant qu'un identifiant de rôle n'est pas renseigné.</p>
+				</div>
+			</mat-card-content>
+		</mat-card>
+	} @else if (!loading()) {
+		<mat-card appearance="outlined" class="banner">
+			<mat-card-content>
+				<mat-icon>{{ enabled() ? 'lock_person' : 'lock_open' }}</mat-icon>
+				<div>
+					<strong>{{ enabled() ? 'Quarantaine active' : 'Quarantaine désactivée' }}</strong>
+					<p>
+						{{
+							enabled()
+								? members().length + ' membre(s) en attente d\'acceptation du règlement.'
+								: 'Les arrivants accèdent au serveur sans acceptation préalable.'
+						}}
+					</p>
+				</div>
+			</mat-card-content>
+		</mat-card>
+	}
+
+	<mat-card appearance="outlined" [formGroup]="form">
+		<mat-card-header>
+			<mat-card-title>Réglages</mat-card-title>
+			<mat-card-subtitle>
+				Une fois enregistré, poste le message avec la commande
+				<code>/quarantaine-message</code> sur Discord.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<mat-slide-toggle formControlName="enabled">Quarantaine à l'arrivée activée</mat-slide-toggle>
+
+			<div class="row">
+				<mat-form-field>
+					<mat-label>Rôle de quarantaine (identifiant)</mat-label>
+					<input matInput formControlName="roleId" placeholder="123456789012345678" />
+				</mat-form-field>
+				<mat-form-field>
+					<mat-label>Salon du règlement (identifiant)</mat-label>
+					<input matInput formControlName="channelId" placeholder="123456789012345678" />
+				</mat-form-field>
+			</div>
+
+			<mat-form-field class="full">
+				<mat-label>Message affiché avec le bouton</mat-label>
+				<textarea matInput rows="4" formControlName="message" maxlength="4000"></textarea>
+			</mat-form-field>
+
+			<mat-form-field class="full">
+				<mat-label>Libellé du bouton</mat-label>
+				<input matInput formControlName="buttonLabel" maxlength="80" />
+			</mat-form-field>
+		</mat-card-content>
+
+		<mat-card-actions align="end" *appHasPermission="Permission.QUARANTINE_CONFIGURE">
+			<button matButton="filled" [disabled]="saving()" (click)="save()">Enregistrer</button>
+		</mat-card-actions>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Membres en quarantaine</mat-card-title>
+		</mat-card-header>
+
+		<mat-card-content>
+			<div class="table-scroll">
+				<table mat-table [dataSource]="members()">
+					<ng-container matColumnDef="member">
+						<th mat-header-cell *matHeaderCellDef>Membre</th>
+						<td mat-cell *matCellDef="let member">
+							<a [routerLink]="['/membres', member.userId]">
+								{{ member.displayName ?? member.username }}
+							</a>
+						</td>
+					</ng-container>
+
+					<ng-container matColumnDef="quarantinedAt">
+						<th mat-header-cell *matHeaderCellDef>En quarantaine depuis</th>
+						<td mat-cell *matCellDef="let member" [matTooltip]="member.quarantinedAt | frDate">
+							{{ member.quarantinedAt | relativeTime }}
+						</td>
+					</ng-container>
+
+					<ng-container matColumnDef="status">
+						<th mat-header-cell *matHeaderCellDef>Statut</th>
+						<td mat-cell *matCellDef="let member">
+							<span class="tag" [attr.data-active]="member.active">
+								{{ member.active ? 'En attente' : member.pendingSync ? 'Levée en cours' : 'Levée' }}
+							</span>
+						</td>
+					</ng-container>
+
+					<ng-container matColumnDef="actions">
+						<th mat-header-cell *matHeaderCellDef></th>
+						<td mat-cell *matCellDef="let member">
+							@if (member.active) {
+								<button
+									matButton
+									*appHasPermission="Permission.QUARANTINE_RESPOND"
+									[disabled]="releasingId() === member.userId"
+									(click)="release(member)"
+								>
+									Débloquer
+								</button>
+							}
+						</td>
+					</ng-container>
+
+					<tr mat-header-row *matHeaderRowDef="columns"></tr>
+					<tr mat-row *matRowDef="let row; columns: columns"></tr>
+				</table>
+			</div>
+
+			@if (members().length === 0) {
+				<p class="empty-state">Aucun membre en quarantaine.</p>
+			}
+		</mat-card-content>
+	</mat-card>
+</div>

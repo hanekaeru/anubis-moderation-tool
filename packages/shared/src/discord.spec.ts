@@ -1,38 +1,8 @@
 import {
-	avatarUrl,
 	isSnowflake,
 	roleColorToHex,
 	snowflakeToDate,
 } from "./discord";
-
-describe("avatarUrl", () => {
-	it("renvoie un png quand le hash n'est pas anime", () => {
-		expect(avatarUrl("250902879667879937", "abcdef123456")).toBe(
-			"https://cdn.discordapp.com/avatars/250902879667879937/abcdef123456.png?size=128",
-		);
-	});
-
-	it("renvoie un gif quand le hash commence par a_ (avatar anime)", () => {
-		expect(avatarUrl("250902879667879937", "a_abcdef123456")).toBe(
-			"https://cdn.discordapp.com/avatars/250902879667879937/a_abcdef123456.gif?size=128",
-		);
-	});
-
-	it("repercute la taille demandee dans l'URL", () => {
-		expect(avatarUrl("250902879667879937", "abcdef123456", 256)).toContain(
-			"size=256",
-		);
-	});
-
-	it("retombe sur l'avatar par defaut derive de l'identifiant, sans hash", () => {
-		expect(avatarUrl("250902879667879937", null)).toBe(
-			"https://cdn.discordapp.com/embed/avatars/0.png",
-		);
-		expect(avatarUrl("80351110224678912", undefined)).toBe(
-			"https://cdn.discordapp.com/embed/avatars/5.png",
-		);
-	});
-});
 
 describe("snowflakeToDate", () => {
 	it("deduit la date de creation depuis le snowflake", () => {

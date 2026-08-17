@@ -46,7 +46,7 @@ describe("StatsService.overview", () => {
 		const rows = [
 			{
 				id: "s1",
-				user: { id: "250902879667879937", username: "u1", globalName: null, avatarHash: null },
+				user: { id: "250902879667879937", username: "u1", globalName: null, avatarUrl: null },
 				type: "KICK",
 				reason: "r1",
 				createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -55,7 +55,7 @@ describe("StatsService.overview", () => {
 			},
 			{
 				id: "s2",
-				user: { id: "250902879667879937", username: "u2", globalName: null, avatarHash: null },
+				user: { id: "250902879667879937", username: "u2", globalName: null, avatarUrl: null },
 				type: "KICK",
 				reason: "r2",
 				createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -64,7 +64,7 @@ describe("StatsService.overview", () => {
 			},
 			{
 				id: "s3",
-				user: { id: "250902879667879937", username: "u3", globalName: null, avatarHash: null },
+				user: { id: "250902879667879937", username: "u3", globalName: null, avatarUrl: null },
 				type: "KICK",
 				reason: "r3",
 				createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -73,7 +73,7 @@ describe("StatsService.overview", () => {
 			},
 			{
 				id: "s4",
-				user: { id: "250902879667879937", username: "u4", globalName: null, avatarHash: null },
+				user: { id: "250902879667879937", username: "u4", globalName: null, avatarUrl: null },
 				type: "KICK",
 				reason: "r4",
 				createdAt: new Date("2026-01-01T00:00:00.000Z"),

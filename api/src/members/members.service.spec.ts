@@ -3,6 +3,7 @@ import type { AuditService } from "../audit/audit.service";
 import type { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
 import type { PrismaService } from "../prisma/prisma.service";
+import type { ModerationPointsService } from "../moderation/moderation-points.service";
 import { MembersService } from "./members.service";
 
 const USER_ID = "250902879667879937";
@@ -18,8 +19,8 @@ const ACTOR: AuthenticatedUser = {
 
 function zeroCounters() {
 	return {
-		warning: { count: jest.fn().mockResolvedValue(0) },
-		sanction: { count: jest.fn().mockResolvedValue(0) },
+		warning: { count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { points: null } }) },
+		sanction: { count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { points: null } }) },
 		memberNote: { count: jest.fn().mockResolvedValue(0) },
 		ticket: { count: jest.fn().mockResolvedValue(0) },
 		messageStat: { aggregate: jest.fn().mockResolvedValue({ _sum: { messageCount: null } }) },
@@ -43,7 +44,19 @@ function makeService(prismaOverrides: Record<string, unknown> = {}) {
 	const guild = { guildId: "guild-1" } as unknown as GuildContextService;
 	const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
 
-	return { service: new MembersService(prisma, guild, audit), prisma, audit };
+	const points = {
+		getConfig: jest.fn().mockResolvedValue({
+			warnThreshold: 6,
+			criticalThreshold: 12,
+		}),
+	} as unknown as ModerationPointsService;
+
+	return {
+		service: new MembersService(prisma, guild, audit, points),
+		prisma,
+		audit,
+		points,
+	};
 }
 
 describe("MembersService.findOne", () => {
@@ -66,14 +79,14 @@ describe("MembersService.findOne", () => {
 					user: {
 						username: "hanekaeru",
 						globalName: "Haneka",
-						avatarHash: null,
+						avatarUrl: null,
 						isBot: false,
 						accountCreatedAt: new Date("2020-01-01T00:00:00.000Z"),
 					},
 				}),
 			},
 			userLevel: { findUnique: jest.fn().mockResolvedValue({ xp: 12345n }) },
-			warning: { count: jest.fn().mockResolvedValue(2) },
+			warning: { count: jest.fn().mockResolvedValue(2), aggregate: jest.fn().mockResolvedValue({ _sum: { points: null } }) },
 		});
 
 		const detail = await service.findOne(USER_ID);
@@ -98,7 +111,7 @@ describe("MembersService.findOne", () => {
 					user: {
 						username: "hanekaeru",
 						globalName: null,
-						avatarHash: null,
+						avatarUrl: null,
 						isBot: false,
 						accountCreatedAt: null,
 					},
@@ -124,7 +137,7 @@ describe("MembersService.findOne", () => {
 					user: {
 						username: "hanekaeru",
 						globalName: null,
-						avatarHash: null,
+						avatarUrl: null,
 						isBot: false,
 						accountCreatedAt: new Date(),
 					},

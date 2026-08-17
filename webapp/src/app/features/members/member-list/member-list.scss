@@ -1,25 +1,25 @@
 .search {
-	min-width: 260px;
-	flex: 1 1 260px;
-	max-width: 380px;
+  min-width: 260px;
+  flex: 1 1 260px;
+  max-width: 380px;
 }
 
 table {
-	width: 100%;
-	min-width: 900px;
+  width: 100%;
+  min-width: 900px;
 }
 
 .numeric {
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-	color: var(--anubis-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--anubis-text-2);
 }
 
 .roles {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
-	align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
 }
 
 /* La couleur du role vient de Discord : elle est arbitraire et souvent
@@ -27,39 +27,44 @@ table {
    de la laisser porter du texte — c'est lisible quelle que soit la teinte, et
    ca reste vrai dans les deux modes. */
 .role-chip {
-	display: inline-block;
-	padding: 1px 8px;
-	border: 1px solid;
-	border-radius: 6px;
-	background: var(--anubis-surface-2);
-	color: var(--anubis-text-2);
-	font-size: 0.72rem;
-	font-weight: 500;
-	white-space: nowrap;
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid;
+  border-radius: 6px;
+  background: var(--anubis-surface-2);
+  color: var(--anubis-text-2);
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .role-more {
-	font-size: 0.72rem;
-	color: var(--anubis-text-3);
-	cursor: default;
+  font-size: 0.72rem;
+  color: var(--anubis-text-3);
+  cursor: default;
 }
 
 /* Un compteur a zero ne merite pas une pastille : seule une valeur non nulle
    en recoit une, ce qui fait ressortir les membres a surveiller sans que la
    colonne devienne un mur de badges. */
 .badge {
-	display: inline-block;
-	min-width: 22px;
-	padding: 1px 7px;
-	border-radius: 6px;
-	background: var(--anubis-surface-3);
-	color: var(--anubis-text-1);
-	font-size: 0.76rem;
-	font-weight: 500;
-	font-variant-numeric: tabular-nums;
+  display: inline-block;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--anubis-surface-3);
+  color: var(--anubis-text-1);
+  font-size: 0.76rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .badge-alert {
-	background: var(--anubis-danger-soft);
-	color: var(--anubis-danger-text);
+  background: var(--anubis-danger-soft);
+  color: var(--anubis-danger-text);
+}
+
+.id {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.82rem;
 }

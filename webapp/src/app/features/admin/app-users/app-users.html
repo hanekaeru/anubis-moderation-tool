@@ -3,7 +3,7 @@
 		<div>
 			<h1>Comptes du staff</h1>
 			<p class="subtitle">
-				{{ total() }} compte(s). Il n'existe pas d'inscription publique : les acces sont crees ici.
+				{{ total() }} compte(s). Il n'existe pas d'inscription publique : les accès sont créés ici.
 			</p>
 		</div>
 
@@ -33,7 +33,7 @@
 				</ng-container>
 
 				<ng-container matColumnDef="role">
-					<th mat-header-cell *matHeaderCellDef>Role</th>
+					<th mat-header-cell *matHeaderCellDef>Rôle</th>
 					<td mat-cell *matCellDef="let user">
 						<div *appHasPermission="Permission.USERS_WRITE">
 							<mat-select
@@ -54,10 +54,10 @@
 					<th mat-header-cell *matHeaderCellDef>Statut</th>
 					<td mat-cell *matCellDef="let user">
 						@if (!user.isActive) {
-							<span class="tag tag-error">Desactive</span>
+							<span class="tag tag-error">Désactivé</span>
 						} @else if (isLocked(user)) {
-							<span class="tag tag-warn" [matTooltip]="'Jusqu au ' + (user.lockedUntil | frDate)">
-								Verrouille
+							<span class="tag tag-warn" [matTooltip]="'Jusqu\'au ' + (user.lockedUntil | frDate)">
+								Verrouillé
 							</span>
 						} @else if (user.mustChangePassword) {
 							<span class="tag">Mot de passe provisoire</span>
@@ -68,7 +68,7 @@
 				</ng-container>
 
 				<ng-container matColumnDef="lastLogin">
-					<th mat-header-cell *matHeaderCellDef>Derniere connexion</th>
+					<th mat-header-cell *matHeaderCellDef>Dernière connexion</th>
 					<td mat-cell *matCellDef="let user" class="nowrap">
 						@if (user.lastLoginAt) {
 							<span [matTooltip]="user.lastLoginAt | frDate">
@@ -81,7 +81,7 @@
 				</ng-container>
 
 				<ng-container matColumnDef="createdBy">
-					<th mat-header-cell *matHeaderCellDef>Cree par</th>
+					<th mat-header-cell *matHeaderCellDef>Créé par</th>
 					<td mat-cell *matCellDef="let user" class="nowrap">
 						{{ user.createdByLabel ?? '—' }}
 						<span class="date">{{ user.createdAt | frDate }}</span>
@@ -104,12 +104,24 @@
 							<mat-menu #menu="matMenu">
 								<button mat-menu-item (click)="resetPassword(user)">
 									<mat-icon>lock_reset</mat-icon>
-									<span>Reinitialiser le mot de passe</span>
+									<span>Réinitialiser le mot de passe</span>
 								</button>
 								@if (isLocked(user)) {
 									<button mat-menu-item (click)="unlock(user)">
 										<mat-icon>lock_open</mat-icon>
-										<span>Deverrouiller</span>
+										<span>Déverrouiller</span>
+									</button>
+								}
+								<!-- Reserve au proprietaire : la route exige `sessions:revoke`,
+								     que la matrice par defaut n'accorde a personne d'autre. -->
+								@if (user.twoFactorEnabled) {
+									<button
+										mat-menu-item
+										*appHasPermission="Permission.SESSIONS_REVOKE"
+										(click)="resetTwoFactor(user)"
+									>
+										<mat-icon>gpp_maybe</mat-icon>
+										<span>Réinitialiser la double authentification</span>
 									</button>
 								}
 								<button mat-menu-item (click)="toggleActive(user)">
@@ -127,7 +139,7 @@
 		</div>
 
 		@if (!loading() && users().length === 0) {
-			<p class="empty-state">Aucun compte enregistre.</p>
+			<p class="empty-state">Aucun compte enregistré.</p>
 		}
 
 		<mat-paginator

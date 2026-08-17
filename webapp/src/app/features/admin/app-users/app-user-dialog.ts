@@ -44,8 +44,8 @@ import { readApiError } from '../../../core/error.interceptor';
 					<code class="password-value">{{ password }}</code>
 					<p class="password-warning">
 						<mat-icon>warning</mat-icon>
-						Notez-le maintenant : il ne sera plus affiche. Le titulaire devra le changer a sa
-						premiere connexion.
+						Notez-le maintenant : il ne sera plus affiché. Le titulaire devra le changer à sa
+						première connexion.
 					</p>
 					<button matButton="outlined" (click)="copyPassword(password)">
 						<mat-icon>content_copy</mat-icon>
@@ -64,12 +64,12 @@ import { readApiError } from '../../../core/error.interceptor';
 					</mat-form-field>
 
 					<mat-form-field class="full">
-						<mat-label>Nom affiche</mat-label>
+						<mat-label>Nom affiché</mat-label>
 						<input matInput formControlName="displayName" />
 					</mat-form-field>
 
 					<mat-form-field class="full">
-						<mat-label>Role</mat-label>
+						<mat-label>Rôle</mat-label>
 						<mat-select formControlName="role">
 							@for (role of roles; track role) {
 								<mat-option [value]="role">{{ roleLabels[role] }}</mat-option>
@@ -80,7 +80,7 @@ import { readApiError } from '../../../core/error.interceptor';
 					<mat-form-field class="full">
 						<mat-label>Identifiant Discord (facultatif)</mat-label>
 						<input matInput formControlName="discordUserId" inputmode="numeric" />
-						<mat-hint>Relie le compte a l'identite Discord du moderateur.</mat-hint>
+						<mat-hint>Relie le compte à l'identité Discord du modérateur.</mat-hint>
 					</mat-form-field>
 				</form>
 
@@ -96,7 +96,7 @@ import { readApiError } from '../../../core/error.interceptor';
 			} @else {
 				<button matButton mat-dialog-close>Annuler</button>
 				<button matButton="filled" [disabled]="submitting()" (click)="submit()">
-					Creer le compte
+					Créer le compte
 				</button>
 			}
 		</mat-dialog-actions>

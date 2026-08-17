@@ -89,3 +89,55 @@ export function formatDurationSeconds(
 	const resteHeures = hours % 24;
 	return resteHeures ? `${days} j ${resteHeures} h` : `${days} j`;
 }
+
+/**
+ * Delai ecrit en forme compacte : `2h`, `45m`, `1h30`, `3j12h`.
+ *
+ * Complementaire de `durationToSeconds`, qui attend une quantite et une unite
+ * separees : ici tout tient dans une seule saisie, ce qui convient a une
+ * commande ou l'on tape vite. Renvoie `null` si rien n'est reconnu, ou si la
+ * chaine contient autre chose que des paires nombre/unite — accepter une
+ * saisie a moitie comprise poserait un rappel a une heure inattendue.
+ *
+ * Unites : `s` secondes, `m` minutes, `h` heures, `j` (ou `d`) jours. Une
+ * quantite sans unite qui suit une unite plus grande vaut le cran en dessous,
+ * pour que `1h30` se lise comme il s'ecrit.
+ */
+export function parseCompactDelay(input: string): number | null {
+	const nettoye = input.trim().toLowerCase().replace(/\s+/g, "");
+	if (!nettoye) return null;
+
+	const SECONDES: Record<string, number> = { s: 1, m: 60, h: 3600, j: 86400, d: 86400 };
+	const SUIVANTE: Record<string, string> = { h: "m", m: "s", j: "h", d: "h" };
+
+	let total = 0;
+	let position = 0;
+	let derniereUnite: string | null = null;
+
+	while (position < nettoye.length) {
+		const nombre = /^\d+/.exec(nettoye.slice(position));
+		if (!nombre) return null;
+		position += nombre[0].length;
+
+		const suffixe = nettoye[position];
+		let unite: string | undefined;
+
+		if (suffixe && suffixe in SECONDES) {
+			unite = suffixe;
+			position += 1;
+		} else if (position === nettoye.length && derniereUnite) {
+			// `1h30` : le reliquat sans unite prend le cran sous le precedent.
+			unite = SUIVANTE[derniereUnite];
+		}
+
+		if (!unite) return null;
+
+		total += Number(nombre[0]) * SECONDES[unite]!;
+		derniereUnite = unite;
+	}
+
+	return total > 0 ? total : null;
+}
+
+/** Au-dela, un rappel releve d'un agenda, pas d'un bot de moderation. */
+export const MAX_REMINDER_SECONDS = 30 * 24 * 60 * 60;

@@ -43,7 +43,7 @@ export async function upsertUser(user: User): Promise<void> {
 		username: user.username,
 		globalName: user.globalName ?? null,
 		discriminator: user.discriminator === "0" ? null : user.discriminator,
-		avatarHash: user.avatar ?? null,
+		avatarUrl: user.displayAvatarURL({ size: 256, extension: "webp", forceStatic: true }),
 		isBot: user.bot,
 		accountCreatedAt: user.createdAt,
 	};
@@ -53,6 +53,20 @@ export async function upsertUser(user: User): Promise<void> {
 		update: data,
 		create: { id: user.id, ...data },
 	});
+}
+
+/**
+ * Synchronise les identites des membres presents sans recalculer le reste du
+ * referentiel. Les avatars sont globaux au compte Discord : un seul upsert
+ * suffit meme quand le compte appartient a plusieurs serveurs.
+ */
+export async function synchroniserAvatars(guild: Guild): Promise<number> {
+	const membres = await guild.members.fetch();
+	for (const membre of membres.values()) {
+		await upsertUser(membre.user);
+	}
+
+	return membres.size;
 }
 
 export async function upsertRole(role: Role): Promise<void> {
@@ -293,7 +307,7 @@ export async function garantirContexte(
 		contexteConnu.add(cle);
 		return true;
 	} catch (err) {
-		console.error("[Referentiel] Contexte non garanti :", err);
+		console.error("[Référentiel] Contexte non garanti :", err);
 		return false;
 	}
 }
@@ -307,7 +321,7 @@ export async function garantirContexte(
  */
 export async function synchroniserServeur(guild: Guild): Promise<void> {
 	const debut = Date.now();
-	console.log(`[Referentiel] Synchronisation de ${guild.name}...`);
+	console.log(`[Référentiel] Synchronisation de ${guild.name}...`);
 
 	await upsertGuild(guild);
 
@@ -332,9 +346,9 @@ export async function synchroniserServeur(guild: Guild): Promise<void> {
 		}
 	} catch (err) {
 		console.error(
-			"[Referentiel] Membres non recuperes. Activez l'intent privilegie " +
-				'"Server Members" dans le portail developpeur Discord, puis ajoutez ' +
-				"GatewayIntentBits.GuildMembers aux intents du client.",
+			"[Référentiel] Membres non récupérés. Activez l'intent privilégié " +
+			'"Server Members" dans le portail développeur Discord, puis ajoutez ' +
+			"GatewayIntentBits.GuildMembers aux intents du client.",
 			err instanceof Error ? err.message : err,
 		);
 	}
@@ -355,12 +369,12 @@ export async function synchroniserServeur(guild: Guild): Promise<void> {
 			data: { status: MemberStatus.LEFT, leftAt: new Date() },
 		});
 		if (count > 0) {
-			console.log(`[Referentiel] ${count} depart(s) rattrape(s).`);
+			console.log(`[Référentiel] ${count} départ(s) rattrape(s).`);
 		}
 	}
 
 	console.log(
-		`[Referentiel] ${guild.name} : ${roles.size} role(s), ${salons.size} salon(s), ` +
-			`${membresSynchronises} membre(s) en ${Date.now() - debut} ms.`,
+		`[Référentiel] ${guild.name} : ${roles.size} rôle(s), ${salons.size} salon(s), ` +
+		`${membresSynchronises} membre(s) en ${Date.now() - debut} ms.`,
 	);
 }

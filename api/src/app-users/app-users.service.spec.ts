@@ -6,6 +6,7 @@ import {
 import type { AuditService } from "../audit/audit.service";
 import { AuthService } from "../auth/auth.service";
 import type { TokenService } from "../auth/token.service";
+import type { TwoFactorService } from "../auth/two-factor.service";
 import type { AuthenticatedUser } from "../common/types";
 import type { PrismaService } from "../prisma/prisma.service";
 import { AppUsersService } from "./app-users.service";
@@ -56,8 +57,17 @@ function makeService(prismaOverrides: Record<string, unknown> = {}) {
 	const tokens = {
 		revokeAllForUser: jest.fn().mockResolvedValue(undefined),
 	} as unknown as TokenService;
+	const twoFactor = {
+		reset: jest.fn().mockResolvedValue(undefined),
+	} as unknown as TwoFactorService;
 
-	return { service: new AppUsersService(prisma, audit, tokens), prisma, audit, tokens };
+	return {
+		service: new AppUsersService(prisma, audit, tokens, twoFactor),
+		prisma,
+		audit,
+		tokens,
+		twoFactor,
+	};
 }
 
 describe("AppUsersService.create", () => {

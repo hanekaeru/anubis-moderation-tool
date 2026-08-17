@@ -1,0 +1,2425 @@
+{
+	"info": {
+		"_postman_id": "b1f0a3d2-6c4e-4f6a-9d5b-7e2a1c0f4a91",
+		"name": "Anubis API",
+		"description": "Collection complete des routes de l'API Anubis (NestJS).\n\n## Mise en route\n\n1. Regler la variable `baseUrl` :\n   - developpement : `http://localhost:3000/api`\n   - production : `https://<domaine>/api` (le prefixe est retire par Traefik, mais le navigateur appelle bien `/api/...` dans les deux cas)\n2. Lancer **Authentification > Connexion**. Le script de test enregistre automatiquement `accessToken` dans les variables de la collection.\n3. Si la double authentification est active, la connexion renvoie `twoFactorRequired: true` et un `challengeToken` (enregistre lui aussi automatiquement) : enchainer avec **Connexion - second facteur**.\n\n## Points a connaitre\n\n- Le **refresh token voyage en cookie** `anubis_rt`, limite au chemin `/api/auth`. Postman le gere seul via son cookie jar : `Refresh` et `Deconnexion` n'ont donc aucun corps.\n- Le garde JWT est **global** : toute route est fermee sauf `/health`, `/auth/login`, `/auth/login/double-authentification`, `/auth/refresh` et `/auth/logout`.\n- Tant que `mustChangePassword` est vrai, **seul `/auth/*` repond** : commencer par `POST /auth/password`.\n- La validation refuse tout **champ inconnu** (`forbidNonWhitelisted`) : une faute de frappe dans un corps JSON renvoie 400, elle n'est pas ignoree.\n- Les parametres de requete facultatifs sont presents mais **desactives** : les cocher dans Postman pour les envoyer.\n- Les identifiants Discord (`userId`, `roleId`, `channelId`) sont des snowflakes de 17 a 20 chiffres ; les identifiants internes sont des **UUID**.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{accessToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000/api",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "challengeToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "username",
+			"value": "owner",
+			"type": "string"
+		},
+		{
+			"key": "password",
+			"value": "change-me",
+			"type": "string"
+		},
+		{
+			"key": "discordUserId",
+			"value": "123456789012345678",
+			"type": "string"
+		},
+		{
+			"key": "roleId",
+			"value": "123456789012345678",
+			"type": "string"
+		},
+		{
+			"key": "channelId",
+			"value": "123456789012345678",
+			"type": "string"
+		},
+		{
+			"key": "appUserId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "sessionFamilyId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "warningId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "sanctionId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "attachmentId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "noteId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "ticketId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "raidIncidentId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "accountFlagId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "voiceHubId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "xpRewardId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "giveawayId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "embedMessageId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "wikiArticleId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "wikiSlug",
+			"value": "procedure-de-sanction",
+			"type": "string"
+		},
+		{
+			"key": "guildConfigId",
+			"value": "1",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Supervision",
+			"description": "Sonde publique et etat interne a destination du staff.",
+			"item": [
+				{
+					"name": "Sante de l'API (public)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["health"]
+						},
+						"description": "Publique a dessein : un equilibreur de charge doit pouvoir l'interroger sans identifiants. Repond **503** (et non 500) si la base est injoignable : l'API repond, c'est sa dependance qui manque."
+					},
+					"response": []
+				},
+				{
+					"name": "Statut Anubis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["status"]
+						},
+						"description": "Permission `status:read`. Couvre aussi le process bot et les alertes de securite en cours, la ou `/health` ne parle que de l'API."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Authentification",
+			"description": "Seul controleur ouvert a un compte dont le mot de passe est encore provisoire.",
+			"item": [
+				{
+					"name": "Connexion",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"",
+									"if (body.twoFactorRequired) {",
+									"    pm.collectionVariables.set('challengeToken', body.challengeToken);",
+									"    console.log('Second facteur attendu : enchainer avec « Connexion - second facteur ».');",
+									"} else {",
+									"    pm.collectionVariables.set('accessToken', body.accessToken);",
+									"    console.log('accessToken enregistre.');",
+									"}",
+									"",
+									"pm.test('Statut 200', () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Debit limite a **5 tentatives par minute et par IP**.\n\nDeux formes de reponse :\n- session ouverte : `{ accessToken, expiresIn, user }` et le cookie `anubis_rt` est pose ;\n- second facteur attendu : `{ twoFactorRequired: true, challengeToken, expiresIn }`, **aucun cookie n'est pose**.\n\nLe login n'annonce jamais un verrouillage ni une desactivation avant d'avoir valide le mot de passe : le faire permettrait d'enumerer les comptes."
+					},
+					"response": []
+				},
+				{
+					"name": "Connexion - second facteur",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"pm.collectionVariables.set('accessToken', body.accessToken);",
+									"pm.collectionVariables.unset('challengeToken');",
+									"pm.test('Statut 200', () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"challengeToken\": \"{{challengeToken}}\",\n  \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login/double-authentification",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login", "double-authentification"]
+						},
+						"description": "`code` accepte indifferemment un code temporel a six chiffres et un code de secours : c'est le service qui distingue les deux.\n\nMeme debit que `login` (5/min) : c'est la seconde moitie de la meme porte, et un code a six chiffres se devine bien plus vite qu'un mot de passe. Un code errone compte comme un echec de connexion."
+					},
+					"response": []
+				},
+				{
+					"name": "Rafraichir la session",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"pm.collectionVariables.set('accessToken', body.accessToken);",
+									"pm.test('Statut 200', () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/refresh",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "refresh"]
+						},
+						"description": "Aucun corps : le refresh token est lu dans le cookie `anubis_rt`, que Postman renvoie seul. La rotation cree un nouveau jeton dans la **meme famille** — une session est une famille, pas un jeton."
+					},
+					"response": []
+				},
+				{
+					"name": "Deconnexion",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "logout"]
+						},
+						"description": "204 sans contenu. Revoque la famille de refresh tokens et efface le cookie."
+					},
+					"response": []
+				},
+				{
+					"name": "Compte connecte",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "me"]
+						},
+						"description": "401 si le compte a ete supprime entre la validation du jeton et cette requete : c'est une session devenue invalide, pas une panne serveur."
+					},
+					"response": []
+				},
+				{
+					"name": "Changer son mot de passe",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currentPassword\": \"{{password}}\",\n  \"newPassword\": \"un-mot-de-passe-solide\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/password",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "password"]
+						},
+						"description": "204 sans contenu. **Toutes les sessions sont revoquees, y compris celle-ci** : le cookie est efface et il faut se reconnecter.\n\nC'est aussi la seule route utilisable par un compte neuf, dont le mot de passe est encore provisoire (`mustChangePassword`)."
+					},
+					"response": []
+				},
+				{
+					"name": "Double authentification - etat",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/double-authentification",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "double-authentification"]
+						},
+						"description": "`available` decrit le serveur (`TWO_FACTOR_ENABLED`), `enabled` decrit le compte. Les deux sont distincts : une coupure au niveau du deploiement laisse les secrets en base."
+					},
+					"response": []
+				},
+				{
+					"name": "Double authentification - preparation",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/double-authentification/preparation",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "double-authentification", "preparation"]
+						},
+						"description": "Renvoie le secret et l'URI otpauth du QR code. Le secret est enregistre des cette etape, mais **seul `totpEnabledAt` fait foi** : activer des la generation fermerait un compte dont le QR n'a jamais ete scanne.\n\n403 si `TWO_FACTOR_ENABLED=false`."
+					},
+					"response": []
+				},
+				{
+					"name": "Double authentification - activation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/double-authentification/activation",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "double-authentification", "activation"]
+						},
+						"description": "Renvoie les codes de secours, **affiches une seule fois**."
+					},
+					"response": []
+				},
+				{
+					"name": "Double authentification - desactivation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"password\": \"{{password}}\",\n  \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/double-authentification/desactivation",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "double-authentification", "desactivation"]
+						},
+						"description": "204 sans contenu. Reste ouverte meme quand `TWO_FACTOR_ENABLED=false` — sinon un compte protege avant la coupure garderait un secret en base sans aucun moyen de s'en defaire."
+					},
+					"response": []
+				},
+				{
+					"name": "Double authentification - regenerer les codes de secours",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/double-authentification/codes-de-secours",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "double-authentification", "codes-de-secours"]
+						},
+						"description": "Les anciens codes sont invalides des la reponse."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Mon compte",
+			"description": "Actions en libre-service sur le compte connecte. Aucune permission requise : le garde JWT global suffit.",
+			"item": [
+				{
+					"name": "Generer un code de rattachement Discord",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/account/discord-link/code",
+							"host": ["{{baseUrl}}"],
+							"path": ["account", "discord-link", "code"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Etat du rattachement Discord",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/account/discord-link",
+							"host": ["{{baseUrl}}"],
+							"path": ["account", "discord-link"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Detacher le compte Discord",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/account/discord-link",
+							"host": ["{{baseUrl}}"],
+							"path": ["account", "discord-link"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Comptes du dashboard",
+			"description": "Administration des comptes tiers (`users:read` / `users:write`).",
+			"item": [
+				{
+					"name": "Lister les comptes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/app-users?page=1&pageSize=25&search=&role=MODERATOR&isActive=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["app-users"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{ "key": "search", "value": "", "disabled": true },
+								{
+									"key": "role",
+									"value": "MODERATOR",
+									"description": "VIEWER | MODERATOR | ADMIN | OWNER",
+									"disabled": true
+								},
+								{ "key": "isActive", "value": "true", "disabled": true }
+							]
+						},
+						"description": "Permission `users:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Creer un compte",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"nouveau.moderateur\",\n  \"displayName\": \"Nouveau moderateur\",\n  \"role\": \"MODERATOR\",\n  \"discordUserId\": \"{{discordUserId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/app-users",
+							"host": ["{{baseUrl}}"],
+							"path": ["app-users"]
+						},
+						"description": "Permission `users:write`.\n\n`password` est facultatif : omis, l'API en genere un et le renvoie **une seule fois** dans la reponse. Le compte cree porte `mustChangePassword: true`.\n\n`username` : lettres, chiffres, points, tirets et underscores uniquement."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier un compte",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"displayName\": \"Moderateur renomme\",\n  \"role\": \"ADMIN\",\n  \"isActive\": true,\n  \"discordUserId\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/app-users/{{appUserId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["app-users", "{{appUserId}}"]
+						},
+						"description": "Permission `users:write`. `discordUserId: null` detache le compte Discord."
+					},
+					"response": []
+				},
+				{
+					"name": "Reinitialiser le mot de passe",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/app-users/{{appUserId}}/reset-password",
+							"host": ["{{baseUrl}}"],
+							"path": ["app-users", "{{appUserId}}", "reset-password"]
+						},
+						"description": "Permission `users:write`. Renvoie le mot de passe provisoire, **affiche une seule fois**."
+					},
+					"response": []
+				},
+				{
+					"name": "Deverrouiller un compte",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/app-users/{{appUserId}}/unlock",
+							"host": ["{{baseUrl}}"],
+							"path": ["app-users", "{{appUserId}}", "unlock"]
+						},
+						"description": "Permission `users:write`. Leve le verrouillage pose apres `MAX_FAILED_LOGINS` echecs."
+					},
+					"response": []
+				},
+				{
+					"name": "Reinitialiser la double authentification",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/app-users/{{appUserId}}/double-authentification/reinitialisation",
+							"host": ["{{baseUrl}}"],
+							"path": [
+								"app-users",
+								"{{appUserId}}",
+								"double-authentification",
+								"reinitialisation"
+							]
+						},
+						"description": "Permissions `users:write` **et** `sessions:revoke` — donc le proprietaire seul.\n\nSeule issue au telephone perdu **avec** les codes de secours. L'operation coupe les sessions du compte vise et abaisse son niveau de protection : ce n'est pas de l'administration de comptes ordinaire."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Sessions actives",
+			"description": "`sessions:read` et `sessions:revoke` sont absentes de la matrice par defaut : seul le proprietaire les porte.",
+			"item": [
+				{
+					"name": "Lister les sessions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/sessions?appUserId={{appUserId}}&includeInactive=false",
+							"host": ["{{baseUrl}}"],
+							"path": ["sessions"],
+							"query": [
+								{
+									"key": "appUserId",
+									"value": "{{appUserId}}",
+									"description": "UUID ; omis, liste toutes les sessions",
+									"disabled": true
+								},
+								{ "key": "includeInactive", "value": "false", "disabled": true }
+							]
+						},
+						"description": "Une ligne par **famille** de refresh tokens, pas par jeton. La session courante est reconnue par le `sid` de l'access token."
+					},
+					"response": []
+				},
+				{
+					"name": "Fermer une session",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/sessions/{{sessionFamilyId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["sessions", "{{sessionFamilyId}}"]
+						},
+						"description": "Permission `sessions:revoke`. Le parametre est l'identifiant de **famille** (`sid`)."
+					},
+					"response": []
+				},
+				{
+					"name": "Fermer toutes les sessions d'un compte",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/sessions/compte/{{appUserId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["sessions", "compte", "{{appUserId}}"]
+						},
+						"description": "Permission `sessions:revoke`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Permissions par role",
+			"description": "Permission `permissions:manage`.",
+			"item": [
+				{
+					"name": "Matrice des permissions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/role-permissions",
+							"host": ["{{baseUrl}}"],
+							"path": ["role-permissions"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Redefinir les permissions d'un role",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"permissions\": [\n    \"members:read\",\n    \"warnings:read\",\n    \"warnings:write\",\n    \"sanctions:read\"\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/role-permissions/MODERATOR",
+							"host": ["{{baseUrl}}"],
+							"path": ["role-permissions", "MODERATOR"]
+						},
+						"description": "Role : `VIEWER` | `MODERATOR` | `ADMIN` | `OWNER`.\n\nLa liste **remplace** l'existant. Les droits de `OWNER_ONLY_PERMISSIONS` (dont `sessions:read`, `sessions:revoke`) sont volontairement absents de la matrice : le proprietaire les recoit autrement."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Membres",
+			"description": "Permission de classe `members:read`.",
+			"item": [
+				{
+					"name": "Rechercher des membres",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/members?page=1&pageSize=25&sortBy=username&sortDir=asc&search=&status=ACTIVE&roleId={{roleId}}&hasActiveSanction=true&minWarnings=1&joinedAfter=2025-01-01T00:00:00.000Z&joinedBefore=2026-01-01T00:00:00.000Z",
+							"host": ["{{baseUrl}}"],
+							"path": ["members"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{
+									"key": "sortBy",
+									"value": "username",
+									"description": "username | joinedAt | warningCount | messageCount30d | lastActiveAt"
+								},
+								{ "key": "sortDir", "value": "asc", "description": "asc | desc" },
+								{ "key": "search", "value": "", "disabled": true },
+								{
+									"key": "status",
+									"value": "ACTIVE",
+									"description": "ACTIVE | LEFT | BANNED",
+									"disabled": true
+								},
+								{ "key": "roleId", "value": "{{roleId}}", "disabled": true },
+								{ "key": "hasActiveSanction", "value": "true", "disabled": true },
+								{ "key": "minWarnings", "value": "1", "disabled": true },
+								{
+									"key": "joinedAfter",
+									"value": "2025-01-01T00:00:00.000Z",
+									"disabled": true
+								},
+								{
+									"key": "joinedBefore",
+									"value": "2026-01-01T00:00:00.000Z",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Seul endroit de l'API qui ecrit du SQL a la main : la recherche agrege avertissements, sanctions et activite puis trie et pagine dessus. Les colonnes de tri passent par une table blanche."
+					},
+					"response": []
+				},
+				{
+					"name": "Lister les roles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/members/roles",
+							"host": ["{{baseUrl}}"],
+							"path": ["members", "roles"]
+						},
+						"description": "Declaree avant `:userId`, sinon « roles » serait pris pour un identifiant."
+					},
+					"response": []
+				},
+				{
+					"name": "Historiser ou non un role",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"trackHistory\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/members/roles/{{roleId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["members", "roles", "{{roleId}}"]
+						},
+						"description": "Permission `roles:manage` (et non `members:read`) : decider ce qui entre dans la chronologie releve de la configuration.\n\nReglage **du dashboard, pas de Discord** : le filtre s'applique a l'ecriture dans le bot et a la lecture dans la chronologie, ce qui le rend retroactif et reversible."
+					},
+					"response": []
+				},
+				{
+					"name": "Fiche d'un membre",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/members/{{discordUserId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["members", "{{discordUserId}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Chronologie d'un membre",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/members/{{discordUserId}}/timeline?page=1&pageSize=25&kinds=WARNING&kinds=SANCTION&from=2025-01-01T00:00:00.000Z&to=2026-01-01T00:00:00.000Z",
+							"host": ["{{baseUrl}}"],
+							"path": ["members", "{{discordUserId}}", "timeline"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{
+									"key": "kinds",
+									"value": "WARNING",
+									"description": "WARNING | SANCTION | NOTE | ROLE | IDENTITY | JOIN | LEAVE | TICKET (repetable)",
+									"disabled": true
+								},
+								{ "key": "kinds", "value": "SANCTION", "disabled": true },
+								{
+									"key": "from",
+									"value": "2025-01-01T00:00:00.000Z",
+									"disabled": true
+								},
+								{
+									"key": "to",
+									"value": "2026-01-01T00:00:00.000Z",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Sessions vocales d'un membre",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/members/{{discordUserId}}/voice-sessions?page=1&pageSize=25",
+							"host": ["{{baseUrl}}"],
+							"path": ["members", "{{discordUserId}}", "voice-sessions"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" }
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Avertissements",
+			"item": [
+				{
+					"name": "Rechercher des avertissements",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warnings?page=1&pageSize=25&userId={{discordUserId}}&severity=HIGH&activeOnly=true&from=2025-01-01T00:00:00.000Z&to=2026-01-01T00:00:00.000Z",
+							"host": ["{{baseUrl}}"],
+							"path": ["warnings"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{ "key": "userId", "value": "{{discordUserId}}", "disabled": true },
+								{
+									"key": "severity",
+									"value": "HIGH",
+									"description": "LOW | MEDIUM | HIGH",
+									"disabled": true
+								},
+								{ "key": "activeOnly", "value": "true", "disabled": true },
+								{
+									"key": "from",
+									"value": "2025-01-01T00:00:00.000Z",
+									"disabled": true
+								},
+								{
+									"key": "to",
+									"value": "2026-01-01T00:00:00.000Z",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Permission `warnings:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Detail d'un avertissement",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warnings/{{warningId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["warnings", "{{warningId}}"]
+						},
+						"description": "Permission `warnings:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Creer un avertissement",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{discordUserId}}\",\n  \"reason\": \"Propos deplaces dans le salon general\",\n  \"severity\": \"MEDIUM\",\n  \"points\": 2,\n  \"expiresAt\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/warnings",
+							"host": ["{{baseUrl}}"],
+							"path": ["warnings"]
+						},
+						"description": "Permission `warnings:write`. `reason` : 3 a 1000 caracteres. `points` : 1 a 100."
+					},
+					"response": []
+				},
+				{
+					"name": "Lever un avertissement",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Signalement errone\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/warnings/{{warningId}}/revoke",
+							"host": ["{{baseUrl}}"],
+							"path": ["warnings", "{{warningId}}", "revoke"]
+						},
+						"description": "Permission `warnings:revoke`. Le motif est obligatoire (3 a 500 caracteres)."
+					},
+					"response": []
+				},
+				{
+					"name": "Deposer une piece jointe",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "Un seul fichier, plafonne a MAX_MODERATION_ATTACHMENT_BYTES"
+								},
+								{
+									"key": "spoiler",
+									"value": "false",
+									"type": "text",
+									"description": "Seul le mot exact « true » marque la piece comme explicite"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/warnings/{{warningId}}/attachments",
+							"host": ["{{baseUrl}}"],
+							"path": ["warnings", "{{warningId}}", "attachments"]
+						},
+						"description": "Permission `warnings:write`. Le fichier part droit en base (`bytea`), il n'est jamais ecrit sur disque.\n\nLe marqueur `spoiler` ne **restreint aucun acces** — qui voit la decision voit la piece ; il n'evite qu'un affichage subi.\n\nNe pas fixer `Content-Type` a la main : Postman pose la limite multipart lui-meme."
+					},
+					"response": []
+				},
+				{
+					"name": "Telecharger une piece jointe",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warnings/{{warningId}}/attachments/{{attachmentId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["warnings", "{{warningId}}", "attachments", "{{attachmentId}}"]
+						},
+						"description": "Permission `warnings:read`. Servi tel qu'il a ete depose, avec `X-Content-Type-Options: nosniff`."
+					},
+					"response": []
+				},
+				{
+					"name": "Supprimer une piece jointe",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/warnings/{{warningId}}/attachments/{{attachmentId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["warnings", "{{warningId}}", "attachments", "{{attachmentId}}"]
+						},
+						"description": "Permission `warnings:write`. 204 sans contenu."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Sanctions",
+			"item": [
+				{
+					"name": "Rechercher des sanctions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/sanctions?page=1&pageSize=25&userId={{discordUserId}}&type=BAN&status=ACTIVE&from=2025-01-01T00:00:00.000Z&to=2026-01-01T00:00:00.000Z",
+							"host": ["{{baseUrl}}"],
+							"path": ["sanctions"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{ "key": "userId", "value": "{{discordUserId}}", "disabled": true },
+								{
+									"key": "type",
+									"value": "BAN",
+									"description": "TIMEOUT | KICK | BAN | SHADOWBAN",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "ACTIVE",
+									"description": "ACTIVE | EXPIRED | REVOKED",
+									"disabled": true
+								},
+								{
+									"key": "from",
+									"value": "2025-01-01T00:00:00.000Z",
+									"disabled": true
+								},
+								{
+									"key": "to",
+									"value": "2026-01-01T00:00:00.000Z",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Permission `sanctions:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Detail d'une sanction",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/sanctions/{{sanctionId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["sanctions", "{{sanctionId}}"]
+						},
+						"description": "Permission `sanctions:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Creer une sanction",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{discordUserId}}\",\n  \"type\": \"TIMEOUT\",\n  \"reason\": \"Spam repete apres avertissement\",\n  \"durationSeconds\": 3600,\n  \"warningId\": null,\n  \"evidenceUrl\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/sanctions",
+							"host": ["{{baseUrl}}"],
+							"path": ["sanctions"]
+						},
+						"description": "Permission `sanctions:write`.\n\n`type` : `TIMEOUT` | `KICK` | `BAN` | `SHADOWBAN`. `durationSeconds` : 60 au minimum ; absent ou `null` pour un `BAN`/`SHADOWBAN` permanent.\n\nL'effet Discord n'est **pas** applique par cette requete : la sanction est creee avec `discordSyncedAt = null` et le bot la rattrape au passage suivant (toutes les 5 s). Un `KICK` passe au statut `EXPIRED` des sa creation — il n'y a rien a rejouer ensuite."
+					},
+					"response": []
+				},
+				{
+					"name": "Lever une sanction",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Appel accepte\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/sanctions/{{sanctionId}}/revoke",
+							"host": ["{{baseUrl}}"],
+							"path": ["sanctions", "{{sanctionId}}", "revoke"]
+						},
+						"description": "Permission `sanctions:revoke`.\n\nRefuse de lever une sanction **`EXPIRED`** : expulsion deja executee, timeout ou shadowban deja arrive a echeance. Il n'y a rien a rejouer cote Discord, et laisser passer donnait une fausse impression de levee reelle."
+					},
+					"response": []
+				},
+				{
+					"name": "Deposer une piece jointe",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "file", "type": "file", "src": [] },
+								{ "key": "spoiler", "value": "false", "type": "text" }
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/sanctions/{{sanctionId}}/attachments",
+							"host": ["{{baseUrl}}"],
+							"path": ["sanctions", "{{sanctionId}}", "attachments"]
+						},
+						"description": "Permission `sanctions:write`. Meme fonctionnement que pour les avertissements."
+					},
+					"response": []
+				},
+				{
+					"name": "Telecharger une piece jointe",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/sanctions/{{sanctionId}}/attachments/{{attachmentId}}",
+							"host": ["{{baseUrl}}"],
+							"path": [
+								"sanctions",
+								"{{sanctionId}}",
+								"attachments",
+								"{{attachmentId}}"
+							]
+						},
+						"description": "Permission `sanctions:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Supprimer une piece jointe",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/sanctions/{{sanctionId}}/attachments/{{attachmentId}}",
+							"host": ["{{baseUrl}}"],
+							"path": [
+								"sanctions",
+								"{{sanctionId}}",
+								"attachments",
+								"{{attachmentId}}"
+							]
+						},
+						"description": "Permission `sanctions:write`. 204 sans contenu."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Notes internes",
+			"item": [
+				{
+					"name": "Notes d'un membre",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/notes/member/{{discordUserId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["notes", "member", "{{discordUserId}}"]
+						},
+						"description": "Permission `notes:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Creer une note",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{discordUserId}}\",\n  \"body\": \"A surveiller : plusieurs signalements sans suite.\",\n  \"pinned\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/notes",
+							"host": ["{{baseUrl}}"],
+							"path": ["notes"]
+						},
+						"description": "Permission `notes:write`. `body` : 1 a 4000 caracteres."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier une note",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"body\": \"Texte corrige.\",\n  \"pinned\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/notes/{{noteId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["notes", "{{noteId}}"]
+						},
+						"description": "Permission `notes:write`."
+					},
+					"response": []
+				},
+				{
+					"name": "Supprimer une note",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/notes/{{noteId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["notes", "{{noteId}}"]
+						},
+						"description": "Permission `notes:write`. 204 sans contenu."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Tickets",
+			"item": [
+				{
+					"name": "Rechercher des tickets",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/tickets?page=1&pageSize=25&sortBy=openedAt&sortDir=desc&search=&status=OPEN&priority=HIGH&category=SUPPORT&assigneeId={{discordUserId}}&openerId={{discordUserId}}&from=2025-01-01T00:00:00.000Z&to=2026-01-01T00:00:00.000Z",
+							"host": ["{{baseUrl}}"],
+							"path": ["tickets"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{
+									"key": "sortBy",
+									"value": "openedAt",
+									"description": "openedAt | closedAt | priority | number"
+								},
+								{ "key": "sortDir", "value": "desc", "description": "asc | desc" },
+								{ "key": "search", "value": "", "disabled": true },
+								{
+									"key": "status",
+									"value": "OPEN",
+									"description": "OPEN | PENDING | RESOLVED | CLOSED",
+									"disabled": true
+								},
+								{
+									"key": "priority",
+									"value": "HIGH",
+									"description": "LOW | NORMAL | HIGH | URGENT",
+									"disabled": true
+								},
+								{
+									"key": "category",
+									"value": "SUPPORT",
+									"description": "SUPPORT | REPORT | COMPLAINT | PARTNERSHIP | OTHER",
+									"disabled": true
+								},
+								{
+									"key": "assigneeId",
+									"value": "{{discordUserId}}",
+									"disabled": true
+								},
+								{ "key": "openerId", "value": "{{discordUserId}}", "disabled": true },
+								{
+									"key": "from",
+									"value": "2025-01-01T00:00:00.000Z",
+									"disabled": true
+								},
+								{
+									"key": "to",
+									"value": "2026-01-01T00:00:00.000Z",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Permission `tickets:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Detail d'un ticket",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/tickets/{{ticketId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["tickets", "{{ticketId}}"]
+						},
+						"description": "Permission `tickets:read`. Le transcript reste consultable meme apres suppression du salon Discord : seul `channelId` repasse a `null`."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier un ticket",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"PENDING\",\n  \"priority\": \"HIGH\",\n  \"category\": \"SUPPORT\",\n  \"assigneeId\": \"{{discordUserId}}\",\n  \"closeReason\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/tickets/{{ticketId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["tickets", "{{ticketId}}"]
+						},
+						"description": "Permission `tickets:write`. `assigneeId: null` desassigne le ticket."
+					},
+					"response": []
+				},
+				{
+					"name": "Ajouter une note interne",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"body\": \"Relance envoyee, sans reponse a ce jour.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/tickets/{{ticketId}}/notes",
+							"host": ["{{baseUrl}}"],
+							"path": ["tickets", "{{ticketId}}", "notes"]
+						},
+						"description": "Permission `tickets:write`. 1 a 4000 caracteres."
+					},
+					"response": []
+				},
+				{
+					"name": "Telecharger une piece jointe",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/tickets/{{ticketId}}/attachments/{{attachmentId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["tickets", "{{ticketId}}", "attachments", "{{attachmentId}}"]
+						},
+						"description": "Permission `tickets:read`. Les pieces jointes sont stockees en base plutot que referencees par leur lien CDN Discord, qui peut expirer."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Automoderation",
+			"item": [
+				{
+					"name": "Lister les regles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/automod/rules",
+							"host": ["{{baseUrl}}"],
+							"path": ["automod", "rules"]
+						},
+						"description": "Permission `automod:read`. Sept types : `SPAM_RATE`, `ATTACHMENT_SPAM`, `MASS_MENTIONS`, `LINKS_INVITES`, `WORD_FILTER`, `EXCESSIVE_CAPS`, `REPETITION`."
+					},
+					"response": []
+				},
+				{
+					"name": "Configurer une regle",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"enabled\": true,\n  \"action\": \"DELETE_AND_TIMEOUT\",\n  \"timeoutSeconds\": 300,\n  \"settings\": {\n    \"maxMessages\": 5,\n    \"windowSeconds\": 10\n  },\n  \"exemptRoleIds\": [\"{{roleId}}\"]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/automod/rules/SPAM_RATE",
+							"host": ["{{baseUrl}}"],
+							"path": ["automod", "rules", "SPAM_RATE"]
+						},
+						"description": "Permission `automod:write`. Le type inconnu renvoie 400.\n\n`action` : `LOG_ONLY` | `DELETE` | `DELETE_AND_TIMEOUT`. `timeoutSeconds` : 1 a 28 jours.\n\n**La forme de `settings` depend du type de regle** — les six formes possibles sont documentees dans `packages/shared/src/dto/automod.ts` (`AutomodRuleSettings`). Le cache du bot a un TTL de 30 s : une modification n'est pas instantanee sur Discord."
+					},
+					"response": []
+				},
+				{
+					"name": "Incidents d'automoderation",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/automod/incidents?page=1&pageSize=25&ruleType=SPAM_RATE&userId={{discordUserId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["automod", "incidents"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{ "key": "ruleType", "value": "SPAM_RATE", "disabled": true },
+								{ "key": "userId", "value": "{{discordUserId}}", "disabled": true }
+							]
+						},
+						"description": "Permission `automod:read`. Les pieces jointes du message incrimine sont conservees **en metadonnees seulement** (nom, type, taille) : c'est un journal d'audit, pas un archivage."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Anti-raid",
+			"item": [
+				{
+					"name": "Configuration",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/raid/config",
+							"host": ["{{baseUrl}}"],
+							"path": ["raid", "config"]
+						},
+						"description": "Permission `raid:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier la configuration",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"enabled\": true,\n  \"joinThreshold\": 10,\n  \"windowSeconds\": 60,\n  \"lockdownMinutes\": 15,\n  \"alertRoleId\": \"{{roleId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/raid/config",
+							"host": ["{{baseUrl}}"],
+							"path": ["raid", "config"]
+						},
+						"description": "Permission `raid:configure`.\n\n`joinThreshold` 2-1000, `windowSeconds` 5-3600, `lockdownMinutes` 1-1440. `alertRoleId: null` retire l'alerte de mention."
+					},
+					"response": []
+				},
+				{
+					"name": "Incidents",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/raid/incidents",
+							"host": ["{{baseUrl}}"],
+							"path": ["raid", "incidents"]
+						},
+						"description": "Permission `raid:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Declencher un confinement",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/raid/lockdown",
+							"host": ["{{baseUrl}}"],
+							"path": ["raid", "lockdown"]
+						},
+						"description": "Permission `raid:respond`.\n\nDeclenche depuis la webapp, l'incident est cree avec `discordSyncedAt = null` : **l'effet Discord attend le prochain passage du bot** (5 s). Le confinement ne verrouille que les salons effectivement ouverts au moment du declenchement, et ne memorise que ceux-la pour les rouvrir a l'identique."
+					},
+					"response": []
+				},
+				{
+					"name": "Resoudre un incident",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/raid/incidents/{{raidIncidentId}}/resolve",
+							"host": ["{{baseUrl}}"],
+							"path": ["raid", "incidents", "{{raidIncidentId}}", "resolve"]
+						},
+						"description": "Permission `raid:respond`. Meme decalage : la reouverture des salons attend le bot."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Quarantaine",
+			"item": [
+				{
+					"name": "Configuration",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/quarantine/config",
+							"host": ["{{baseUrl}}"],
+							"path": ["quarantine", "config"]
+						},
+						"description": "Permission `quarantine:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier la configuration",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"enabled\": true,\n  \"roleId\": \"{{roleId}}\",\n  \"channelId\": \"{{channelId}}\",\n  \"message\": \"Votre compte est en attente de verification.\",\n  \"buttonLabel\": \"Je confirme\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/quarantine/config",
+							"host": ["{{baseUrl}}"],
+							"path": ["quarantine", "config"]
+						},
+						"description": "Permission `quarantine:configure`. `roleId: null` detache le role sans desactiver la quarantaine."
+					},
+					"response": []
+				},
+				{
+					"name": "Membres en quarantaine",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/quarantine/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["quarantine", "status"]
+						},
+						"description": "Permission `quarantine:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Liberer un membre",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/quarantine/status/{{discordUserId}}/release",
+							"host": ["{{baseUrl}}"],
+							"path": ["quarantine", "status", "{{discordUserId}}", "release"]
+						},
+						"description": "Permission `quarantine:respond`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Signalements de comptes",
+			"item": [
+				{
+					"name": "Lister les signalements",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/account-flags?page=1&pageSize=25&userId={{discordUserId}}&reviewed=false",
+							"host": ["{{baseUrl}}"],
+							"path": ["account-flags"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{ "key": "userId", "value": "{{discordUserId}}", "disabled": true },
+								{ "key": "reviewed", "value": "false", "disabled": true }
+							]
+						},
+						"description": "Permission `account-flags:read`.\n\nTypes : `NEW_ACCOUNT`, `DEFAULT_AVATAR`, `STAFF_IMPERSONATION`, `QUICK_REJOIN`, `JOINED_AFTER_BAN`. La surveillance de comptes ne pose **jamais** de sanction automatique : un signalement par signal declenche, plus une alerte au staff."
+					},
+					"response": []
+				},
+				{
+					"name": "Marquer comme traite",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/account-flags/{{accountFlagId}}/review",
+							"host": ["{{baseUrl}}"],
+							"path": ["account-flags", "{{accountFlagId}}", "review"]
+						},
+						"description": "Permission `account-flags:write`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Vocal",
+			"item": [
+				{
+					"name": "Vocaux en direct",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/voice/live",
+							"host": ["{{baseUrl}}"],
+							"path": ["voice", "live"]
+						},
+						"description": "Permission `voice:read`. Declaree avant `:id`, sinon « live » serait pris pour un identifiant."
+					},
+					"response": []
+				},
+				{
+					"name": "Lister les salons de creation",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/voice/hubs",
+							"host": ["{{baseUrl}}"],
+							"path": ["voice", "hubs"]
+						},
+						"description": "Permission `voice:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Creer un salon de creation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Creer un salon\",\n  \"namePattern\": \"Salon {index}\",\n  \"userLimit\": 0,\n  \"position\": 0,\n  \"enabled\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/voice/hubs",
+							"host": ["{{baseUrl}}"],
+							"path": ["voice", "hubs"]
+						},
+						"description": "Permission `voice:manage`.\n\n`namePattern` **doit contenir `{index}`** : sans lui, tous les salons issus d'un meme salon de creation porteraient le meme nom et deviendraient indiscernables dans la liste vocale de Discord.\n\n`userLimit` : 0 (illimite) a 99."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier un salon de creation",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Creer un salon prive\",\n  \"namePattern\": \"Prive {index}\",\n  \"userLimit\": 5,\n  \"enabled\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/voice/hubs/{{voiceHubId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["voice", "hubs", "{{voiceHubId}}"]
+						},
+						"description": "Permission `voice:manage`."
+					},
+					"response": []
+				},
+				{
+					"name": "Supprimer un salon de creation",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/voice/hubs/{{voiceHubId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["voice", "hubs", "{{voiceHubId}}"]
+						},
+						"description": "Permission `voice:manage`. Renvoie `{ channelId }` — le salon Discord correspondant, s'il existait."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Experience",
+			"item": [
+				{
+					"name": "Vue d'ensemble",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/experience",
+							"host": ["{{baseUrl}}"],
+							"path": ["experience"]
+						},
+						"description": "Permission `xp:read`. Courbe : `xpRequiredForLevel(n) = 50·n·(n+1)`, sans plafond."
+					},
+					"response": []
+				},
+				{
+					"name": "Classement",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/experience/classement?page=1&pageSize=25&search=",
+							"host": ["{{baseUrl}}"],
+							"path": ["experience", "classement"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{ "key": "search", "value": "", "disabled": true }
+							]
+						},
+						"description": "Permission `xp:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Progression d'un membre",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/experience/membres/{{discordUserId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["experience", "membres", "{{discordUserId}}"]
+						},
+						"description": "Permission `xp:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Lister les paliers de recompense",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/experience/recompenses",
+							"host": ["{{baseUrl}}"],
+							"path": ["experience", "recompenses"]
+						},
+						"description": "Permission `xp:read`. Declaree avant `membres/:userId`, sinon « recompenses » serait lu comme un identifiant Discord."
+					},
+					"response": []
+				},
+				{
+					"name": "Creer un palier",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"roleId\": \"{{roleId}}\",\n  \"level\": 10,\n  \"replacePrevious\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/experience/recompenses",
+							"host": ["{{baseUrl}}"],
+							"path": ["experience", "recompenses"]
+						},
+						"description": "Permission `xp:manage`.\n\n`replacePrevious` se lit sur le palier **atteint**, pas sur chacun : c'est lui qui decrit le rang courant du membre.\n\nLe rattrapage des beneficiaires passe toutes les 5 minutes cote bot — un palier ajoute ici n'est pas attribue instantanement."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier un palier",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"level\": 15,\n  \"replacePrevious\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/experience/recompenses/{{xpRewardId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["experience", "recompenses", "{{xpRewardId}}"]
+						},
+						"description": "Permission `xp:manage`."
+					},
+					"response": []
+				},
+				{
+					"name": "Supprimer un palier",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/experience/recompenses/{{xpRewardId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["experience", "recompenses", "{{xpRewardId}}"]
+						},
+						"description": "Permission `xp:manage`. 204 sans contenu."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Concours",
+			"item": [
+				{
+					"name": "Lister les concours",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/giveaways?page=1&pageSize=25&status=RUNNING",
+							"host": ["{{baseUrl}}"],
+							"path": ["giveaways"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{
+									"key": "status",
+									"value": "RUNNING",
+									"description": "SCHEDULED | RUNNING | ENDED | CANCELLED",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Permission `giveaway:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Detail d'un concours",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/giveaways/{{giveawayId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["giveaways", "{{giveawayId}}"]
+						},
+						"description": "Permission `giveaway:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Participations",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/giveaways/{{giveawayId}}/participations",
+							"host": ["{{baseUrl}}"],
+							"path": ["giveaways", "{{giveawayId}}", "participations"]
+						},
+						"description": "Permission `giveaway:read`. Les participations sont enregistrees deux fois : au fil de l'eau par les evenements, et par relecture complete des reactions au moment du tirage."
+					},
+					"response": []
+				},
+				{
+					"name": "Creer un concours",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"channelId\": \"{{channelId}}\",\n  \"title\": \"Concours de la rentree\",\n  \"description\": \"Reagissez pour participer.\",\n  \"prize\": \"Un role personnalise\",\n  \"winnerCount\": 1,\n  \"durationMinutes\": 1440,\n  \"reactionEmoji\": \"🎉\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/giveaways",
+							"host": ["{{baseUrl}}"],
+							"path": ["giveaways"]
+						},
+						"description": "Permission `giveaway:write`.\n\nLe concours est cree au statut `SCHEDULED` avec `discordSyncedAt = null` : **c'est le bot qui publiera l'annonce**, au passage suivant.\n\n`reactionEmoji` accepte un emoji Unicode ou un emoji personnalise du serveur (reconnu **par son identifiant**, jamais par son nom : un emoji renomme casserait la comparaison)."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier un concours",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Concours de la rentree (prolonge)\",\n  \"prize\": \"Deux roles personnalises\",\n  \"winnerCount\": 2,\n  \"durationMinutes\": 2880\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/giveaways/{{giveawayId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["giveaways", "{{giveawayId}}"]
+						},
+						"description": "Permission `giveaway:write`. Sur un concours `RUNNING`, la modification remet `discordSyncedAt` a `null` : l'embed sera corrige par le bot."
+					},
+					"response": []
+				},
+				{
+					"name": "Annuler un concours",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/giveaways/{{giveawayId}}/annulation",
+							"host": ["{{baseUrl}}"],
+							"path": ["giveaways", "{{giveawayId}}", "annulation"]
+						},
+						"description": "Permission `giveaway:write`. Statut `CANCELLED` : le bot barrera le message."
+					},
+					"response": []
+				},
+				{
+					"name": "Relancer le tirage",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/giveaways/{{giveawayId}}/nouveau-tirage",
+							"host": ["{{baseUrl}}"],
+							"path": ["giveaways", "{{giveawayId}}", "nouveau-tirage"]
+						},
+						"description": "Permission `giveaway:write`. Sur un concours `ENDED` : le bot procede a un nouveau tirage."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Messages composes",
+			"description": "Route `/messages`. Les embeds sont mis en file, jamais publies par la requete HTTP elle-meme.",
+			"item": [
+				{
+					"name": "Lister les messages",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/messages?page=1&pageSize=25&status=DRAFT",
+							"host": ["{{baseUrl}}"],
+							"path": ["messages"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{
+									"key": "status",
+									"value": "DRAFT",
+									"description": "DRAFT | QUEUED | SENT | FAILED",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Permission `embeds:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Detail d'un message",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/messages/{{embedMessageId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["messages", "{{embedMessageId}}"]
+						},
+						"description": "Permission `embeds:read`."
+					},
+					"response": []
+				},
+				{
+					"name": "Creer un message",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"channelId\": \"{{channelId}}\",\n  \"name\": \"Reglement du serveur\",\n  \"content\": null,\n  \"title\": \"Reglement\",\n  \"description\": \"Merci de lire ce qui suit avant de participer.\",\n  \"color\": 5793266,\n  \"footerText\": \"Anubis\",\n  \"showTimestamp\": true,\n  \"fields\": [\n    {\n      \"name\": \"Respect\",\n      \"value\": \"Pas d'insultes ni de harcelement.\",\n      \"inline\": false\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/messages",
+							"host": ["{{baseUrl}}"],
+							"path": ["messages"]
+						},
+						"description": "Permission `embeds:write`.\n\n`color` : entier Discord `0xRRGGBB`, de 0 a 16777215.\n\nAttention a la limite de **6000 caracteres portant sur la somme de tous les champs** : un embed dont chaque champ tient dans sa propre limite peut malgre tout etre refuse."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier un message",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Reglement mis a jour\",\n  \"description\": \"Nouvelle version du reglement.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/messages/{{embedMessageId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["messages", "{{embedMessageId}}"]
+						},
+						"description": "Permission `embeds:write`.\n\n`channelId` est volontairement absent : deplacer un message deja publie supposerait de le supprimer et d'en republier un autre, donc de perdre reactions et epinglages."
+					},
+					"response": []
+				},
+				{
+					"name": "Mettre en file d'envoi",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/messages/{{embedMessageId}}/envoi",
+							"host": ["{{baseUrl}}"],
+							"path": ["messages", "{{embedMessageId}}", "envoi"]
+						},
+						"description": "Permission `embeds:write`. **Cette requete ne publie rien** : elle passe le message au statut `QUEUED` et c'est le bot qui l'envoie.\n\nUn echec pose quand meme `discordSyncedAt` (statut `FAILED`, `lastError` renseigne) : sans cela un message refuse serait rejoue toutes les cinq secondes indefiniment. C'est au staff de le remettre en file apres correction."
+					},
+					"response": []
+				},
+				{
+					"name": "Supprimer un message",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/messages/{{embedMessageId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["messages", "{{embedMessageId}}"]
+						},
+						"description": "Permission `embeds:write`. 204 sans contenu.\n\n**Ne supprime pas le message sur Discord** : ce qui a ete lu par le serveur ne se reprend pas d'un clic."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Wiki",
+			"item": [
+				{
+					"name": "Rechercher des articles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/wiki?q=&category=PROCEDURES&deleted=false",
+							"host": ["{{baseUrl}}"],
+							"path": ["wiki"],
+							"query": [
+								{ "key": "q", "value": "", "disabled": true },
+								{
+									"key": "category",
+									"value": "PROCEDURES",
+									"description": "SANCTIONS | BEHAVIOR | PROCEDURES | TOOLS | ONBOARDING | OTHER",
+									"disabled": true
+								},
+								{
+									"key": "deleted",
+									"value": "false",
+									"description": "Inclure les articles supprimes (corbeille)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Permission `wiki:read`. La recherche porte sur `contentText` (texte nu), pas sur le balisage."
+					},
+					"response": []
+				},
+				{
+					"name": "Article par slug",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/wiki/{{wikiSlug}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["wiki", "{{wikiSlug}}"]
+						},
+						"description": "Permission `wiki:read`. Lecture **par slug** et non par identifiant : c'est l'adresse que l'equipe se partage. Le slug ne suit jamais le titre apres creation."
+					},
+					"response": []
+				},
+				{
+					"name": "Creer un article",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Procedure de sanction\",\n  \"category\": \"PROCEDURES\",\n  \"summary\": \"Les etapes a suivre avant de bannir.\",\n  \"contentHtml\": \"<h2>Avant de sanctionner</h2><p>Verifier l'historique du membre.</p>\",\n  \"pinned\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/wiki",
+							"host": ["{{baseUrl}}"],
+							"path": ["wiki"]
+						},
+						"description": "Permission `wiki:write`. Le HTML est nettoye **cote API** par une liste blanche `sanitize-html` : les balises refusees disparaissent silencieusement de la reponse."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier un article",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Procedure de sanction (revue)\",\n  \"contentHtml\": \"<p>Version corrigee.</p>\",\n  \"pinned\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/wiki/{{wikiArticleId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["wiki", "{{wikiArticleId}}"]
+						},
+						"description": "Permission `wiki:write`. Le parametre est l'**UUID**, pas le slug."
+					},
+					"response": []
+				},
+				{
+					"name": "Restaurer un article",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/wiki/{{wikiArticleId}}/restore",
+							"host": ["{{baseUrl}}"],
+							"path": ["wiki", "{{wikiArticleId}}", "restore"]
+						},
+						"description": "Permission `wiki:delete`."
+					},
+					"response": []
+				},
+				{
+					"name": "Supprimer un article",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/wiki/{{wikiArticleId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["wiki", "{{wikiArticleId}}"]
+						},
+						"description": "Permission `wiki:delete`. 204 sans contenu. Suppression logique : l'article reste accessible via `?deleted=true`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Configuration du serveur",
+			"description": "Table `config_guild` : salons de logs, role de shadowban, salon d'archive des transcripts.",
+			"item": [
+				{
+					"name": "Lister les reglages",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/guild-config",
+							"host": ["{{baseUrl}}"],
+							"path": ["guild-config"]
+						},
+						"description": "Permission `logs:read`.\n\nCles connues : `LOG_CHANNEL_MODERATION`, `LOG_CHANNEL_MEMBERS`, `LOG_CHANNEL_MESSAGES`, `LOG_CHANNEL_SERVER`, `LOG_CHANNEL_VOICE`, `SHADOWBAN_ROLE`, `TICKET_TRANSCRIPT_CHANNEL`. `config_name` reste un `varchar` libre pour accueillir d'autres reglages plus tard."
+					},
+					"response": []
+				},
+				{
+					"name": "Ajouter un reglage",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"configName\": \"LOG_CHANNEL_MODERATION\",\n  \"configValue\": \"{{channelId}}\",\n  \"configDescription\": \"Journal de moderation\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/guild-config",
+							"host": ["{{baseUrl}}"],
+							"path": ["guild-config"]
+						},
+						"description": "Permission `logs:write`."
+					},
+					"response": []
+				},
+				{
+					"name": "Modifier un reglage",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"configValue\": \"{{channelId}}\",\n  \"configDescription\": \"Journal de moderation (nouveau salon)\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/guild-config/{{guildConfigId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["guild-config", "{{guildConfigId}}"]
+						},
+						"description": "Permission `logs:write`."
+					},
+					"response": []
+				},
+				{
+					"name": "Supprimer un reglage",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/guild-config/{{guildConfigId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["guild-config", "{{guildConfigId}}"]
+						},
+						"description": "Permission `logs:write`. 204 sans contenu."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Statistiques",
+			"description": "Permission de classe `stats:read`. `period` : `7d` | `30d` | `90d` | `365d` (defaut `30d`).",
+			"item": [
+				{
+					"name": "Vue d'ensemble",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stats/overview?period=30d",
+							"host": ["{{baseUrl}}"],
+							"path": ["stats", "overview"],
+							"query": [
+								{
+									"key": "period",
+									"value": "30d",
+									"description": "7d | 30d | 90d | 365d"
+								}
+							]
+						},
+						"description": "Les jours sont calcules en **UTC** et la semaine commence lundi."
+					},
+					"response": []
+				},
+				{
+					"name": "Statistiques des tickets",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stats/tickets?period=30d",
+							"host": ["{{baseUrl}}"],
+							"path": ["stats", "tickets"],
+							"query": [{ "key": "period", "value": "30d" }]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Activite d'un membre",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/stats/members/{{discordUserId}}?period=30d",
+							"host": ["{{baseUrl}}"],
+							"path": ["stats", "members", "{{discordUserId}}"],
+							"query": [{ "key": "period", "value": "30d" }]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Journal d'audit",
+			"item": [
+				{
+					"name": "Lister les entrees",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/audit?page=1&pageSize=25&appUserId={{appUserId}}&action=sanction",
+							"host": ["{{baseUrl}}"],
+							"path": ["audit"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "pageSize", "value": "25" },
+								{ "key": "appUserId", "value": "{{appUserId}}", "disabled": true },
+								{
+									"key": "action",
+									"value": "sanction",
+									"description": "Recherche par sous-chaine",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Permission `audit:read`. Trie du plus recent au plus ancien."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

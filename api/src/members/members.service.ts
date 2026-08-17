@@ -1,24 +1,31 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@anubis/shared/prisma";
 import {
-	avatarUrl,
+	moderationRisk,
 	snowflakeToDate,
 	TimelineKind,
 	type MemberCounters,
 	type MemberDetail,
 	type MemberListItem,
 	type MemberSortField,
+	type ModerationScoreDto,
 	type Paginated,
 	type RoleSummary,
 	type TimelineEntry,
+	type VoiceSessionDto,
 } from "@anubis/shared";
 import { AuditService } from "../audit/audit.service";
 import { paginate } from "../common/dto/pagination.dto";
 import { GuildContextService } from "../common/guild-context.service";
 import { sortRoles, toRoleSummary } from "../common/mappers";
 import type { AuthenticatedUser } from "../common/types";
+import { ModerationPointsService } from "../moderation/moderation-points.service";
 import { PrismaService } from "../prisma/prisma.service";
-import type { MemberQueryDto, TimelineQueryDto } from "./dto/member-query.dto";
+import type {
+	MemberQueryDto,
+	TimelineQueryDto,
+	VoiceSessionQueryDto,
+} from "./dto/member-query.dto";
 
 /** Ligne brute renvoyee par la requete de recherche. */
 interface MemberSearchRow {
@@ -26,7 +33,7 @@ interface MemberSearchRow {
 	username: string;
 	global_name: string | null;
 	nickname: string | null;
-	avatar_hash: string | null;
+	avatar_url: string | null;
 	status: "ACTIVE" | "LEFT" | "BANNED";
 	joined_at: Date | null;
 	warning_count: number;
@@ -58,7 +65,8 @@ export class MembersService {
 		private readonly prisma: PrismaService,
 		private readonly guild: GuildContextService,
 		private readonly audit: AuditService,
-	) {}
+		private readonly points: ModerationPointsService,
+	) { }
 
 	/**
 	 * Recherche paginee.
@@ -147,7 +155,7 @@ export class MembersService {
              du.username,
              du.global_name,
              m.nickname,
-             du.avatar_hash,
+             du.avatar_url,
              m.status,
              m.joined_at,
              COALESCE(warn.c, 0) AS warning_count,
@@ -175,7 +183,7 @@ export class MembersService {
 			username: row.username,
 			globalName: row.global_name,
 			nickname: row.nickname,
-			avatarUrl: avatarUrl(row.user_id, row.avatar_hash),
+			avatarUrl: row.avatar_url,
 			status: row.status,
 			joinedAt: row.joined_at?.toISOString() ?? null,
 			roles: rolesByUser.get(row.user_id) ?? [],
@@ -228,12 +236,13 @@ export class MembersService {
 			);
 		}
 
-		const [roles, counters, level] = await Promise.all([
+		const [roles, counters, level, moderationScore] = await Promise.all([
 			this.rolesForUsers([userId]),
 			this.countersFor(userId),
 			this.prisma.userLevel.findUnique({
 				where: { userId_guildId: { userId, guildId } },
 			}),
+			this.moderationScoreFor(userId),
 		]);
 
 		return {
@@ -242,7 +251,7 @@ export class MembersService {
 			username: member.user.username,
 			globalName: member.user.globalName,
 			nickname: member.nickname,
-			avatarUrl: avatarUrl(userId, member.user.avatarHash, 256),
+			avatarUrl: member.user.avatarUrl,
 			isBot: member.user.isBot,
 			status: member.status,
 			// A defaut de date enregistree, elle se deduit du snowflake.
@@ -256,6 +265,60 @@ export class MembersService {
 			roles: roles.get(userId) ?? [],
 			xp: level ? Number(level.xp) : 0,
 			counters,
+			moderationScore,
+		};
+	}
+
+	/**
+	 * Ce qui pese encore contre un membre : ni revoque, ni expire.
+	 *
+	 * Les deux predicats sont partages par les compteurs et par le score. Les
+	 * dupliquer laisserait la fiche annoncer « 2 avertissements actifs » a cote
+	 * d'un score calcule sur un autre ensemble.
+	 */
+	private activeWarningWhere(
+		userId: string,
+		now: Date,
+	): Prisma.WarningWhereInput {
+		return {
+			guildId: this.guild.guildId,
+			userId,
+			revokedAt: null,
+			OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+		};
+	}
+
+	private activeSanctionWhere(userId: string): Prisma.SanctionWhereInput {
+		return { guildId: this.guild.guildId, userId, status: "ACTIVE" };
+	}
+
+	private async moderationScoreFor(userId: string): Promise<ModerationScoreDto> {
+		const now = new Date();
+
+		const [config, warnings, sanctions] = await Promise.all([
+			this.points.getConfig(),
+			this.prisma.warning.aggregate({
+				where: this.activeWarningWhere(userId, now),
+				_sum: { points: true },
+			}),
+			this.prisma.sanction.aggregate({
+				where: this.activeSanctionWhere(userId),
+				_sum: { points: true },
+			}),
+		]);
+
+		// `_sum` vaut null quand aucune ligne ne correspond.
+		const warningPoints = warnings._sum.points ?? 0;
+		const sanctionPoints = sanctions._sum.points ?? 0;
+		const total = warningPoints + sanctionPoints;
+
+		return {
+			warnings: warningPoints,
+			sanctions: sanctionPoints,
+			total,
+			risk: moderationRisk(total, config),
+			warnThreshold: config.warnThreshold,
+			criticalThreshold: config.criticalThreshold,
 		};
 	}
 
@@ -275,16 +338,11 @@ export class MembersService {
 		] = await Promise.all([
 			this.prisma.warning.count({ where: { guildId, userId } }),
 			this.prisma.warning.count({
-				where: {
-					guildId,
-					userId,
-					revokedAt: null,
-					OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-				},
+				where: this.activeWarningWhere(userId, now),
 			}),
 			this.prisma.sanction.count({ where: { guildId, userId } }),
 			this.prisma.sanction.count({
-				where: { guildId, userId, status: "ACTIVE" },
+				where: this.activeSanctionWhere(userId),
 			}),
 			this.prisma.memberNote.count({
 				where: { guildId, userId, deletedAt: null },
@@ -455,8 +513,8 @@ export class MembersService {
 					occurredAt: row.occurredAt.toISOString(),
 					title:
 						row.type === "ADDED"
-							? `Role ajoute : ${row.role.name}`
-							: `Role retire : ${row.role.name}`,
+							? `Rôle ajouté : ${row.role.name}`
+							: `Rôle retiré : ${row.role.name}`,
 					description: null,
 					actorLabel: null,
 					payload: { roleId: row.roleId, type: row.type },
@@ -472,10 +530,10 @@ export class MembersService {
 			});
 
 			const labels: Record<string, string> = {
-				USERNAME_CHANGED: "Pseudo modifie",
-				GLOBAL_NAME_CHANGED: "Nom global modifie",
-				NICKNAME_CHANGED: "Surnom modifie",
-				AVATAR_CHANGED: "Avatar modifie",
+				USERNAME_CHANGED: "Pseudo modifié",
+				GLOBAL_NAME_CHANGED: "Nom global modifié",
+				NICKNAME_CHANGED: "Surnom modifié",
+				AVATAR_CHANGED: "Avatar modifié",
 			};
 
 			for (const row of rows) {
@@ -483,7 +541,7 @@ export class MembersService {
 					id: `identity:${row.id.toString()}`,
 					kind: TimelineKind.IDENTITY,
 					occurredAt: row.occurredAt.toISOString(),
-					title: labels[row.type] ?? "Identite modifiee",
+					title: labels[row.type] ?? "Identité modifiée",
 					description:
 						row.oldValue || row.newValue
 							? `${row.oldValue ?? "(vide)"} -> ${row.newValue ?? "(vide)"}`
@@ -525,6 +583,45 @@ export class MembersService {
 	}
 
 	/**
+	 * Passages en salon vocal, du plus recent au plus ancien.
+	 *
+	 * Complementaire de la courbe `voiceMinutesPerDay` des statistiques : celle-ci
+	 * dit combien de temps, celle-la dit quand et dans quel salon.
+	 */
+	async voiceSessions(
+		userId: string,
+		query: VoiceSessionQueryDto,
+	): Promise<Paginated<VoiceSessionDto>> {
+		const where = { guildId: this.guild.guildId, userId };
+
+		const [rows, total] = await Promise.all([
+			this.prisma.voiceSession.findMany({
+				where,
+				orderBy: { joinedAt: "desc" },
+				skip: query.skip,
+				take: query.take,
+				include: { channel: { select: { name: true } } },
+			}),
+			this.prisma.voiceSession.count({ where }),
+		]);
+
+		return paginate(
+			rows.map((row) => ({
+				// `id` est un BigInt cote base : la conversion doit etre explicite.
+				id: row.id.toString(),
+				channelId: row.channelId,
+				channelName: row.channel?.name ?? null,
+				joinedAt: row.joinedAt.toISOString(),
+				leftAt: row.leftAt?.toISOString() ?? null,
+				durationSeconds: row.durationSeconds,
+				ongoing: row.leftAt === null,
+			})),
+			total,
+			query,
+		);
+	}
+
+	/**
 	 * Roles du serveur, pour alimenter les filtres du dashboard et l'ecran de
 	 * reglage. La liste reste complete : un role exclu de l'historique doit
 	 * rester filtrable et visible sur les fiches.
@@ -554,7 +651,7 @@ export class MembersService {
 		});
 
 		if (!role)
-			throw new NotFoundException("Role introuvable sur ce serveur.");
+			throw new NotFoundException("Rôle introuvable sur ce serveur.");
 
 		const updated = await this.prisma.role.update({
 			where: { id: roleId },

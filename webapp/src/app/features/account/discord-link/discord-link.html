@@ -1,0 +1,51 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Mon compte Discord</h1>
+			<p class="subtitle">
+				Rattache ton compte Discord à ton compte du dashboard pour que ton pseudo Discord
+				apparaisse dans les journaux d'action que tu effectues.
+			</p>
+		</div>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-spinner mode="indeterminate" diameter="32" />
+	} @else {
+		<mat-card appearance="outlined">
+			<mat-card-content>
+				@if (link()?.discordUserId; as discordUserId) {
+					<div class="linked">
+						<mat-icon class="ok">check_circle</mat-icon>
+						<div>
+							<strong>Compte Discord rattaché</strong>
+							<p>{{ link()?.discordUsername ?? discordUserId }}</p>
+						</div>
+						<button matButton [disabled]="unlinking()" (click)="unlink()">Détacher</button>
+					</div>
+				} @else if (code(); as generated) {
+					<div class="pending">
+						<p>Sur Discord, tape la commande suivante :</p>
+						<code class="command">/lier-compte code:{{ generated.code }}</code>
+						<p class="hint">Code valable jusqu'à {{ generated.expiresAt | relativeTime }}.</p>
+						<div class="waiting-row">
+							<mat-progress-spinner mode="indeterminate" diameter="20" />
+							<span>En attente du rattachement…</span>
+						</div>
+					</div>
+				} @else {
+					<div class="unlinked">
+						<mat-icon>link_off</mat-icon>
+						<div>
+							<strong>Aucun compte Discord rattaché</strong>
+							<p>Génère un code à usage unique, puis entre-le dans la commande /lier-compte du bot.</p>
+						</div>
+						<button matButton="filled" [disabled]="generating()" (click)="generateCode()">
+							Générer un code
+						</button>
+					</div>
+				}
+			</mat-card-content>
+		</mat-card>
+	}
+</div>

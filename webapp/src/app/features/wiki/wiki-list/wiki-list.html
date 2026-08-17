@@ -1,0 +1,109 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Wiki de modération</h1>
+			<p class="subtitle">
+				La doctrine de l'équipe : quelles sanctions pour quels faits, quel comportement tenir,
+				quelles procédures suivre. Ce qui est écrit ici fait référence.
+			</p>
+		</div>
+
+		<a
+			matButton="filled"
+			routerLink="/wiki/nouveau"
+			*appHasPermission="Permission.WIKI_WRITE"
+		>
+			<mat-icon>add</mat-icon>
+			Nouvel article
+		</a>
+	</header>
+
+	<mat-card appearance="outlined" class="filters">
+		<mat-card-content>
+			<mat-form-field appearance="outline" subscriptSizing="dynamic" class="search">
+				<mat-label>Rechercher</mat-label>
+				<mat-icon matPrefix>search</mat-icon>
+				<input matInput [formControl]="searchControl" placeholder="Un mot du titre ou du texte" />
+			</mat-form-field>
+
+			<mat-chip-listbox class="categories" aria-label="Filtrer par catégorie">
+				@for (cat of categories; track cat) {
+					<mat-chip-option
+						[selected]="category() === cat"
+						(click)="selectCategory(cat)"
+					>
+						<mat-icon chipAvatar>{{ categoryIcons[cat] }}</mat-icon>
+						{{ categoryLabels[cat] }}
+					</mat-chip-option>
+				}
+			</mat-chip-listbox>
+		</mat-card-content>
+	</mat-card>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (isEmpty()) {
+		<mat-card appearance="outlined" class="empty">
+			<mat-card-content>
+				<mat-icon>menu_book</mat-icon>
+				@if (hasFilter()) {
+					<strong>Aucun article ne correspond</strong>
+					<p>Essayez un autre mot, ou retirez le filtre de catégorie.</p>
+					<button matButton (click)="resetFilters()">Réinitialiser</button>
+				} @else {
+					<strong>Le wiki est vide</strong>
+					<p>
+						Commencez par la doctrine de sanction : c'est elle qu'on vient chercher en premier
+						quand un cas se présente.
+					</p>
+					<a matButton="filled" routerLink="/wiki/nouveau" *appHasPermission="Permission.WIKI_WRITE">
+						<mat-icon>add</mat-icon>
+						Écrire le premier article
+					</a>
+				}
+			</mat-card-content>
+		</mat-card>
+	}
+
+	@for (section of sections(); track section.category) {
+		<section class="section">
+			<h2>
+				<mat-icon>{{ section.icon }}</mat-icon>
+				{{ section.label }}
+				<span class="count">{{ section.articles.length }}</span>
+			</h2>
+
+			<div class="grid">
+				@for (article of section.articles; track article.id) {
+					<a class="article" [routerLink]="['/wiki', article.slug]">
+						<div class="article-head">
+							<h3>{{ article.title }}</h3>
+							@if (article.pinned) {
+								<mat-icon class="pin" matTooltip="Article épinglé">push_pin</mat-icon>
+							}
+						</div>
+
+						@if (article.summary) {
+							<p class="summary">{{ article.summary }}</p>
+						}
+
+						<div class="meta">
+							<span>
+								<mat-icon>schedule</mat-icon>
+								{{ article.readingMinutes }} min
+							</span>
+							<span>
+								Modifié {{ article.updatedAt | relativeTime }}
+								@if (article.updatedBy) {
+									par {{ article.updatedBy.label }}
+								}
+							</span>
+						</div>
+					</a>
+				}
+			</div>
+		</section>
+	}
+</div>

@@ -34,6 +34,19 @@ export class AppUsersApi {
 		return this.http.post<ResetPasswordResponse>(`/api/app-users/${id}/reset-password`, {});
 	}
 
+	/**
+	 * Retire la double authentification d'un compte qui n'y a plus acces.
+	 *
+	 * Reserve au proprietaire : la route exige `sessions:revoke` en plus de
+	 * `users:write`, parce qu'elle coupe aussi les sessions du compte vise.
+	 */
+	resetTwoFactor(id: string): Observable<AppUserDto> {
+		return this.http.post<AppUserDto>(
+			`/api/app-users/${id}/double-authentification/reinitialisation`,
+			{},
+		);
+	}
+
 	unlock(id: string): Observable<AppUserDto> {
 		return this.http.post<AppUserDto>(`/api/app-users/${id}/unlock`, {});
 	}

@@ -3,7 +3,7 @@ import path from "node:path";
 import { Collection } from "discord.js";
 import type { Command } from "./types";
 
-const COMMANDS_DIR = path.join(__dirname, "..", "commands");
+const COMMANDS_DIR = path.join(__dirname, "commands");
 
 function isCommandModule(value: unknown): value is Command {
 	return (

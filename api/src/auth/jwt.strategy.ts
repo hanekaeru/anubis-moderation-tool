@@ -2,10 +2,10 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
-import { permissionsForRole } from "@anubis/shared";
 import type { AppConfig } from "../config/configuration";
 import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { RolePermissionsService } from "../role-permissions/role-permissions.service";
 import type { AccessTokenPayload } from "./token.service";
 
 @Injectable()
@@ -13,6 +13,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 	constructor(
 		config: ConfigService<{ app: AppConfig }, true>,
 		private readonly prisma: PrismaService,
+		private readonly rolePermissions: RolePermissionsService,
 	) {
 		super({
 			jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -41,7 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 		});
 
 		if (!account || !account.isActive) {
-			throw new UnauthorizedException("Compte introuvable ou desactive.");
+			throw new UnauthorizedException("Compte introuvable ou désactivé.");
 		}
 
 		return {
@@ -49,8 +50,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 			username: account.username,
 			displayName: account.displayName,
 			role: account.role,
-			permissions: [...permissionsForRole(account.role)],
+			// Resolues a partir du role, pas du jeton : un reglage de permissions
+			// prend effet immediatement, pour la meme raison que le compte est
+			// relu ci-dessus.
+			permissions: await this.rolePermissions.resolve(account.role),
 			mustChangePassword: account.mustChangePassword,
+			sessionId: payload.sid,
 		};
 	}
 }

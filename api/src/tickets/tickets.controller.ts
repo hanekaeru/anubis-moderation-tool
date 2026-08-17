@@ -7,7 +7,10 @@ import {
 	Patch,
 	Post,
 	Query,
+	Res,
+	StreamableFile,
 } from "@nestjs/common";
+import type { Response } from "express";
 import {
 	Permission,
 	type Paginated,
@@ -34,12 +37,6 @@ export class TicketsController {
 		return this.tickets.search(query);
 	}
 
-	@Get("categories")
-	@RequirePermissions(Permission.TICKETS_READ)
-	listCategories(): Promise<string[]> {
-		return this.tickets.listCategories();
-	}
-
 	@Get(":id")
 	@RequirePermissions(Permission.TICKETS_READ)
 	findOne(@Param("id", ParseUUIDPipe) id: string): Promise<TicketDetail> {
@@ -64,5 +61,22 @@ export class TicketsController {
 		@CurrentUser() actor: AuthenticatedUser,
 	): Promise<TicketDetail> {
 		return this.tickets.addInternalNote(id, dto, actor);
+	}
+
+	@Get(":id/attachments/:attachmentId")
+	@RequirePermissions(Permission.TICKETS_READ)
+	async downloadAttachment(
+		@Param("id", ParseUUIDPipe) id: string,
+		@Param("attachmentId", ParseUUIDPipe) attachmentId: string,
+		@Res({ passthrough: true }) res: Response,
+	): Promise<StreamableFile> {
+		const attachment = await this.tickets.getAttachment(id, attachmentId);
+
+		res.set({
+			"Content-Type": attachment.contentType,
+			"Content-Disposition": `inline; filename="${encodeURIComponent(attachment.fileName)}"`,
+		});
+
+		return new StreamableFile(attachment.data);
 	}
 }

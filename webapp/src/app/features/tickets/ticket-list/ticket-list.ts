@@ -15,8 +15,10 @@ import { RouterLink } from '@angular/router';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import {
 	DEFAULT_PAGE_SIZE,
+	TICKET_CATEGORY_LABELS,
 	TICKET_PRIORITY_LABELS,
 	TICKET_STATUS_LABELS,
+	TicketCategory,
 	TicketPriority,
 	TicketStatus,
 	type TicketListItem,
@@ -57,8 +59,10 @@ export class TicketListPage {
 	// template, un `Record` sur l'enum serait refuse a la compilation.
 	readonly statusLabels: Record<string, string> = TICKET_STATUS_LABELS;
 	readonly priorityLabels: Record<string, string> = TICKET_PRIORITY_LABELS;
+	readonly categoryLabels: Record<string, string> = TICKET_CATEGORY_LABELS;
 	readonly statuses = Object.values(TicketStatus);
 	readonly priorities = Object.values(TicketPriority);
+	readonly categories = Object.values(TicketCategory);
 
 	readonly columns = [
 		'number',
@@ -73,7 +77,6 @@ export class TicketListPage {
 
 	readonly loading = signal(false);
 	readonly tickets = signal<TicketListItem[]>([]);
-	readonly categories = signal<string[]>([]);
 	readonly total = signal(0);
 	readonly pageIndex = signal(0);
 	readonly pageSize = signal(DEFAULT_PAGE_SIZE);
@@ -82,15 +85,10 @@ export class TicketListPage {
 		search: [''],
 		status: [null as TicketStatus | null],
 		priority: [null as TicketPriority | null],
-		category: [null as string | null],
+		category: [null as TicketCategory | null],
 	});
 
 	constructor() {
-		this.ticketsApi.listCategories().subscribe({
-			next: (categories) => this.categories.set(categories),
-			error: () => this.categories.set([]),
-		});
-
 		this.filters.valueChanges
 			.pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
 			.subscribe(() => {

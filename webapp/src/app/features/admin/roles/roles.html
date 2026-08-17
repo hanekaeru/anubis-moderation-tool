@@ -1,8 +1,8 @@
 <div class="page">
 	<header class="page-header">
 		<div>
-			<h1>Roles suivis</h1>
-			<p class="subtitle">{{ trackedCount() }} role(s) historise(s) sur {{ roles().length }}</p>
+			<h1>Rôles suivis</h1>
+			<p class="subtitle">{{ trackedCount() }} rôle(s) historisé(s) sur {{ roles().length }}</p>
 		</div>
 	</header>
 
@@ -10,9 +10,9 @@
 		<mat-card-content>
 			<mat-icon>info</mat-icon>
 			<p>
-				Un role decoche continue d'apparaitre sur la fiche des membres et reste utilisable comme
-				filtre : seuls ses ajouts et retraits cessent d'alimenter la chronologie. Le reglage est
-				retroactif et reversible — rien n'est supprime, et recocher un role fait reapparaitre son
+				Un rôle décoché continue d'apparaître sur la fiche des membres et reste utilisable comme
+				filtre : seuls ses ajouts et retraits cessent d'alimenter la chronologie. Le réglage est
+				rétroactif et réversible — rien n'est supprimé, et recocher un rôle fait réapparaître son
 				historique.
 			</p>
 		</mat-card-content>
@@ -20,7 +20,7 @@
 
 	<div class="filters">
 		<mat-form-field class="search">
-			<mat-label>Rechercher un role</mat-label>
+			<mat-label>Rechercher un rôle</mat-label>
 			<input matInput [formControl]="search" autocomplete="off" />
 			<mat-icon matSuffix>search</mat-icon>
 		</mat-form-field>
@@ -47,7 +47,7 @@
 							<span class="meta">
 								Position {{ role.position }}
 								@if (role.managed) {
-									<span class="tag" matTooltip="Role gere par une integration Discord">
+									<span class="tag" matTooltip="Rôle géré par une intégration Discord">
 										Automatique
 									</span>
 								}
@@ -60,14 +60,14 @@
 							(change)="toggle(role, $event.checked)"
 						>
 							<span class="toggle-label">
-								{{ role.trackHistory ? 'Historise' : 'Ignore' }}
+								{{ role.trackHistory ? 'Historisé' : 'Ignoré' }}
 							</span>
 						</mat-slide-toggle>
 					</li>
 				}
 			</ul>
 		} @else if (!loading()) {
-			<p class="empty-state">Aucun role ne correspond a cette recherche.</p>
+			<p class="empty-state">Aucun rôle ne correspond à cette recherche.</p>
 		}
 	</mat-card>
 </div>

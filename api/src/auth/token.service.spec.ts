@@ -21,7 +21,11 @@ function baseConfig(overrides: Partial<AppConfig["jwt"]> = {}): AppConfig {
 		},
 		corsOrigins: [],
 		cookieSecure: false,
-		security: { maxFailedLogins: 5, lockoutMinutes: 15 },
+		security: {
+		maxFailedLogins: 5,
+		lockoutMinutes: 15,
+		twoFactorEnabled: true,
+	},
 	};
 }
 

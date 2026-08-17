@@ -6,6 +6,7 @@ import {
 	type Paginated,
 	type RoleSummary,
 	type TimelineEntry,
+	type VoiceSessionDto,
 } from "@anubis/shared";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../common/decorators/require-permissions.decorator";
@@ -15,13 +16,14 @@ import {
 	MemberQueryDto,
 	TimelineQueryDto,
 	UpdateRoleTrackingDto,
+	VoiceSessionQueryDto,
 } from "./dto/member-query.dto";
 import { MembersService } from "./members.service";
 
 @Controller("members")
 @RequirePermissions(Permission.MEMBERS_READ)
 export class MembersController {
-	constructor(private readonly members: MembersService) {}
+	constructor(private readonly members: MembersService) { }
 
 	@Get()
 	search(@Query() query: MemberQueryDto): Promise<Paginated<MemberListItem>> {
@@ -64,5 +66,13 @@ export class MembersController {
 		@Query() query: TimelineQueryDto,
 	): Promise<Paginated<TimelineEntry>> {
 		return this.members.timeline(userId, query);
+	}
+
+	@Get(":userId/voice-sessions")
+	voiceSessions(
+		@Param("userId", SnowflakeParam) userId: string,
+		@Query() query: VoiceSessionQueryDto,
+	): Promise<Paginated<VoiceSessionDto>> {
+		return this.members.voiceSessions(userId, query);
 	}
 }

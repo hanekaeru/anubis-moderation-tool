@@ -307,7 +307,7 @@ async function seedDemo(guildId: string): Promise<void> {
 					userId,
 					createdById: owner?.id ?? null,
 					warningId: warning.id,
-					type: i % 4 === 0 ? "TIMEOUT" : "VOICE_MUTE",
+					type: i % 4 === 0 ? "TIMEOUT" : "SHADOWBAN",
 					reason: warning.reason,
 					durationSeconds: 3600,
 					startsAt: createdAt,

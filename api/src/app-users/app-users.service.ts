@@ -17,6 +17,7 @@ import {
 import { AuditService } from "../audit/audit.service";
 import { AuthService } from "../auth/auth.service";
 import { TokenService } from "../auth/token.service";
+import { TwoFactorService } from "../auth/two-factor.service";
 import { paginate } from "../common/dto/pagination.dto";
 import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
@@ -40,6 +41,7 @@ export class AppUsersService {
 		private readonly prisma: PrismaService,
 		private readonly audit: AuditService,
 		private readonly tokens: TokenService,
+		private readonly twoFactor: TwoFactorService,
 	) {}
 
 	private toDto(row: AppUserRow): AppUserDto {
@@ -53,6 +55,7 @@ export class AppUsersService {
 			discordUserId: row.discordUserId,
 			lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
 			lockedUntil: row.lockedUntil?.toISOString() ?? null,
+			twoFactorEnabled: row.totpEnabledAt !== null,
 			createdAt: row.createdAt.toISOString(),
 			createdByLabel: row.createdBy?.displayName ?? null,
 		};
@@ -71,7 +74,7 @@ export class AppUsersService {
 	): void {
 		if (ROLE_RANK[actor.role] <= targetRank) {
 			throw new ForbiddenException(
-				"Vous ne pouvez pas gerer un compte de rang superieur ou egal au votre.",
+				"Vous ne pouvez pas gérer un compte de rang supérieur ou égal au votre.",
 			);
 		}
 	}
@@ -136,7 +139,7 @@ export class AppUsersService {
 
 		if (existing) {
 			throw new ConflictException(
-				`L identifiant "${dto.username}" est deja utilise.`,
+				`L'identifiant "${dto.username}" est déjà utilisé.`,
 			);
 		}
 
@@ -193,7 +196,7 @@ export class AppUsersService {
 		if (dto.role && dto.role !== target.role) {
 			if (target.id === actor.id) {
 				throw new ForbiddenException(
-					"Vous ne pouvez pas modifier votre propre role.",
+					"Vous ne pouvez pas modifier votre propre rôle.",
 				);
 			}
 			this.assertCanManage(actor, ROLE_RANK[dto.role]);
@@ -202,7 +205,7 @@ export class AppUsersService {
 		if (dto.isActive === false) {
 			if (target.id === actor.id) {
 				throw new BadRequestException(
-					"Vous ne pouvez pas desactiver votre propre compte.",
+					"Vous ne pouvez pas désactiver votre propre compte.",
 				);
 			}
 			await this.assertNotLastOwner(target);
@@ -257,7 +260,7 @@ export class AppUsersService {
 
 		if (remaining === 0) {
 			throw new BadRequestException(
-				"Impossible de desactiver le dernier compte proprietaire.",
+				"Impossible de désactiver le dernier compte propriétaire.",
 			);
 		}
 	}
@@ -291,6 +294,34 @@ export class AppUsersService {
 		});
 
 		return { generatedPassword: password };
+	}
+
+	/**
+	 * Retire la double authentification d'un compte.
+	 *
+	 * C'est la seule issue quand un telephone est perdu **et** les codes de
+	 * secours avec : il n'existe aucune recuperation par courriel, et sans cette
+	 * route le compte serait definitivement inaccessible. La regle de rang
+	 * s'applique comme partout ailleurs, et les sessions du compte sont coupees
+	 * — si la demande fait suite a une compromission, les laisser ouvertes
+	 * annulerait la mesure.
+	 */
+	async resetTwoFactor(
+		id: string,
+		actor: AuthenticatedUser,
+	): Promise<AppUserDto> {
+		const target = await this.loadTarget(id);
+		this.assertCanManage(actor, ROLE_RANK[target.role]);
+
+		if (!target.totpEnabledAt) {
+			throw new BadRequestException(
+				"Ce compte n'a pas de double authentification active.",
+			);
+		}
+
+		await this.twoFactor.reset(id, actor);
+
+		return this.toDto(await this.loadTarget(id));
 	}
 
 	/** Leve un verrouillage sans changer le mot de passe. */

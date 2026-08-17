@@ -25,15 +25,22 @@ export class TicketsApi {
 		return this.http.get<TicketDetail>(`/api/tickets/${id}`);
 	}
 
-	listCategories(): Observable<string[]> {
-		return this.http.get<string[]>('/api/tickets/categories');
-	}
-
 	update(id: string, request: UpdateTicketRequest): Observable<TicketDetail> {
 		return this.http.patch<TicketDetail>(`/api/tickets/${id}`, request);
 	}
 
 	addNote(id: string, request: AddTicketNoteRequest): Observable<TicketDetail> {
 		return this.http.post<TicketDetail>(`/api/tickets/${id}/notes`, request);
+	}
+
+	/**
+	 * Octets d'une piece jointe. Protegee par JWT (Authorization pose par
+	 * `auth.interceptor.ts`), donc pas exploitable en `<img src>` direct — le
+	 * blob est transforme en URL objet par `TicketAttachment`.
+	 */
+	downloadAttachment(ticketId: string, attachmentId: string): Observable<Blob> {
+		return this.http.get(`/api/tickets/${ticketId}/attachments/${attachmentId}`, {
+			responseType: 'blob',
+		});
 	}
 }

@@ -16,6 +16,59 @@ export interface ActorRef {
 	label: string;
 }
 
+/**
+ * Plafond par fichier, aligne sur celui des pieces jointes de tickets cote bot
+ * (`MAX_ATTACHMENT_BYTES`) : deux limites differentes pour la meme table de
+ * stockage se contrediraient tot ou tard.
+ */
+export const MAX_MODERATION_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/** Nombre de pieces jointes par decision, pour borner le poids d'une fiche. */
+export const MAX_MODERATION_ATTACHMENTS = 5;
+
+/**
+ * Types acceptes pour une preuve.
+ *
+ * Liste blanche plutot que liste noire : le fichier est resservi tel quel par
+ * l'API, et laisser passer un `text/html` ouvrirait une execution de script sur
+ * le domaine du dashboard.
+ *
+ * Elle vit ici parce que trois chemins de depot la verifient — l'API (qui fait
+ * foi), le formulaire du dashboard et la commande `/preuve` du bot. Trois
+ * copies finiraient par diverger, et un fichier accepte par le bot puis refuse
+ * par l'API serait perdu apres son telechargement.
+ */
+export const MODERATION_ATTACHMENT_CONTENT_TYPES = [
+	"image/png",
+	"image/jpeg",
+	"image/gif",
+	"image/webp",
+	"video/mp4",
+	"video/webm",
+	"audio/mpeg",
+	"audio/ogg",
+	"application/pdf",
+	"text/plain",
+] as const;
+
+/** Metadonnees d'une piece jointe : les octets se recuperent a part. */
+export interface ModerationAttachmentRef {
+	id: string;
+	fileName: string;
+	contentType: string;
+	size: number;
+	/**
+	 * Preuve explicite, a ne pas afficher sans un geste volontaire.
+	 *
+	 * Le marqueur ne restreint aucun acces — qui peut lire la decision peut
+	 * lire la piece. Il evite seulement qu'une image penible s'impose a l'ecran
+	 * d'un moderateur qui parcourt une fiche.
+	 */
+	spoiler: boolean;
+	uploadedBy: ActorRef | null;
+	createdAt: IsoDateString;
+}
+
 export interface WarningDto {
 	id: string;
 	guildId: Snowflake;
@@ -31,6 +84,7 @@ export interface WarningDto {
 	createdAt: IsoDateString;
 	/** Ni revoque, ni expire. */
 	isActive: boolean;
+	attachments: ModerationAttachmentRef[];
 }
 
 export interface CreateWarningRequest {
@@ -68,8 +122,12 @@ export interface SanctionDto {
 	revokedBy: ActorRef | null;
 	revokeReason: string | null;
 	warningId: string | null;
+	/** Permalien vers le message incrimine : complementaire des pieces jointes. */
 	evidenceUrl: string | null;
 	createdAt: IsoDateString;
+	attachments: ModerationAttachmentRef[];
+	/** Poids dans le score du membre, fige a la creation. */
+	points: number;
 }
 
 export interface CreateSanctionRequest {
@@ -81,6 +139,8 @@ export interface CreateSanctionRequest {
 	durationSeconds?: number | null;
 	warningId?: string | null;
 	evidenceUrl?: string | null;
+	/** Absent = valeur du bareme pour ce type de sanction. */
+	points?: number;
 }
 
 export interface SanctionSearchQuery extends PaginationQuery {
@@ -137,7 +197,109 @@ export const SANCTION_DURATION_PRESETS: ReadonlyArray<{
 export const MAX_TIMEOUT_SECONDS = 28 * 24 * 60 * 60;
 
 /** Types de sanction qui n'ont pas de duree. */
-export const INSTANT_SANCTION_TYPES: readonly SanctionType[] = [
-	"KICK",
-	"SOFTBAN",
-];
+export const INSTANT_SANCTION_TYPES: readonly SanctionType[] = ["KICK"];
+
+// ---------------------------------------------------------------------------
+// Points de moderation
+// ---------------------------------------------------------------------------
+
+/**
+ * Bareme de points, par gravite d'avertissement et par type de sanction.
+ *
+ * Il ne fournit qu'une **valeur par defaut** : chaque avertissement et chaque
+ * sanction copie son poids a la creation, puis le garde. Un bareme retroactif
+ * ferait bouger tous les scores du serveur d'un seul reglage, sans que rien
+ * n'apparaisse dans le journal d'audit.
+ */
+export interface ModerationPointsConfigDto {
+	guildId: Snowflake;
+	warningPoints: Record<WarningSeverity, number>;
+	sanctionPoints: Record<SanctionType, number>;
+	/** Score actif a partir duquel un membre est signale « a surveiller ». */
+	warnThreshold: number;
+	/** Score actif a partir duquel un membre est signale « problematique ». */
+	criticalThreshold: number;
+	updatedAt: IsoDateString;
+}
+
+export interface UpdateModerationPointsRequest {
+	warningPoints?: Partial<Record<WarningSeverity, number>>;
+	sanctionPoints?: Partial<Record<SanctionType, number>>;
+	warnThreshold?: number;
+	criticalThreshold?: number;
+}
+
+/** Bornes communes au formulaire et a la validation de l'API. */
+export const MIN_MODERATION_POINTS = 0;
+export const MAX_MODERATION_POINTS = 100;
+export const MAX_MODERATION_THRESHOLD = 1000;
+
+/**
+ * Bareme par defaut, applique tant qu'un serveur n'a rien regle.
+ *
+ * L'echelle suit la gravite reelle de la mesure : un bannissement pese autant
+ * que dix avertissements legers, une expulsion autant que cinq. Le shadowban
+ * s'aligne sur l'expulsion — il retire l'acces sans retirer le membre.
+ */
+export const DEFAULT_MODERATION_POINTS: Omit<
+	ModerationPointsConfigDto,
+	"guildId" | "updatedAt"
+> = {
+	warningPoints: { LOW: 1, MEDIUM: 3, HIGH: 5 },
+	sanctionPoints: { TIMEOUT: 3, KICK: 5, BAN: 10, SHADOWBAN: 5 },
+	warnThreshold: 6,
+	criticalThreshold: 12,
+};
+
+/** Lecture d'un score : trois paliers, pour ne pas avoir a interpreter un nombre nu. */
+export const ModerationRisk = {
+	CLEAN: "CLEAN",
+	WATCH: "WATCH",
+	CRITICAL: "CRITICAL",
+} as const;
+export type ModerationRisk = (typeof ModerationRisk)[keyof typeof ModerationRisk];
+
+export const MODERATION_RISK_LABELS: Record<ModerationRisk, string> = {
+	CLEAN: "Rien à signaler",
+	WATCH: "À surveiller",
+	CRITICAL: "Problématique",
+};
+
+/**
+ * Palier correspondant a un score actif.
+ *
+ * Les seuils sont **inclusifs** : atteindre `criticalThreshold` suffit a
+ * basculer, sans quoi le seuil affiche sur la page de reglage ne serait jamais
+ * celui qui declenche. Un seuil critique mal regle sous le seuil d'alerte
+ * l'emporte quand meme — la lecture la plus severe est la plus sure.
+ */
+export function moderationRisk(
+	score: number,
+	thresholds: Pick<
+		ModerationPointsConfigDto,
+		"warnThreshold" | "criticalThreshold"
+	>,
+): ModerationRisk {
+	if (score >= thresholds.criticalThreshold) return ModerationRisk.CRITICAL;
+	if (score >= thresholds.warnThreshold) return ModerationRisk.WATCH;
+	return ModerationRisk.CLEAN;
+}
+
+/**
+ * Score de moderation d'un membre : ce qui pese **en ce moment**.
+ *
+ * Les entrees revoquees ou expirees en sortent, pour que le score redescende
+ * de lui-meme. Il repond a « ce membre pose-t-il probleme aujourd'hui », pas a
+ * « a-t-il des antecedents » — la chronologie de la fiche, elle, garde tout.
+ */
+export interface ModerationScoreDto {
+	/** Somme des points des avertissements actifs. */
+	warnings: number;
+	/** Somme des points des sanctions actives. */
+	sanctions: number;
+	total: number;
+	risk: ModerationRisk;
+	/** Seuils en vigueur, pour situer le total sans rappeler la configuration. */
+	warnThreshold: number;
+	criticalThreshold: number;
+}

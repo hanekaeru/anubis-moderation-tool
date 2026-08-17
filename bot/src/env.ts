@@ -9,7 +9,7 @@ export function requireEnv(name: string): string {
 /**
  * Sans valeur de repli, un `parseInt` sur une variable absente renvoie `NaN`,
  * ce qui a deja provoque des vidages de buffer a chaque appel (voir
- * l'historique de `utils/xp_manager.js`) ou des cooldowns qui se declenchaient
+ * l'historique de `utils/xpManager.js`) ou des cooldowns qui se declenchaient
  * immediatement.
  */
 export function readInt(name: string, fallback: number): number {

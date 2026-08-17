@@ -7,26 +7,47 @@ import {
 import { ConfigService } from "@nestjs/config";
 import * as argon2 from "argon2";
 import { randomBytes } from "node:crypto";
-import {
-	permissionsForRole,
-	type AppUserRole,
-	type SessionUser,
-} from "@anubis/shared";
+import type { AppUserRole, SessionUser } from "@anubis/shared";
 import type { AppConfig } from "../config/configuration";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
+import { RolePermissionsService } from "../role-permissions/role-permissions.service";
+import { ARGON2_OPTIONS, hashSecret, verifySecret } from "./password";
 import { TokenService } from "./token.service";
-
-const ARGON2_OPTIONS: argon2.Options = {
-	type: argon2.argon2id,
-	memoryCost: 65536,
-	timeCost: 3,
-	parallelism: 4,
-};
+import { TwoFactorService } from "./two-factor.service";
 
 export interface RequestContext {
 	ip?: string;
 	userAgent?: string;
+}
+
+/** Session complete : le compte est authentifie, les jetons sont emis. */
+export interface IssuedSession {
+	accessToken: string;
+	expiresIn: number;
+	refreshToken: string;
+	refreshExpiresAt: Date;
+	user: SessionUser;
+}
+
+/**
+ * Premier facteur valide, second facteur attendu.
+ *
+ * Aucun jeton de session n'est emis a ce stade : le defi ne prouve que le mot
+ * de passe.
+ */
+export interface PendingSecondFactor {
+	twoFactorRequired: true;
+	challengeToken: string;
+	expiresIn: number;
+}
+
+export type LoginOutcome = IssuedSession | PendingSecondFactor;
+
+export function isPendingSecondFactor(
+	outcome: LoginOutcome,
+): outcome is PendingSecondFactor {
+	return (outcome as PendingSecondFactor).twoFactorRequired === true;
 }
 
 @Injectable()
@@ -48,6 +69,8 @@ export class AuthService {
 		private readonly tokens: TokenService,
 		private readonly audit: AuditService,
 		private readonly config: ConfigService<{ app: AppConfig }, true>,
+		private readonly rolePermissions: RolePermissionsService,
+		private readonly twoFactor: TwoFactorService,
 	) {}
 
 	private get security() {
@@ -55,7 +78,7 @@ export class AuthService {
 	}
 
 	static hashPassword(password: string): Promise<string> {
-		return argon2.hash(password, ARGON2_OPTIONS);
+		return hashSecret(password);
 	}
 
 	/**
@@ -70,27 +93,17 @@ export class AuthService {
 		username: string,
 		password: string,
 		context: RequestContext,
-	): Promise<{
-		accessToken: string;
-		expiresIn: number;
-		refreshToken: string;
-		refreshExpiresAt: Date;
-		user: SessionUser;
-	}> {
+	): Promise<LoginOutcome> {
 		const account = await this.prisma.appUser.findUnique({
 			where: { username },
 		});
 
 		if (!account) {
-			await argon2
-				.verify(await this.dummyHash, password)
-				.catch(() => false);
+			await verifySecret(await this.dummyHash, password);
 			throw new UnauthorizedException("Identifiants invalides.");
 		}
 
-		const passwordValid = await argon2
-			.verify(account.passwordHash, password)
-			.catch(() => false);
+		const passwordValid = await verifySecret(account.passwordHash, password);
 
 		if (!passwordValid) {
 			await this.registerFailedLogin(
@@ -110,7 +123,7 @@ export class AuthService {
 				(account.lockedUntil.getTime() - Date.now()) / 60_000,
 			);
 			throw new ForbiddenException(
-				`Compte temporairement verrouille. Reessayez dans ${minutes} minute(s).`,
+				`Compte temporairement verrouillé. Réessayez dans ${minutes} minute(s).`,
 			);
 		}
 
@@ -118,8 +131,81 @@ export class AuthService {
 			throw new UnauthorizedException("Identifiants invalides.");
 		}
 
-		const updated = await this.prisma.appUser.update({
-			where: { id: account.id },
+		// Second facteur : aucun jeton de session n'est emis, et `lastLoginAt`
+		// n'est pas encore ecrit — la connexion n'a pas eu lieu tant que le code
+		// n'a pas ete presente. Le compteur d'echecs est en revanche remis a zero
+		// ci-dessous seulement apres le second facteur, pour qu'un bourrage de
+		// mots de passe reste freine meme sur un compte protege.
+		//
+		// `twoFactor.available` court-circuite l'etape quand le deploiement a
+		// coupe la double authentification (`TWO_FACTOR_ENABLED=false`) : le
+		// secret du compte reste en base, mais il ne protege plus la connexion.
+		// C'est tout l'objet de l'interrupteur — et toute sa dangerosite.
+		if (account.totpEnabledAt && this.twoFactor.available) {
+			const challenge = this.tokens.signChallengeToken(account.id);
+
+			return {
+				twoFactorRequired: true,
+				challengeToken: challenge.token,
+				expiresIn: challenge.expiresIn,
+			};
+		}
+
+		return this.openSession(account.id, context);
+	}
+
+	/**
+	 * Second facteur d'une connexion en cours.
+	 *
+	 * Le defi ne dit que « ce mot de passe etait bon » : tout le reste (compte
+	 * encore actif, code valide, code non rejoue) est reverifie ici. Un compte
+	 * desactive entre les deux etapes ne doit pas passer.
+	 */
+	async completeTwoFactorLogin(
+		challengeToken: string,
+		code: string,
+		context: RequestContext,
+	): Promise<IssuedSession> {
+		const appUserId = this.tokens.verifyChallengeToken(challengeToken);
+
+		if (!appUserId) {
+			throw new UnauthorizedException(
+				"Vérification expirée : recommencez la connexion.",
+			);
+		}
+
+		const account = await this.prisma.appUser.findUnique({
+			where: { id: appUserId },
+			select: { id: true, isActive: true, failedLoginCount: true },
+		});
+
+		if (!account || !account.isActive) {
+			throw new UnauthorizedException("Identifiants invalides.");
+		}
+
+		const valid = await this.twoFactor.verifySecondFactor(appUserId, code);
+
+		if (!valid) {
+			// Un code errone compte comme un echec de connexion : sans cela, le
+			// second facteur serait le seul endroit de l'API ou l'on peut essayer
+			// indefiniment.
+			await this.registerFailedLogin(account.id, account.failedLoginCount);
+			throw new UnauthorizedException("Code invalide.");
+		}
+
+		return this.openSession(account.id, context);
+	}
+
+	/** Emet les jetons et journalise la connexion. Commun aux deux parcours. */
+	private async openSession(
+		appUserId: string,
+		context: RequestContext,
+	): Promise<IssuedSession> {
+		// Le compte est relu par la mise a jour elle-meme : c'est ici que la
+		// connexion devient effective, y compris quand un second facteur s'est
+		// intercale entre la verification du mot de passe et cet instant.
+		const account = await this.prisma.appUser.update({
+			where: { id: appUserId },
 			data: {
 				lastLoginAt: new Date(),
 				failedLoginCount: 0,
@@ -143,11 +229,12 @@ export class AuthService {
 			accessToken: this.tokens.signAccessToken(
 				account.id,
 				account.username,
+				refresh.familyId,
 			),
 			expiresIn: this.tokens.accessTokenTtlSeconds(),
 			refreshToken: refresh.token,
 			refreshExpiresAt: refresh.expiresAt,
-			user: this.toSessionUser(updated),
+			user: await this.toSessionUser(account),
 		};
 	}
 
@@ -179,7 +266,7 @@ export class AuthService {
 
 		if (shouldLock) {
 			this.logger.warn(
-				`Compte ${userId} verrouille apres ${failed} echecs de connexion.`,
+				`Compte ${userId} verrouillé après ${failed} échecs de connexion.`,
 			);
 		}
 	}
@@ -187,18 +274,12 @@ export class AuthService {
 	async refresh(
 		token: string,
 		context: RequestContext,
-	): Promise<{
-		accessToken: string;
-		expiresIn: number;
-		refreshToken: string;
-		refreshExpiresAt: Date;
-		user: SessionUser;
-	}> {
+	): Promise<IssuedSession> {
 		const rotated = await this.tokens.rotateRefreshToken(token, context);
 
 		if (!rotated) {
 			throw new UnauthorizedException(
-				"Session expiree, reconnexion requise.",
+				"Session expirée, reconnexion requise.",
 			);
 		}
 
@@ -208,7 +289,7 @@ export class AuthService {
 
 		if (!account || !account.isActive) {
 			throw new UnauthorizedException(
-				"Session expiree, reconnexion requise.",
+				"Session expirée, reconnexion requise.",
 			);
 		}
 
@@ -216,11 +297,12 @@ export class AuthService {
 			accessToken: this.tokens.signAccessToken(
 				account.id,
 				account.username,
+				rotated.refresh.familyId,
 			),
 			expiresIn: this.tokens.accessTokenTtlSeconds(),
 			refreshToken: rotated.refresh.token,
 			refreshExpiresAt: rotated.refresh.expiresAt,
-			user: this.toSessionUser(account),
+			user: await this.toSessionUser(account),
 		};
 	}
 
@@ -263,21 +345,15 @@ export class AuthService {
 			where: { id: userId },
 		});
 
-		const valid = await argon2
-			.verify(account.passwordHash, currentPassword)
-			.catch(() => false);
+		const valid = await verifySecret(account.passwordHash, currentPassword);
 
 		if (!valid) {
 			throw new UnauthorizedException("Mot de passe actuel incorrect.");
 		}
 
-		if (
-			await argon2
-				.verify(account.passwordHash, newPassword)
-				.catch(() => false)
-		) {
+		if (await verifySecret(account.passwordHash, newPassword)) {
 			throw new ForbiddenException(
-				"Le nouveau mot de passe doit etre different de l ancien.",
+				"Le nouveau mot de passe doit être différent de l'ancien.",
 			);
 		}
 
@@ -299,7 +375,7 @@ export class AuthService {
 		});
 	}
 
-	toSessionUser(account: {
+	async toSessionUser(account: {
 		id: string;
 		username: string;
 		displayName: string;
@@ -307,16 +383,21 @@ export class AuthService {
 		mustChangePassword: boolean;
 		discordUserId: string | null;
 		lastLoginAt: Date | null;
-	}): SessionUser {
+		totpEnabledAt: Date | null;
+	}): Promise<SessionUser> {
 		return {
 			id: account.id,
 			username: account.username,
 			displayName: account.displayName,
 			role: account.role,
-			permissions: [...permissionsForRole(account.role)],
+			// Meme source que le garde d'API : le dashboard masque exactement ce
+			// que l'API refuserait, ni plus ni moins.
+			permissions: await this.rolePermissions.resolve(account.role),
 			mustChangePassword: account.mustChangePassword,
 			discordUserId: account.discordUserId,
 			lastLoginAt: account.lastLoginAt?.toISOString() ?? null,
+			twoFactorEnabled: account.totpEnabledAt !== null,
+			twoFactorAvailable: this.twoFactor.available,
 		};
 	}
 }

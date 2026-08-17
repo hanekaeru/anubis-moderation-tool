@@ -8,12 +8,41 @@ import { PrismaService } from "../prisma/prisma.service";
 export interface AccessTokenPayload {
 	sub: string;
 	username: string;
+	/**
+	 * Famille de refresh tokens dont ce jeton est issu — l'identifiant de la
+	 * session. Le cookie de refresh etant limite au chemin `/api/auth`, c'est la
+	 * seule facon pour une autre route de savoir de quelle session elle est
+	 * appelee. Facultatif : les jetons emis avant son ajout n'en portent pas.
+	 */
+	sid?: string;
 }
+
+/**
+ * Charge du jeton de defi remis entre les deux facteurs.
+ *
+ * Il ne porte volontairement pas `username` : ce n'est pas une identite
+ * utilisable, seulement la preuve qu'un mot de passe correct vient d'etre
+ * presente pour ce compte.
+ */
+export interface ChallengeTokenPayload {
+	sub: string;
+	purpose: "2fa";
+}
+
+/**
+ * Duree de vie du defi de second facteur, en secondes.
+ *
+ * Assez pour deverrouiller un telephone et lire un code, trop peu pour qu'un
+ * jeton oublie dans un journal serve encore a quelque chose.
+ */
+const CHALLENGE_TTL_SECONDS = 300;
 
 export interface IssuedRefreshToken {
 	/** Valeur en clair, posee en cookie et jamais stockee. */
 	token: string;
 	expiresAt: Date;
+	/** Famille, c'est-a-dire la session : stable a travers les rotations. */
+	familyId: string;
 }
 
 /**
@@ -53,9 +82,9 @@ export class TokenService {
 			.digest("hex");
 	}
 
-	signAccessToken(userId: string, username: string): string {
+	signAccessToken(userId: string, username: string, sessionId?: string): string {
 		return this.jwt.sign(
-			{ sub: userId, username } satisfies AccessTokenPayload,
+			{ sub: userId, username, sid: sessionId } satisfies AccessTokenPayload,
 			{
 				secret: this.appConfig.jwt.accessSecret,
 				// En secondes plutot qu'en chaine ("15m") : la forme numerique est sans
@@ -63,6 +92,45 @@ export class TokenService {
 				expiresIn: this.accessTokenTtlSeconds(),
 			},
 		);
+	}
+
+	/**
+	 * Secret du jeton de defi.
+	 *
+	 * **Different de celui des access tokens**, et derive plutot que configure :
+	 * signe avec le secret d'acces, un defi passerait la strategie JWT et
+	 * ouvrirait toute l'API sans que le second facteur ait ete presente — le
+	 * garde n'y verrait qu'un `sub` valide. Le derivant du secret de refresh, il
+	 * suit son cycle de vie : le faire tourner invalide aussi les defis en cours.
+	 */
+	private get challengeSecret(): string {
+		return createHmac("sha256", this.appConfig.jwt.refreshSecret)
+			.update("anubis:2fa-challenge")
+			.digest("hex");
+	}
+
+	/** Jeton remis apres un mot de passe correct, en attente du second facteur. */
+	signChallengeToken(userId: string): { token: string; expiresIn: number } {
+		return {
+			token: this.jwt.sign({ sub: userId, purpose: "2fa" } satisfies ChallengeTokenPayload, {
+				secret: this.challengeSecret,
+				expiresIn: CHALLENGE_TTL_SECONDS,
+			}),
+			expiresIn: CHALLENGE_TTL_SECONDS,
+		};
+	}
+
+	/** Identifiant du compte porte par un defi valide, ou `null`. */
+	verifyChallengeToken(token: string): string | null {
+		try {
+			const payload = this.jwt.verify<ChallengeTokenPayload>(token, {
+				secret: this.challengeSecret,
+			});
+
+			return payload.purpose === "2fa" ? payload.sub : null;
+		} catch {
+			return null;
+		}
 	}
 
 	/** Duree de vie de l'access token en secondes, pour l'annoncer au client. */
@@ -89,19 +157,20 @@ export class TokenService {
 		const expiresAt = new Date(
 			Date.now() + this.appConfig.jwt.refreshTtlDays * 86_400_000,
 		);
+		const familyId = context.familyId ?? randomUUID();
 
 		await this.prisma.refreshToken.create({
 			data: {
 				appUserId,
 				tokenHash: this.hash(token),
-				familyId: context.familyId ?? randomUUID(),
+				familyId,
 				expiresAt,
 				userAgent: context.userAgent?.slice(0, 255) ?? null,
 				ip: context.ip ?? null,
 			},
 		});
 
-		return { token, expiresAt };
+		return { token, expiresAt, familyId };
 	}
 
 	/**
@@ -125,7 +194,7 @@ export class TokenService {
 
 		if (stored.revokedAt) {
 			this.logger.warn(
-				`Refresh token rejoue pour le compte ${stored.appUserId} : revocation de la famille ${stored.familyId}.`,
+				`Refresh token rejoué pour le compte ${stored.appUserId} : révocation de la famille ${stored.familyId}.`,
 			);
 			await this.revokeFamily(stored.familyId);
 			return null;
@@ -181,19 +250,41 @@ export class TokenService {
 		return stored.appUserId;
 	}
 
-	async revokeFamily(familyId: string): Promise<void> {
-		await this.prisma.refreshToken.updateMany({
+	/**
+	 * Famille a laquelle appartient un jeton en clair, ou `null`.
+	 *
+	 * Sert a la page « Sessions actives » pour reperer la session depuis
+	 * laquelle elle est consultee : sans ce reperage, se couper soi-meme en
+	 * croyant fermer une session etrangere serait l'erreur la plus facile a
+	 * commettre. Le hachage reste interne au service — le cookie ne sort pas
+	 * d'ici.
+	 */
+	async familyForToken(token: string): Promise<string | null> {
+		const stored = await this.prisma.refreshToken.findUnique({
+			where: { tokenHash: this.hash(token) },
+			select: { familyId: true },
+		});
+
+		return stored?.familyId ?? null;
+	}
+
+	async revokeFamily(familyId: string): Promise<number> {
+		const { count } = await this.prisma.refreshToken.updateMany({
 			where: { familyId, revokedAt: null },
 			data: { revokedAt: new Date() },
 		});
+
+		return count;
 	}
 
 	/** Deconnecte le compte de partout (changement de mot de passe, desactivation). */
-	async revokeAllForUser(appUserId: string): Promise<void> {
-		await this.prisma.refreshToken.updateMany({
+	async revokeAllForUser(appUserId: string): Promise<number> {
+		const { count } = await this.prisma.refreshToken.updateMany({
 			where: { appUserId, revokedAt: null },
 			data: { revokedAt: new Date() },
 		});
+
+		return count;
 	}
 
 	/** Purge les jetons expires depuis plus de 30 jours. */

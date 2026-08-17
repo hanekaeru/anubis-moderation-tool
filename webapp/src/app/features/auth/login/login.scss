@@ -62,3 +62,11 @@
 	font-size: 0.78rem;
 	color: var(--mat-sys-on-surface-variant);
 }
+
+/* Consigne du second facteur : au-dessus du champ, pas en bas de carte comme
+   les autres indications. */
+.two-factor-hint {
+	margin: 0 0 16px;
+	text-align: left;
+	font-size: 0.86rem;
+}

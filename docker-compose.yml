@@ -34,6 +34,9 @@ services:
             COOKIE_SECURE: "true"
             MAX_FAILED_LOGINS: 5
             LOCKOUT_MINUTES: 15
+            # Laisse a "true" en production. A "false", le second facteur n'est
+            # plus demande, y compris aux comptes qui l'ont active.
+            TWO_FACTOR_ENABLED: ${TWO_FACTOR_ENABLED:-true}
 
     webapp:
         build:

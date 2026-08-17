@@ -1,0 +1,43 @@
+.rules {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+	gap: 16px;
+	margin-bottom: 16px;
+}
+
+.rule-card {
+	mat-card-content {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding-top: 8px;
+	}
+}
+
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+
+	mat-form-field {
+		flex: 1;
+		min-width: 140px;
+	}
+}
+
+.full {
+	width: 100%;
+}
+
+.message {
+	max-width: 360px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.empty-state {
+	padding: 24px;
+	text-align: center;
+	color: var(--mat-sys-on-surface-variant);
+}

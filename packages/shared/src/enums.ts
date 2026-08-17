@@ -39,10 +39,8 @@ export type WarningSeverity =
 export const SanctionType = {
 	// Concerne le Timeout classique proposé par Discord.
 	TIMEOUT: "TIMEOUT",
-	VOICE_MUTE: "VOICE_MUTE",
 	// Déconnecte l'utilisateur du serveur.
 	KICK: "KICK",
-	SOFTBAN: "SOFTBAN",
 	// Banni l'utilisateur du serveur sans possibilité pour lui de rejoindre.
 	BAN: "BAN",
 	// Ajoute un rôle qui bloque complètement l'accès aux fonctionnalités du serveur.
@@ -85,9 +83,20 @@ export const TicketEventType = {
 	INTERNAL_NOTE: "INTERNAL_NOTE",
 	CLOSED: "CLOSED",
 	REOPENED: "REOPENED",
+	TRANSCRIPT_ARCHIVED: "TRANSCRIPT_ARCHIVED",
 } as const;
 export type TicketEventType =
 	(typeof TicketEventType)[keyof typeof TicketEventType];
+
+export const TicketCategory = {
+	SUPPORT: "SUPPORT",
+	REPORT: "REPORT",
+	COMPLAINT: "COMPLAINT",
+	PARTNERSHIP: "PARTNERSHIP",
+	OTHER: "OTHER",
+} as const;
+export type TicketCategory =
+	(typeof TicketCategory)[keyof typeof TicketCategory];
 
 export const AppUserRole = {
 	VIEWER: "VIEWER",
@@ -97,20 +106,75 @@ export const AppUserRole = {
 } as const;
 export type AppUserRole = (typeof AppUserRole)[keyof typeof AppUserRole];
 
+export const AutomodRuleType = {
+	SPAM_RATE: "SPAM_RATE",
+	ATTACHMENT_SPAM: "ATTACHMENT_SPAM",
+	MASS_MENTIONS: "MASS_MENTIONS",
+	LINKS_INVITES: "LINKS_INVITES",
+	WORD_FILTER: "WORD_FILTER",
+	EXCESSIVE_CAPS: "EXCESSIVE_CAPS",
+	REPETITION: "REPETITION",
+} as const;
+export type AutomodRuleType =
+	(typeof AutomodRuleType)[keyof typeof AutomodRuleType];
+
+export const AutomodAction = {
+	LOG_ONLY: "LOG_ONLY",
+	DELETE: "DELETE",
+	DELETE_AND_TIMEOUT: "DELETE_AND_TIMEOUT",
+} as const;
+export type AutomodAction = (typeof AutomodAction)[keyof typeof AutomodAction];
+
+export const WikiCategory = {
+	SANCTIONS: "SANCTIONS",
+	BEHAVIOR: "BEHAVIOR",
+	PROCEDURES: "PROCEDURES",
+	TOOLS: "TOOLS",
+	ONBOARDING: "ONBOARDING",
+	OTHER: "OTHER",
+} as const;
+export type WikiCategory = (typeof WikiCategory)[keyof typeof WikiCategory];
+
+export const AccountFlagType = {
+	NEW_ACCOUNT: "NEW_ACCOUNT",
+	DEFAULT_AVATAR: "DEFAULT_AVATAR",
+	STAFF_IMPERSONATION: "STAFF_IMPERSONATION",
+	QUICK_REJOIN: "QUICK_REJOIN",
+	JOINED_AFTER_BAN: "JOINED_AFTER_BAN",
+} as const;
+export type AccountFlagType =
+	(typeof AccountFlagType)[keyof typeof AccountFlagType];
+
+export const GiveawayStatus = {
+	SCHEDULED: "SCHEDULED",
+	RUNNING: "RUNNING",
+	ENDED: "ENDED",
+	CANCELLED: "CANCELLED",
+} as const;
+export type GiveawayStatus =
+	(typeof GiveawayStatus)[keyof typeof GiveawayStatus];
+
+export const EmbedMessageStatus = {
+	DRAFT: "DRAFT",
+	QUEUED: "QUEUED",
+	SENT: "SENT",
+	FAILED: "FAILED",
+} as const;
+export type EmbedMessageStatus =
+	(typeof EmbedMessageStatus)[keyof typeof EmbedMessageStatus];
+
 /** Libelles francais, pour ne pas les repeter dans chaque composant. */
 export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
 	TIMEOUT: "Exclusion temporaire",
-	VOICE_MUTE: "Mute vocal",
 	KICK: "Expulsion",
-	SOFTBAN: "Softban",
 	BAN: "Bannissement",
 	SHADOWBAN: "Shadowban",
 };
 
 export const SANCTION_STATUS_LABELS: Record<SanctionStatus, string> = {
 	ACTIVE: "En cours",
-	EXPIRED: "Terminee",
-	REVOKED: "Levee",
+	EXPIRED: "Terminée",
+	REVOKED: "Levée",
 };
 
 export const WARNING_SEVERITY_LABELS: Record<WarningSeverity, string> = {
@@ -133,6 +197,14 @@ export const TICKET_PRIORITY_LABELS: Record<TicketPriority, string> = {
 	URGENT: "Urgente",
 };
 
+export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {
+	SUPPORT: "Support technique",
+	REPORT: "Signalement d'un membre",
+	COMPLAINT: "Réclamation / Litige",
+	PARTNERSHIP: "Partenariat",
+	OTHER: "Autre",
+};
+
 export const APP_USER_ROLE_LABELS: Record<AppUserRole, string> = {
 	VIEWER: "Lecture seule",
 	MODERATOR: "Modérateur",
@@ -144,6 +216,89 @@ export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
 	ACTIVE: "Présent(e)",
 	LEFT: "Parti(e)",
 	BANNED: "Banni(e)",
+};
+
+export const AUTOMOD_RULE_TYPE_LABELS: Record<AutomodRuleType, string> = {
+	SPAM_RATE: "Débit de messages",
+	ATTACHMENT_SPAM: "Envoi répété d'images",
+	MASS_MENTIONS: "Mentions massives",
+	LINKS_INVITES: "Liens et invitations",
+	WORD_FILTER: "Filtre de mots",
+	EXCESSIVE_CAPS: "Majuscules excessives",
+	REPETITION: "Répétition",
+};
+
+export const AUTOMOD_RULE_TYPE_DESCRIPTIONS: Record<AutomodRuleType, string> = {
+	SPAM_RATE: "Trop de messages en peu de temps de la part d'un même membre.",
+	ATTACHMENT_SPAM:
+		"Trop d'images ou de pièces jointes en peu de temps de la part d'un même membre.",
+	MASS_MENTIONS: "Trop de mentions (membres ou rôles) dans un seul message.",
+	LINKS_INVITES: "Liens ou invitations Discord non autorisés.",
+	WORD_FILTER: "Mots ou expressions interdits sur le serveur.",
+	EXCESSIVE_CAPS: "Message majoritairement en majuscules.",
+	REPETITION: "Caractères ou messages répétés à l'excès.",
+};
+
+export const AUTOMOD_ACTION_LABELS: Record<AutomodAction, string> = {
+	LOG_ONLY: "Journaliser uniquement",
+	DELETE: "Supprimer le message",
+	DELETE_AND_TIMEOUT: "Supprimer et exclure temporairement",
+};
+
+export const ACCOUNT_FLAG_TYPE_LABELS: Record<AccountFlagType, string> = {
+	NEW_ACCOUNT: "Compte récent (< 2 jours)",
+	DEFAULT_AVATAR: "Avatar par défaut",
+	STAFF_IMPERSONATION: "Pseudo imitant un membre du staff",
+	QUICK_REJOIN: "Retour rapide après un départ",
+	JOINED_AFTER_BAN: "Arrivée juste après un bannissement",
+};
+
+export const GIVEAWAY_STATUS_LABELS: Record<GiveawayStatus, string> = {
+	SCHEDULED: "Programmé",
+	RUNNING: "En cours",
+	ENDED: "Terminé",
+	CANCELLED: "Annulé",
+};
+
+export const EMBED_MESSAGE_STATUS_LABELS: Record<EmbedMessageStatus, string> = {
+	DRAFT: "Brouillon",
+	QUEUED: "En attente d'envoi",
+	SENT: "Envoyé",
+	FAILED: "Échec",
+};
+
+export const WIKI_CATEGORY_LABELS: Record<WikiCategory, string> = {
+	SANCTIONS: "Sanctions",
+	BEHAVIOR: "Comportement",
+	PROCEDURES: "Procédures",
+	TOOLS: "Outils",
+	ONBOARDING: "Prise de poste",
+	OTHER: "Divers",
+};
+
+/**
+ * Ordre d'affichage des categories du wiki.
+ *
+ * L'ordre de declaration de l'enum ne fait pas foi cote base : c'est celui-ci
+ * qui range les sections de la page, du plus consulte au plus annexe.
+ */
+export const WIKI_CATEGORY_ORDER: WikiCategory[] = [
+	WikiCategory.SANCTIONS,
+	WikiCategory.BEHAVIOR,
+	WikiCategory.PROCEDURES,
+	WikiCategory.TOOLS,
+	WikiCategory.ONBOARDING,
+	WikiCategory.OTHER,
+];
+
+/** Icone Material par categorie, partagee par la liste et la fiche. */
+export const WIKI_CATEGORY_ICONS: Record<WikiCategory, string> = {
+	SANCTIONS: "gavel",
+	BEHAVIOR: "diversity_3",
+	PROCEDURES: "checklist",
+	TOOLS: "build",
+	ONBOARDING: "school",
+	OTHER: "article",
 };
 
 /**
@@ -159,6 +314,7 @@ export const LogChannelKey = {
 	MEMBERS: "LOG_CHANNEL_MEMBERS",
 	MESSAGES: "LOG_CHANNEL_MESSAGES",
 	SERVER: "LOG_CHANNEL_SERVER",
+	VOICE: "LOG_CHANNEL_VOICE",
 } as const;
 export type LogChannelKey = (typeof LogChannelKey)[keyof typeof LogChannelKey];
 
@@ -167,6 +323,7 @@ export const LOG_CHANNEL_LABELS: Record<LogChannelKey, string> = {
 	LOG_CHANNEL_MEMBERS: "Journal des membres",
 	LOG_CHANNEL_MESSAGES: "Journal des messages",
 	LOG_CHANNEL_SERVER: "Journal du serveur",
+	LOG_CHANNEL_VOICE: "Journal des vocaux",
 };
 
 export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
@@ -174,7 +331,9 @@ export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
 		"Avertissements, sanctions et actions de modération.",
 	LOG_CHANNEL_MEMBERS: "Arrivées et départs de membres.",
 	LOG_CHANNEL_MESSAGES: "Messages édités ou supprimés.",
-	LOG_CHANNEL_SERVER: "Salons et roles crées, modifiés ou supprimés.",
+	LOG_CHANNEL_SERVER: "Salons et rôles créés, modifiés ou supprimés.",
+	LOG_CHANNEL_VOICE:
+		"Salons vocaux temporaires : créations, arrivées, départs, propriété et signalements.",
 };
 
 /**
@@ -182,3 +341,10 @@ export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
  * shadowban, cree paresseusement au premier `/shadowban` sur un serveur.
  */
 export const SHADOWBAN_ROLE_CONFIG_KEY = "SHADOWBAN_ROLE";
+
+/**
+ * Cle `config_name` sous laquelle le bot enregistre l'identifiant du salon
+ * d'archive des transcripts de tickets, cree paresseusement au premier usage
+ * de `/create_ticket_panel`.
+ */
+export const TICKET_TRANSCRIPT_CHANNEL_CONFIG_KEY = "TICKET_TRANSCRIPT_CHANNEL";

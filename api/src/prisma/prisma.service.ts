@@ -28,7 +28,7 @@ export class PrismaService
 
 	async onModuleInit(): Promise<void> {
 		await this.$connect();
-		this.logger.log("Connexion PostgreSQL etablie.");
+		this.logger.log("Connexion PostgreSQL établie.");
 	}
 
 	async onModuleDestroy(): Promise<void> {

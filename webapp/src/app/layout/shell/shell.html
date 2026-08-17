@@ -15,20 +15,24 @@
 
 		<mat-divider />
 
-		<mat-nav-list>
-			@for (entry of navigation(); track entry.path) {
-				<a
-					mat-list-item
-					[routerLink]="entry.path"
-					routerLinkActive="active"
-					[routerLinkActiveOptions]="{ exact: entry.path === '/' }"
-					(click)="onNavigate()"
-				>
-					<mat-icon matListItemIcon>{{ entry.icon }}</mat-icon>
-					<span matListItemTitle>{{ entry.label }}</span>
-				</a>
-			}
-		</mat-nav-list>
+		@for (section of navigation(); track section.label) {
+			<p class="nav-section">{{ section.label }}</p>
+
+			<mat-nav-list>
+				@for (entry of section.entries; track entry.path) {
+					<a
+						mat-list-item
+						[routerLink]="entry.path"
+						routerLinkActive="active"
+						[routerLinkActiveOptions]="{ exact: entry.path === '/' }"
+						(click)="onNavigate()"
+					>
+						<mat-icon matListItemIcon>{{ entry.icon }}</mat-icon>
+						<span matListItemTitle>{{ entry.label }}</span>
+					</a>
+				}
+			</mat-nav-list>
+		}
 	</mat-sidenav>
 
 	<mat-sidenav-content>
@@ -62,13 +66,30 @@
 						<p class="menu-role">{{ roleLabels[account.role] }}</p>
 					</div>
 					<mat-divider />
+					<a mat-menu-item routerLink="/mon-compte/discord">
+						<mat-icon>link</mat-icon>
+						<span>Compte Discord</span>
+					</a>
 					<a mat-menu-item routerLink="/mot-de-passe">
 						<mat-icon>password</mat-icon>
 						<span>Changer le mot de passe</span>
 					</a>
+					<!-- Masquee quand le deploiement a coupe la double authentification :
+					     une entree qui ne mene qu'a « indisponible » n'apprend rien.
+					     L'etat du compte, lui, est repris dans l'entree elle-meme — un
+					     compte non protege doit le lire sans avoir a ouvrir la page. -->
+					@if (account.twoFactorAvailable) {
+						<a mat-menu-item routerLink="/mon-compte/double-authentification">
+							<mat-icon>{{ account.twoFactorEnabled ? 'verified_user' : 'gpp_maybe' }}</mat-icon>
+							<span>
+								Double authentification
+								{{ account.twoFactorEnabled ? '' : ' — inactive' }}
+							</span>
+						</a>
+					}
 					<button mat-menu-item (click)="logout()">
 						<mat-icon>logout</mat-icon>
-						<span>Se deconnecter</span>
+						<span>Se déconnecter</span>
 					</button>
 				</mat-menu>
 			}

@@ -12,15 +12,34 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Throttle } from "@nestjs/throttler";
 import type { CookieOptions, Request, Response } from "express";
-import type { LoginResponse, SessionUser } from "@anubis/shared";
+import type {
+	LoginResponse,
+	LoginResult,
+	SessionUser,
+	TwoFactorRecoveryCodesResponse,
+	TwoFactorSetupResponse,
+	TwoFactorStatus,
+} from "@anubis/shared";
 import type { AppConfig } from "../config/configuration";
 import { AllowTemporaryPassword } from "../common/decorators/allow-temporary-password.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { Public } from "../common/decorators/public.decorator";
 import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
-import { AuthService, type RequestContext } from "./auth.service";
-import { ChangePasswordDto, LoginDto } from "./dto/login.dto";
+import {
+	AuthService,
+	isPendingSecondFactor,
+	type IssuedSession,
+	type RequestContext,
+} from "./auth.service";
+import {
+	ChangePasswordDto,
+	DisableTwoFactorDto,
+	LoginDto,
+	TwoFactorCodeDto,
+	TwoFactorLoginDto,
+} from "./dto/login.dto";
+import { TwoFactorService } from "./two-factor.service";
 
 /** Nom du cookie portant le refresh token. */
 const REFRESH_COOKIE = "anubis_rt";
@@ -35,6 +54,7 @@ const REFRESH_COOKIE = "anubis_rt";
 export class AuthController {
 	constructor(
 		private readonly auth: AuthService,
+		private readonly twoFactor: TwoFactorService,
 		private readonly prisma: PrismaService,
 		private readonly config: ConfigService<{ app: AppConfig }, true>,
 	) {}
@@ -73,23 +93,62 @@ export class AuthController {
 		@Body() dto: LoginDto,
 		@Req() req: Request,
 		@Res({ passthrough: true }) res: Response,
-	): Promise<LoginResponse> {
+	): Promise<LoginResult> {
 		const result = await this.auth.login(
 			dto.username,
 			dto.password,
 			this.context(req),
 		);
 
+		// Second facteur attendu : aucun cookie n'est pose, la session n'existe
+		// pas encore.
+		if (isPendingSecondFactor(result)) {
+			return {
+				twoFactorRequired: true,
+				challengeToken: result.challengeToken,
+				expiresIn: result.expiresIn,
+			};
+		}
+
+		return this.openSession(result, res);
+	}
+
+	/**
+	 * Second facteur d'une connexion en cours.
+	 *
+	 * Meme debit que `login` : c'est la seconde moitie de la meme porte, et un
+	 * code a six chiffres se devine bien plus vite qu'un mot de passe.
+	 */
+	@Public()
+	@Throttle({ default: { limit: 5, ttl: 60_000 } })
+	@Post("login/double-authentification")
+	@HttpCode(HttpStatus.OK)
+	async loginTwoFactor(
+		@Body() dto: TwoFactorLoginDto,
+		@Req() req: Request,
+		@Res({ passthrough: true }) res: Response,
+	): Promise<LoginResponse> {
+		const result = await this.auth.completeTwoFactorLogin(
+			dto.challengeToken,
+			dto.code,
+			this.context(req),
+		);
+
+		return this.openSession(result, res);
+	}
+
+	/** Pose le cookie de refresh et ne rend au client que ce qu'il peut lire. */
+	private openSession(session: IssuedSession, res: Response): LoginResponse {
 		res.cookie(
 			REFRESH_COOKIE,
-			result.refreshToken,
-			this.cookieOptions(result.refreshExpiresAt),
+			session.refreshToken,
+			this.cookieOptions(session.refreshExpiresAt),
 		);
 
 		return {
-			accessToken: result.accessToken,
-			expiresIn: result.expiresIn,
-			user: result.user,
+			accessToken: session.accessToken,
+			expiresIn: session.expiresIn,
+			user: session.user,
 		};
 	}
 
@@ -108,17 +167,7 @@ export class AuthController {
 
 		const result = await this.auth.refresh(token, this.context(req));
 
-		res.cookie(
-			REFRESH_COOKIE,
-			result.refreshToken,
-			this.cookieOptions(result.refreshExpiresAt),
-		);
-
-		return {
-			accessToken: result.accessToken,
-			expiresIn: result.expiresIn,
-			user: result.user,
-		};
+		return this.openSession(result, res);
 	}
 
 	@Public()
@@ -146,6 +195,67 @@ export class AuthController {
 		}
 
 		return this.auth.toSessionUser(account);
+	}
+
+	/**
+	 * Double authentification du compte connecte.
+	 *
+	 * Ces routes restent sous `@AllowTemporaryPassword` comme tout le
+	 * controleur, mais elles ne sont **pas** publiques : le compte doit deja etre
+	 * connecte pour regler son propre second facteur.
+	 */
+	@Get("double-authentification")
+	twoFactorStatus(
+		@CurrentUser() user: AuthenticatedUser,
+	): Promise<TwoFactorStatus> {
+		return this.twoFactor.status(user.id);
+	}
+
+	@Post("double-authentification/preparation")
+	@HttpCode(HttpStatus.OK)
+	prepareTwoFactor(
+		@CurrentUser() user: AuthenticatedUser,
+	): Promise<TwoFactorSetupResponse> {
+		return this.twoFactor.prepare(user.id);
+	}
+
+	@Post("double-authentification/activation")
+	@HttpCode(HttpStatus.OK)
+	enableTwoFactor(
+		@CurrentUser() user: AuthenticatedUser,
+		@Body() dto: TwoFactorCodeDto,
+		@Req() req: Request,
+	): Promise<TwoFactorRecoveryCodesResponse> {
+		return this.twoFactor.enable(user.id, dto.code, this.context(req));
+	}
+
+	@Post("double-authentification/desactivation")
+	@HttpCode(HttpStatus.NO_CONTENT)
+	disableTwoFactor(
+		@CurrentUser() user: AuthenticatedUser,
+		@Body() dto: DisableTwoFactorDto,
+		@Req() req: Request,
+	): Promise<void> {
+		return this.twoFactor.disable(
+			user.id,
+			dto.password,
+			dto.code,
+			this.context(req),
+		);
+	}
+
+	@Post("double-authentification/codes-de-secours")
+	@HttpCode(HttpStatus.OK)
+	regenerateRecoveryCodes(
+		@CurrentUser() user: AuthenticatedUser,
+		@Body() dto: TwoFactorCodeDto,
+		@Req() req: Request,
+	): Promise<TwoFactorRecoveryCodesResponse> {
+		return this.twoFactor.regenerateRecoveryCodes(
+			user.id,
+			dto.code,
+			this.context(req),
+		);
 	}
 
 	@Post("password")

@@ -1,8 +1,8 @@
 <div class="page">
 	<header class="page-header">
 		<div>
-			<h1>Journal d'activite</h1>
-			<p class="subtitle">{{ total() }} action(s) enregistree(s) depuis le dashboard</p>
+			<h1>Journal d'activité</h1>
+			<p class="subtitle">{{ total() }} action(s) enregistrée(s) depuis le dashboard</p>
 		</div>
 	</header>
 
@@ -41,7 +41,7 @@
 						@if (entry.actorLabel) {
 							{{ entry.actorLabel }}
 						} @else {
-							<span class="muted">Compte supprime</span>
+							<span class="muted">Compte supprimé</span>
 						}
 					</td>
 				</ng-container>
@@ -79,7 +79,7 @@
 		</div>
 
 		@if (!loading() && entries().length === 0) {
-			<p class="empty-state">Aucune action ne correspond a ce filtre.</p>
+			<p class="empty-state">Aucune action ne correspond à ce filtre.</p>
 		}
 
 		<mat-paginator

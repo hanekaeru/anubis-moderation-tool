@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Client } from "discord.js";
 import type { BotEvent } from "./types";
 
-const EVENTS_DIR = path.join(__dirname, "..", "events");
+const EVENTS_DIR = path.join(__dirname, "events");
 
 function isEventModule(value: unknown): value is BotEvent {
 	return (

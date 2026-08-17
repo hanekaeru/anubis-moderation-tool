@@ -8,9 +8,10 @@ import type { Paginated, WarningDto } from "@anubis/shared";
 import { AuditService } from "../audit/audit.service";
 import { paginate } from "../common/dto/pagination.dto";
 import { GuildContextService } from "../common/guild-context.service";
-import { toActorRef, toMemberRef } from "../common/mappers";
+import { toActorRef, toAttachmentRef, toMemberRef } from "../common/mappers";
 import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { ModerationPointsService } from "./moderation-points.service";
 import type {
 	CreateWarningDto,
 	RevokeDto,
@@ -23,6 +24,21 @@ const WARNING_INCLUDE = {
 	moderator: true,
 	createdBy: true,
 	revokedBy: true,
+	// Metadonnees seulement : `data` est exclu, sinon chaque liste
+	// d'avertissements transporterait les octets de toutes les preuves.
+	attachments: {
+		orderBy: { createdAt: "asc" },
+		select: {
+			id: true,
+			fileName: true,
+			contentType: true,
+			size: true,
+			spoiler: true,
+			createdAt: true,
+			uploadedBy: true,
+			uploadedByDiscord: true,
+		},
+	},
 } satisfies Prisma.WarningInclude;
 
 type WarningRow = Prisma.WarningGetPayload<{ include: typeof WARNING_INCLUDE }>;
@@ -33,6 +49,7 @@ export class WarningsService {
 		private readonly prisma: PrismaService,
 		private readonly guild: GuildContextService,
 		private readonly audit: AuditService,
+		private readonly pointsConfig: ModerationPointsService,
 	) {}
 
 	private toDto(row: WarningRow): WarningDto {
@@ -53,6 +70,9 @@ export class WarningsService {
 			revokeReason: row.revokeReason,
 			createdAt: row.createdAt.toISOString(),
 			isActive: row.revokedAt === null && !expired,
+			attachments: row.attachments.map((attachment) =>
+				toAttachmentRef(attachment),
+			),
 		};
 	}
 
@@ -123,7 +143,7 @@ export class WarningsService {
 
 		if (!member) {
 			throw new NotFoundException(
-				`Membre ${dto.userId} inconnu sur ce serveur. Le bot doit l avoir enregistre au prealable.`,
+				`Membre ${dto.userId} inconnu sur ce serveur. Le bot doit l'avoir enregistré au préalable.`,
 			);
 		}
 
@@ -133,6 +153,11 @@ export class WarningsService {
 			);
 		}
 
+		// Le bareme ne donne que le defaut : une fois copie dans la ligne, le
+		// poids de cet avertissement ne bouge plus, meme si le bareme change.
+		const points =
+			dto.points ?? (await this.pointsConfig.pointsForWarning(dto.severity));
+
 		const created = await this.prisma.warning.create({
 			data: {
 				guildId,
@@ -140,7 +165,7 @@ export class WarningsService {
 				createdById: actor.id,
 				reason: dto.reason,
 				severity: dto.severity,
-				points: dto.points,
+				points,
 				expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
 			},
 			include: WARNING_INCLUDE,
@@ -154,7 +179,7 @@ export class WarningsService {
 				targetUserId: dto.userId,
 				targetType: "warning",
 				targetId: created.id,
-				metadata: { severity: dto.severity, points: dto.points },
+				metadata: { severity: dto.severity, points },
 			},
 		});
 
@@ -186,7 +211,7 @@ export class WarningsService {
 			throw new NotFoundException("Avertissement introuvable.");
 		if (existing.revokedAt) {
 			throw new BadRequestException(
-				"Cet avertissement est deja revoque.",
+				"Cet avertissement est déjà révoqué.",
 			);
 		}
 

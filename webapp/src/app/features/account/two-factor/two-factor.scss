@@ -1,0 +1,162 @@
+mat-card + mat-card {
+	margin-top: 16px;
+}
+
+mat-card-content {
+	padding-top: 8px;
+}
+
+.state {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+
+	mat-icon {
+		flex-shrink: 0;
+	}
+
+	&.on mat-icon {
+		color: var(--mat-sys-primary);
+	}
+
+	/* L'etat inactif n'est pas une erreur : la teinte reste neutre, c'est le
+	   texte qui dit ce qui manque. */
+	&.off mat-icon {
+		color: var(--mat-sys-on-surface-variant);
+	}
+}
+
+.meta {
+	margin: 2px 0 0;
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.875rem;
+}
+
+.warn {
+	margin: 12px 0 0;
+	padding: 10px 12px;
+	border-radius: 8px;
+	background: var(--mat-sys-error-container);
+	color: var(--mat-sys-on-error-container);
+	font-size: 0.86rem;
+}
+
+.error {
+	margin: 0 0 16px;
+	padding: 10px 12px;
+	border-radius: 8px;
+	background: var(--mat-sys-error-container);
+	color: var(--mat-sys-on-error-container);
+	font-size: 0.86rem;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.inline-form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 12px;
+
+	mat-form-field {
+		flex: 1;
+		min-width: 220px;
+	}
+
+	button {
+		margin-top: 6px;
+	}
+}
+
+.setup {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 24px;
+	align-items: flex-start;
+
+	img {
+		/* Fond blanc impose : un QR code rendu sur fond sombre n'est pas lisible
+		   par la moitie des applications d'authentification. */
+		background: #fff;
+		padding: 8px;
+		border-radius: 12px;
+	}
+}
+
+.setup-details {
+	flex: 1;
+	min-width: 280px;
+}
+
+code {
+	padding: 1px 5px;
+	border-radius: 4px;
+	background: var(--mat-sys-surface-variant);
+	font-size: 0.85em;
+}
+
+.secret {
+	display: inline-block;
+	margin: 6px 0 16px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	background: var(--mat-sys-surface-variant);
+	font-size: 0.95rem;
+	letter-spacing: 0.08em;
+	word-break: break-all;
+}
+
+.codes-card {
+	border-color: var(--mat-sys-primary);
+}
+
+.codes-head {
+	display: flex;
+	gap: 16px;
+	align-items: flex-start;
+
+	mat-icon {
+		flex-shrink: 0;
+		color: var(--mat-sys-primary);
+	}
+
+	h2 {
+		margin: 0;
+		font-size: 1.05rem;
+		font-weight: 600;
+	}
+
+	p {
+		margin: 4px 0 0;
+		color: var(--mat-sys-on-surface-variant);
+		font-size: 0.875rem;
+	}
+}
+
+.codes {
+	list-style: none;
+	margin: 16px 0 0;
+	padding: 0;
+	display: grid;
+	gap: 8px;
+	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+
+	code {
+		display: block;
+		padding: 8px 10px;
+		border-radius: 8px;
+		background: var(--mat-sys-surface-variant);
+		text-align: center;
+		letter-spacing: 0.08em;
+	}
+}
+
+.danger {
+	--mdc-filled-button-container-color: var(--mat-sys-error);
+	--mdc-filled-button-label-text-color: var(--mat-sys-on-error);
+}

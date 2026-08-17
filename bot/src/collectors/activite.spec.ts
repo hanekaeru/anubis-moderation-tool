@@ -22,8 +22,17 @@ function fakeMessage(overrides: Record<string, unknown> = {}): Message<true> {
 	} as unknown as Message<true>;
 }
 
+// Chaque vidage journalise son bilan : utile en production, pur bruit dans le
+// journal de CI, ou il noie ce qui compte vraiment.
+let silence: jest.SpyInstance;
+
 beforeEach(() => {
 	jest.clearAllMocks();
+	silence = jest.spyOn(console, "log").mockImplementation(() => {});
+});
+
+afterEach(() => {
+	silence.mockRestore();
 });
 
 describe("enregistrerMessage", () => {

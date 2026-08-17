@@ -44,6 +44,56 @@ describe("upsertRole", () => {
 	});
 });
 
+describe("synchroniserAvatars", () => {
+	it("met a jour les utilisateurs de tous les membres presents", async () => {
+		const utilisateurA = {
+			user: {
+				id: "user-a",
+				username: "alice",
+				globalName: "Alice",
+				discriminator: "0",
+				bot: false,
+				createdAt: new Date(),
+				displayAvatarURL: jest
+					.fn()
+					.mockReturnValue("https://cdn.discordapp.com/avatars/user-a/avatar-a.png"),
+			},
+		};
+		const utilisateurB = {
+			user: {
+				id: "user-b",
+				username: "bob",
+				globalName: null,
+				discriminator: "0",
+				bot: false,
+				createdAt: new Date(),
+				displayAvatarURL: jest
+					.fn()
+					.mockReturnValue("https://cdn.discordapp.com/embed/avatars/0.png"),
+			},
+		};
+		const guild = {
+			members: {
+				fetch: jest.fn().mockResolvedValue(
+					new Collection([
+						[utilisateurA.user.id, utilisateurA as unknown as GuildMember],
+						[utilisateurB.user.id, utilisateurB as unknown as GuildMember],
+					]),
+				),
+			},
+		} as unknown as Guild;
+
+		await expect(referentiel.synchroniserAvatars(guild)).resolves.toBe(2);
+		expect(prismaMock.discordUser.upsert).toHaveBeenCalledTimes(2);
+		expect(prismaMock.discordUser.upsert.mock.calls[0][0].update).toMatchObject({
+			avatarUrl: "https://cdn.discordapp.com/avatars/user-a/avatar-a.png",
+		});
+		expect(prismaMock.discordUser.upsert.mock.calls[1][0].update).toMatchObject({
+			avatarUrl: "https://cdn.discordapp.com/embed/avatars/0.png",
+		});
+	});
+});
+
 describe("synchroniserRoles", () => {
 	it("calcule les roles ajoutes et retires par diff avec l'etat en base, en ignorant @everyone", async () => {
 		const guildId = "guild-1";
@@ -191,9 +241,9 @@ describe("garantirContexte", () => {
 			username: "user",
 			globalName: null,
 			discriminator: "0",
-			avatar: null,
 			bot: false,
 			createdAt: new Date(),
+			displayAvatarURL: jest.fn().mockReturnValue("https://cdn.discordapp.com/embed/avatars/0.png"),
 		} as unknown as User;
 	}
 
@@ -212,9 +262,14 @@ describe("garantirContexte", () => {
 
 	it("renvoie false sans jeter quand Prisma echoue", async () => {
 		prismaMock.guild.upsert.mockRejectedValueOnce(new Error("DB down"));
+		// L'echec est celui qu'on provoque : sa trace n'apporte rien au journal
+		// de CI, ou elle se lit comme une vraie erreur.
+		const silence = jest.spyOn(console, "error").mockImplementation(() => {});
 		const guild = fakeGuild("guild-failure-test");
 		const user = fakeUser("user-failure-test");
 
 		await expect(referentiel.garantirContexte(guild, user)).resolves.toBe(false);
+
+		silence.mockRestore();
 	});
 });

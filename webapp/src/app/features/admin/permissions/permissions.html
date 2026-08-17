@@ -1,0 +1,112 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Permissions des rôles</h1>
+			<p class="subtitle">
+				Ce que chaque rôle du dashboard a le droit de faire. Seuls les écarts à la configuration
+				livrée sont enregistrés : une permission ajoutée par une future version arrivera d'elle-même
+				dans les rôles concernés.
+			</p>
+		</div>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (roles().length) {
+		<mat-tab-group
+			class="tabs"
+			animationDuration="150ms"
+			[selectedIndex]="0"
+			(selectedTabChange)="selectRole(roles()[$event.index].role)"
+		>
+			@for (role of roles(); track role.role) {
+				<mat-tab [label]="roleLabels[role.role]" />
+			}
+		</mat-tab-group>
+	}
+
+	@if (current(); as role) {
+		@if (role.locked) {
+			<mat-card appearance="outlined" class="banner">
+				<mat-card-content>
+					<mat-icon>shield</mat-icon>
+					<div>
+						<strong>Le rôle propriétaire garde toutes les permissions</strong>
+						<p>
+							Il n'est pas modifiable, volontairement : c'est ce qui garantit qu'on ne puisse
+							jamais retirer à tout le monde le droit d'ouvrir cette page.
+						</p>
+					</div>
+				</mat-card-content>
+			</mat-card>
+		} @else {
+			<mat-card appearance="outlined" class="banner">
+				<mat-card-content>
+					<mat-icon>{{ customised() ? 'tune' : 'check_circle' }}</mat-icon>
+					<div>
+						<strong>
+							{{ customised() ? 'Configuration personnalisée' : 'Configuration par défaut' }}
+						</strong>
+						<p>
+							{{ selectedDraft().size }} permission(s) sur {{ role.defaults.length }} par défaut.
+						</p>
+					</div>
+					<button matButton [disabled]="!customised()" (click)="resetToDefaults()">
+						Rétablir les valeurs par défaut
+					</button>
+				</mat-card-content>
+			</mat-card>
+		}
+
+		@for (group of groups; track group.label) {
+			<mat-card appearance="outlined">
+				<mat-card-header>
+					<mat-card-title>{{ group.label }}</mat-card-title>
+				</mat-card-header>
+
+				<mat-card-content>
+					@for (permission of group.permissions; track permission) {
+						<div class="permission">
+							<mat-checkbox
+								[checked]="isChecked(permission)"
+								[disabled]="role.locked"
+								(change)="toggle(permission, $event.checked)"
+							>
+								{{ permissionLabels[permission] }}
+							</mat-checkbox>
+							<span class="spacer"></span>
+							@if (!role.locked && isChecked(permission) !== isDefault(permission)) {
+								<span
+									class="tag"
+									[matTooltip]="
+										isChecked(permission)
+											? 'Accordée en plus de la configuration livrée'
+											: 'Retirée de la configuration livrée'
+									"
+								>
+									{{ isChecked(permission) ? 'Ajoutée' : 'Retirée' }}
+								</span>
+							}
+							<code>{{ permission }}</code>
+						</div>
+					}
+				</mat-card-content>
+			</mat-card>
+		}
+
+		@if (!role.locked) {
+			<div class="actions">
+				<button matButton [disabled]="!dirty() || saving()" (click)="cancel()">Annuler</button>
+				<button
+					matButton="filled"
+					[disabled]="!dirty() || saving()"
+					(click)="save()"
+				>
+					Enregistrer
+				</button>
+			</div>
+		}
+	}
+</div>

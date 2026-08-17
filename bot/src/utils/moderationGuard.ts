@@ -13,11 +13,11 @@ export function hierarchyIssue(
 	target: GuildMember,
 ): string | null {
 	if (target.id === actor.id) {
-		return "Impossible d'appliquer cette action a toi-meme.";
+		return "Impossible d'appliquer cette action à toi-même.";
 	}
 
 	if (target.id === actor.guild.ownerId) {
-		return "Impossible d'agir sur le proprietaire du serveur.";
+		return "Impossible d'agir sur le propriétaire du serveur.";
 	}
 
 	const actorIsOwner = actor.id === actor.guild.ownerId;
@@ -25,7 +25,7 @@ export function hierarchyIssue(
 		!actorIsOwner &&
 		target.roles.highest.position >= actor.roles.highest.position
 	) {
-		return "Ce membre a un role egal ou superieur au tien.";
+		return "Ce membre a un rôle égal ou supérieur au tien.";
 	}
 
 	return null;

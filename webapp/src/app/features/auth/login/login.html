@@ -8,9 +8,44 @@
 			<div class="brand">
 				<mat-icon class="brand-icon">shield</mat-icon>
 				<h1>Anubis</h1>
-				<p class="subtitle">Dashboard de moderation</p>
+				<p class="subtitle">Dashboard de modération</p>
 			</div>
 
+			@if (challengeToken()) {
+				<form [formGroup]="codeForm" (ngSubmit)="submitCode()">
+					<p class="hint two-factor-hint">
+						Saisissez le code affiché par votre application d'authentification, ou l'un
+						de vos codes de secours.
+					</p>
+
+					<mat-form-field class="full">
+						<mat-label>Code de vérification</mat-label>
+						<input
+							matInput
+							formControlName="code"
+							autocomplete="one-time-code"
+							inputmode="text"
+							autocapitalize="characters"
+							spellcheck="false"
+							required
+						/>
+						@if (codeForm.controls.code.touched && codeForm.controls.code.invalid) {
+							<mat-error>Code requis ({{ codeLength }} chiffres minimum).</mat-error>
+						}
+					</mat-form-field>
+
+					@if (errorMessage(); as message) {
+						<p class="error" role="alert">{{ message }}</p>
+					}
+
+					<button matButton="filled" type="submit" class="full submit" [disabled]="submitting()">
+						Valider
+					</button>
+					<button matButton type="button" class="full" (click)="cancelTwoFactor()">
+						Revenir à la connexion
+					</button>
+				</form>
+			} @else {
 			<form [formGroup]="form" (ngSubmit)="submit()">
 				<mat-form-field class="full">
 					<mat-label>Identifiant</mat-label>
@@ -60,9 +95,10 @@
 					Se connecter
 				</button>
 			</form>
+			}
 
 			<p class="hint">
-				Les comptes sont crees par un administrateur. Contactez-en un si vous n'avez pas d'acces.
+				Les comptes sont créés par un administrateur. Contactez-en un si vous n'avez pas d'accès.
 			</p>
 		</mat-card-content>
 	</mat-card>

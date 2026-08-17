@@ -25,7 +25,7 @@ import type { EChartsOption } from 'echarts';
 				@if (hasData()) {
 					<div echarts [options]="options()" [style.height.px]="height()" class="chart"></div>
 				} @else {
-					<p class="empty" [style.height.px]="height()">Aucune donnee sur cette periode.</p>
+					<p class="empty" [style.height.px]="height()">Aucune donnée sur cette période.</p>
 				}
 			</mat-card-content>
 		</mat-card>

@@ -3,7 +3,7 @@
 		<div>
 			<h1>Logs</h1>
 			<p class="subtitle">
-				Salons de logs et reglages du serveur. Utilisez /create_logs sur Discord pour creer les
+				Salons de logs et réglages du serveur. Utilisez /create_logs sur Discord pour créer les
 				salons de logs manquants.
 			</p>
 		</div>
@@ -26,7 +26,7 @@
 		<div class="table-scroll">
 			<table mat-table [dataSource]="configs()">
 				<ng-container matColumnDef="name">
-					<th mat-header-cell *matHeaderCellDef>Cle</th>
+					<th mat-header-cell *matHeaderCellDef>Clé</th>
 					<td mat-cell *matCellDef="let config">
 						<span class="label">{{ label(config) }}</span>
 						<span class="name">{{ config.configName }}</span>
@@ -86,7 +86,7 @@
 		</div>
 
 		@if (!loading() && configs().length === 0) {
-			<p class="empty-state">Aucune configuration enregistree.</p>
+			<p class="empty-state">Aucune configuration enregistrée.</p>
 		}
 	</mat-card>
 </div>

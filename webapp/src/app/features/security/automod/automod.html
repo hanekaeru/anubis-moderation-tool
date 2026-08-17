@@ -1,0 +1,200 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Automodération</h1>
+			<p class="subtitle">
+				Débit de messages, envoi répété d'images, mentions massives, liens et invitations,
+				filtre de mots, majuscules excessives, répétition. Chaque déclenchement laisse une
+				trace ci-dessous.
+			</p>
+		</div>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	<div class="rules">
+		@for (entry of entries(); track entry.type) {
+			<mat-card appearance="outlined" [formGroup]="entry.form" class="rule-card">
+				<mat-card-header>
+					<mat-card-title>{{ ruleTypeLabels[entry.type] }}</mat-card-title>
+					<mat-card-subtitle>{{ ruleTypeDescriptions[entry.type] }}</mat-card-subtitle>
+				</mat-card-header>
+
+				<mat-card-content>
+					<mat-slide-toggle formControlName="enabled">Règle activée</mat-slide-toggle>
+
+					<div class="row">
+						<mat-form-field>
+							<mat-label>Action</mat-label>
+							<mat-select formControlName="action">
+								@for (action of actions; track action) {
+									<mat-option [value]="action">{{ actionLabels[action] }}</mat-option>
+								}
+							</mat-select>
+						</mat-form-field>
+
+						@if (entry.form.value.action === 'DELETE_AND_TIMEOUT') {
+							<mat-form-field>
+								<mat-label>Durée d'exclusion (secondes)</mat-label>
+								<input matInput type="number" formControlName="timeoutSeconds" min="1" />
+							</mat-form-field>
+						}
+					</div>
+
+					<div formGroupName="settings" class="row">
+						@switch (entry.type) {
+							@case (RuleType.SPAM_RATE) {
+								<mat-form-field>
+									<mat-label>Messages tolérés</mat-label>
+									<input matInput type="number" formControlName="messageThreshold" min="1" />
+								</mat-form-field>
+								<mat-form-field>
+									<mat-label>Fenêtre (secondes)</mat-label>
+									<input matInput type="number" formControlName="windowSeconds" min="1" />
+								</mat-form-field>
+							}
+							@case (RuleType.ATTACHMENT_SPAM) {
+								<mat-form-field>
+									<mat-label>Fichiers tolérés</mat-label>
+									<input matInput type="number" formControlName="attachmentThreshold" min="1" />
+								</mat-form-field>
+								<mat-form-field>
+									<mat-label>Fenêtre (secondes)</mat-label>
+									<input matInput type="number" formControlName="windowSeconds" min="1" />
+								</mat-form-field>
+								<mat-checkbox formControlName="imagesOnly">
+									Ne compter que les images
+								</mat-checkbox>
+							}
+							@case (RuleType.MASS_MENTIONS) {
+								<mat-form-field>
+									<mat-label>Mentions tolérées par message</mat-label>
+									<input matInput type="number" formControlName="mentionThreshold" min="1" />
+								</mat-form-field>
+							}
+							@case (RuleType.LINKS_INVITES) {
+								<mat-checkbox formControlName="blockLinks">Bloquer les liens</mat-checkbox>
+								<mat-checkbox formControlName="blockInvites">Bloquer les invitations Discord</mat-checkbox>
+								<mat-form-field class="full">
+									<mat-label>Domaines autorisés (séparés par des virgules)</mat-label>
+									<input matInput formControlName="allowedDomains" placeholder="youtube.com, imgur.com" />
+								</mat-form-field>
+							}
+							@case (RuleType.WORD_FILTER) {
+								<mat-form-field class="full">
+									<mat-label>Mots interdits (un par ligne)</mat-label>
+									<textarea matInput formControlName="words" rows="4"></textarea>
+									<mat-hint>Cherchés dans le message, sans tenir compte de la casse.</mat-hint>
+								</mat-form-field>
+
+								<mat-form-field class="full">
+									<mat-label>Expressions régulières (une par ligne)</mat-label>
+									<textarea matInput formControlName="patterns" rows="4"></textarea>
+									@if (patternIssues(entry); as issues) {
+										<mat-error>
+											@for (issue of issues; track issue.pattern) {
+												« {{ issue.pattern }} » : {{ issue.reason }}.
+											}
+										</mat-error>
+									} @else {
+										<mat-hint>
+											Pour ce qu'une liste de mots ne sait pas dire — variantes, caractères
+											substitués. Insensibles à la casse.
+										</mat-hint>
+									}
+								</mat-form-field>
+							}
+							@case (RuleType.EXCESSIVE_CAPS) {
+								<mat-form-field>
+									<mat-label>Longueur minimale</mat-label>
+									<input matInput type="number" formControlName="minLength" min="1" />
+								</mat-form-field>
+								<mat-form-field>
+									<mat-label>Ratio de majuscules (0 à 1)</mat-label>
+									<input matInput type="number" step="0.05" formControlName="capsRatio" min="0.1" max="1" />
+								</mat-form-field>
+							}
+							@case (RuleType.REPETITION) {
+								<mat-form-field>
+									<mat-label>Caractères identiques consécutifs</mat-label>
+									<input matInput type="number" formControlName="maxRepeatedChars" min="2" />
+								</mat-form-field>
+								<mat-form-field>
+									<mat-label>Messages identiques consécutifs</mat-label>
+									<input matInput type="number" formControlName="maxDuplicateMessages" min="2" />
+								</mat-form-field>
+							}
+						}
+					</div>
+
+					<mat-form-field class="full">
+						<mat-label>Rôles dispensés (identifiants séparés par des virgules)</mat-label>
+						<input matInput formControlName="exemptRoleIds" placeholder="123456789012345678" />
+					</mat-form-field>
+				</mat-card-content>
+
+				<mat-card-actions align="end" *appHasPermission="Permission.AUTOMOD_WRITE">
+					<button matButton="filled" (click)="save(entry)" [disabled]="savingType() === entry.type">
+						Enregistrer
+					</button>
+				</mat-card-actions>
+			</mat-card>
+		}
+	</div>
+
+	<mat-card appearance="outlined" class="incidents">
+		<mat-card-header>
+			<mat-card-title>Derniers déclenchements</mat-card-title>
+		</mat-card-header>
+
+		<mat-card-content>
+			@if (incidentsLoading()) {
+				<mat-progress-bar mode="indeterminate" />
+			}
+
+			<div class="table-scroll">
+				<table mat-table [dataSource]="incidents()">
+					<ng-container matColumnDef="occurredAt">
+						<th mat-header-cell *matHeaderCellDef>Quand</th>
+						<td mat-cell *matCellDef="let incident">
+							{{ incident.occurredAt | relativeTime }}
+						</td>
+					</ng-container>
+
+					<ng-container matColumnDef="ruleType">
+						<th mat-header-cell *matHeaderCellDef>Règle</th>
+						<td mat-cell *matCellDef="let incident">{{ ruleTypeLabels[incident.ruleType] }}</td>
+					</ng-container>
+
+					<ng-container matColumnDef="member">
+						<th mat-header-cell *matHeaderCellDef>Membre</th>
+						<td mat-cell *matCellDef="let incident">
+							{{ incident.member.globalName ?? incident.member.username }}
+						</td>
+					</ng-container>
+
+					<ng-container matColumnDef="action">
+						<th mat-header-cell *matHeaderCellDef>Action</th>
+						<td mat-cell *matCellDef="let incident">{{ actionLabels[incident.action] }}</td>
+					</ng-container>
+
+					<ng-container matColumnDef="message">
+						<th mat-header-cell *matHeaderCellDef>Message</th>
+						<td mat-cell *matCellDef="let incident" class="message">
+							{{ incident.messageContent || '(vide ou pièces jointes)' }}
+						</td>
+					</ng-container>
+
+					<tr mat-header-row *matHeaderRowDef="incidentsColumns"></tr>
+					<tr mat-row *matRowDef="let row; columns: incidentsColumns"></tr>
+				</table>
+			</div>
+
+			@if (!incidentsLoading() && incidents().length === 0) {
+				<p class="empty-state">Aucun déclenchement enregistré.</p>
+			}
+		</mat-card-content>
+	</mat-card>
+</div>

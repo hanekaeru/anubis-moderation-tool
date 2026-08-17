@@ -429,6 +429,11 @@ services:
         environment:
             NODE_ENV: production
             PORT: 3000
+            # Vide, volontairement : Traefik route `/api/*` vers ce conteneur en
+            # retirant le prefixe. Si l'API le remettait, chaque route attendrait
+            # `/api/api/...` et repondrait 404. En local, la variable est absente et
+            # le prefixe `api` par defaut s'applique.
+            API_GLOBAL_PREFIX: ""
             DATABASE_URL: ${DATABASE_URL}
             GUILD_ID: ${GUILD_ID}
             JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
@@ -439,6 +444,9 @@ services:
             COOKIE_SECURE: "true"
             MAX_FAILED_LOGINS: 5
             LOCKOUT_MINUTES: 15
+            # Laisse a "true" en production. A "false", le second facteur n'est
+            # plus demande, y compris aux comptes qui l'ont active.
+            TWO_FACTOR_ENABLED: ${TWO_FACTOR_ENABLED:-true}
 
     webapp:
         build:
@@ -526,6 +534,12 @@ docker build -f bot/Dockerfile -t anubis-bot .
     - `BOT_TOKEN`, `CLIENT_ID`, `GUILD_HOST_ID` (les identifiants Discord et
       la base de prod du bot — memes noms que dans `bot/.env.example`, jamais
       committes)
+    - `TWO_FACTOR_ENABLED` : **facultative**, et à laisser absente en
+      production (la valeur par défaut vaut `true`). La poser à `false` coupe
+      le second facteur pour tout le déploiement, _y compris pour les comptes
+      qui l'avaient activé_ — c'est un interrupteur d'urgence, pas un réglage
+      de confort. Les secrets déjà enregistrés ne sont pas effacés : la
+      remettre à `true` rend la protection sans reconfiguration.
 5. **Webhook** : Coolify l'a déjà enregistré côté GitHub via la GitHub App de
    l'étape 6 — chaque push sur `master` redéploiera automatiquement.
 6. **Commande post-déploiement** sur le service `api` (_Configuration →

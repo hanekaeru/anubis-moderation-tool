@@ -1,0 +1,102 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Sessions actives</h1>
+			<p class="subtitle">
+				Une ligne par session ouverte, pas par jeton : le rafraîchissement en crée un
+				nouveau toutes les quinze minutes sans qu'il s'agisse d'une nouvelle connexion.
+			</p>
+		</div>
+
+		<mat-slide-toggle
+			[checked]="includeInactive()"
+			(change)="toggleInactive($event.checked)"
+		>
+			Inclure les sessions closes
+		</mat-slide-toggle>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (!loading() && groups().length === 0) {
+		<mat-card appearance="outlined">
+			<mat-card-content>
+				<p class="empty-state">Aucune session ouverte.</p>
+			</mat-card-content>
+		</mat-card>
+	}
+
+	@for (group of groups(); track group.appUserId) {
+		<mat-card appearance="outlined">
+			<mat-card-content>
+				<div class="head">
+					<div>
+						<span class="name">{{ group.displayName }}</span>
+						<span class="tag">{{ roleLabels[group.role] }}</span>
+						<p class="meta">&#64;{{ group.username }} — {{ group.sessions.length }} session(s)</p>
+					</div>
+
+					<span class="spacer"></span>
+
+					<button
+						matButton
+						type="button"
+						class="danger-text"
+						(click)="revokeAll(group)"
+					>
+						<mat-icon>logout</mat-icon>
+						Tout fermer
+					</button>
+				</div>
+
+				<ul class="session-list">
+					@for (session of group.sessions; track session.familyId) {
+						<li [class.is-current]="session.current">
+							<div class="session-head">
+								<mat-icon>{{ session.current ? 'my_location' : 'devices' }}</mat-icon>
+								<div>
+									<span class="client" [matTooltip]="session.userAgent ?? ''">
+										{{ describe(session) }}
+									</span>
+									@if (session.current) {
+										<span class="tag current">Session courante</span>
+									}
+									<p class="meta">
+										{{ session.ip ?? 'Adresse inconnue' }} — ouverte
+										{{ session.startedAt | relativeTime }}, active
+										{{ session.lastSeenAt | relativeTime }}
+									</p>
+									<p class="meta">
+										Expire le {{ session.expiresAt | frDate }} —
+										{{ session.rotationCount }} rafraîchissement(s)
+									</p>
+								</div>
+
+								<span class="spacer"></span>
+
+								<!-- Fermer sa propre session laisserait le cookie en place et
+								     l'interface dans un etat incoherent : c'est le bouton
+								     « Se deconnecter » de l'en-tete qui fait cela proprement. -->
+								<button
+									matIconButton
+									type="button"
+									[disabled]="session.current"
+									[matTooltip]="
+										session.current
+											? 'Utilisez « Se déconnecter » pour votre propre session'
+											: 'Fermer cette session'
+									"
+									(click)="revoke(session)"
+								>
+									<mat-icon>close</mat-icon>
+								</button>
+							</div>
+						</li>
+					}
+				</ul>
+			</mat-card-content>
+		</mat-card>
+	}
+</div>

@@ -1,5 +1,6 @@
-import { IdentityEventType, MemberStatus, RoleEventType } from "../enums";
+import { MemberStatus } from "../enums";
 import { IsoDateString, PaginationQuery, Snowflake } from "./common";
+import { ModerationScoreDto } from "./moderation";
 
 export interface RoleSummary {
 	id: Snowflake;
@@ -56,6 +57,8 @@ export interface MemberDetail {
 	roles: RoleSummary[];
 	xp: number;
 	counters: MemberCounters;
+	/** Poids cumule de ce qui est encore actif contre ce membre. */
+	moderationScore: ModerationScoreDto;
 }
 
 export interface MemberCounters {
@@ -121,20 +124,4 @@ export interface TimelineQuery extends PaginationQuery {
 	kinds?: TimelineKind[];
 	from?: IsoDateString;
 	to?: IsoDateString;
-}
-
-export interface IdentityEventDto {
-	id: string;
-	type: IdentityEventType;
-	oldValue: string | null;
-	newValue: string | null;
-	occurredAt: IsoDateString;
-}
-
-export interface RoleEventDto {
-	id: string;
-	type: RoleEventType;
-	role: RoleSummary;
-	actorLabel: string | null;
-	occurredAt: IsoDateString;
 }

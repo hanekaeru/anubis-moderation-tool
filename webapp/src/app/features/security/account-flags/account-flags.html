@@ -1,0 +1,94 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Comptes signalés</h1>
+			<p class="subtitle">
+				Compte récent, avatar par défaut, pseudo imitant un membre du staff, retour rapide après
+				un départ, arrivée après un bannissement. Jamais de sanction automatique — au staff de
+				juger.
+			</p>
+		</div>
+	</header>
+
+	<form class="filters" [formGroup]="filters">
+		<mat-form-field>
+			<mat-label>Statut</mat-label>
+			<mat-select formControlName="reviewed">
+				<mat-option [value]="null">Tous</mat-option>
+				<mat-option [value]="false">À traiter</mat-option>
+				<mat-option [value]="true">Déjà traités</mat-option>
+			</mat-select>
+		</mat-form-field>
+	</form>
+
+	<mat-card appearance="outlined">
+		@if (loading()) {
+			<mat-progress-bar mode="indeterminate" />
+		}
+
+		<div class="table-scroll">
+			<table mat-table [dataSource]="flags()">
+				<ng-container matColumnDef="member">
+					<th mat-header-cell *matHeaderCellDef>Membre</th>
+					<td mat-cell *matCellDef="let flag">
+						<app-member-avatar
+							[username]="flag.member.username"
+							[globalName]="flag.member.globalName"
+							[avatarUrl]="flag.member.avatarUrl"
+							[size]="28"
+						/>
+					</td>
+				</ng-container>
+
+				<ng-container matColumnDef="type">
+					<th mat-header-cell *matHeaderCellDef>Signal</th>
+					<td mat-cell *matCellDef="let flag">{{ typeLabels[flag.type] }}</td>
+				</ng-container>
+
+				<ng-container matColumnDef="details">
+					<th mat-header-cell *matHeaderCellDef>Détails</th>
+					<td mat-cell *matCellDef="let flag" class="details">{{ detailsText(flag) }}</td>
+				</ng-container>
+
+				<ng-container matColumnDef="createdAt">
+					<th mat-header-cell *matHeaderCellDef>Arrivée</th>
+					<td mat-cell *matCellDef="let flag">{{ flag.createdAt | relativeTime }}</td>
+				</ng-container>
+
+				<ng-container matColumnDef="status">
+					<th mat-header-cell *matHeaderCellDef aria-label="Statut"></th>
+					<td mat-cell *matCellDef="let flag">
+						@if (flag.reviewedAt) {
+							<span class="tag">Traité{{ flag.reviewedBy ? ' par ' + flag.reviewedBy : '' }}</span>
+						} @else {
+							<button
+								matButton
+								*appHasPermission="Permission.ACCOUNT_FLAGS_WRITE"
+								[disabled]="reviewingId() === flag.id"
+								(click)="review(flag)"
+							>
+								Marquer comme traité
+							</button>
+						}
+					</td>
+				</ng-container>
+
+				<tr mat-header-row *matHeaderRowDef="columns"></tr>
+				<tr mat-row *matRowDef="let row; columns: columns"></tr>
+			</table>
+		</div>
+
+		@if (!loading() && flags().length === 0) {
+			<p class="empty-state">Aucun signalement.</p>
+		}
+
+		<mat-paginator
+			[length]="total()"
+			[pageIndex]="pageIndex()"
+			[pageSize]="pageSize()"
+			[pageSizeOptions]="[10, 25, 50]"
+			(page)="onPageChange($event)"
+			showFirstLastButtons
+		/>
+	</mat-card>
+</div>

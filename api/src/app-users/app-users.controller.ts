@@ -71,4 +71,21 @@ export class AppUsersController {
 	): Promise<AppUserDto> {
 		return this.users.unlock(id, actor);
 	}
+
+	/**
+	 * Retire la double authentification d'un compte qui n'y a plus acces.
+	 *
+	 * `SESSIONS_REVOKE` en plus de `USERS_WRITE` : l'operation coupe les
+	 * sessions du compte vise et abaisse son niveau de protection. Ce n'est pas
+	 * de l'administration de comptes ordinaire, et le droit qui l'ouvre n'est
+	 * porte que par le proprietaire.
+	 */
+	@Post(":id/double-authentification/reinitialisation")
+	@RequirePermissions(Permission.USERS_WRITE, Permission.SESSIONS_REVOKE)
+	resetTwoFactor(
+		@Param("id", ParseUUIDPipe) id: string,
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<AppUserDto> {
+		return this.users.resetTwoFactor(id, actor);
+	}
 }

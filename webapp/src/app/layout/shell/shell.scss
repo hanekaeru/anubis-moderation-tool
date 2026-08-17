@@ -39,6 +39,26 @@
 	color: var(--anubis-text-3);
 }
 
+/* Intertitre de section : il classe la navigation sans y ajouter une cible
+   cliquable de plus. Petit, en capitales espacees et dans la teinte la plus
+   recessive, il se lit comme une etiquette et jamais comme une entree — ce
+   qu'un titre de la meme taille que les liens laisserait croire. */
+.nav-section {
+	margin: 0;
+	padding: 16px 12px 6px;
+	font-size: 0.66rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--anubis-text-3);
+}
+
+/* Le premier intertitre suit immediatement le trait sous la marque : la marge
+   haute ferait un blanc de trop a cet endroit precis. */
+.nav-section:first-of-type {
+	padding-top: 10px;
+}
+
 /* La navigation est ramenee a des lignes compactes et arrondies : c'est ce
    detail qui distingue une barre laterale d'outil moderne d'une liste
    Material par defaut, haute et pleine largeur. */
