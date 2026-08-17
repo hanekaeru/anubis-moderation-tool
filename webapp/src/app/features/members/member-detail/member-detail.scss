@@ -372,6 +372,31 @@
 	color: var(--mat-sys-on-surface-variant);
 }
 
+/* Levee et message supprime : deux lignes de meme facture, distinctes de la
+   ligne d'emission pour qu'on ne confonde pas leur motif avec celui de la
+   decision elle-meme. L'icone les rend reperables sans lire, dans une fiche
+   qui empile parfois des dizaines d'entrees. */
+.record-revoke,
+.record-automod {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	margin: 4px 0 0;
+	font-size: 0.78rem;
+	color: var(--mat-sys-on-surface-variant);
+
+	mat-icon {
+		margin-right: 6px;
+		font-size: 16px;
+		width: 16px;
+		height: 16px;
+	}
+
+	q {
+		font-style: italic;
+	}
+}
+
 .evidence {
 	display: inline-flex;
 	align-items: center;

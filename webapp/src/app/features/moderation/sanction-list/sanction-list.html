@@ -7,6 +7,12 @@
   </header>
 
   <form class="filters" [formGroup]="filters">
+    <mat-form-field class="member-filter">
+      <mat-label>Membre</mat-label>
+      <input matInput formControlName="member" placeholder="Pseudo, nom affiché ou identifiant" />
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+
     <mat-form-field>
       <mat-label>Type</mat-label>
       <mat-select formControlName="type">
@@ -59,6 +65,14 @@
               attach_file
             </mat-icon>
             }
+            <!-- Sanction automatique : le message est supprimé de Discord dès
+                 le déclenchement, l'incident en garde la seule trace. -->
+            @if (sanction.automod) {
+            <span class="quoted" [matTooltip]="sanction.automod.messageContent ?? 'Message sans texte (pièces jointes seules)'">
+              Message supprimé :
+              {{ sanction.automod.messageContent ?? '(sans texte)' }}
+            </span>
+            }
           </td>
         </ng-container>
 
@@ -85,6 +99,17 @@
             <span class="tag" [class.tag-active]="sanction.status === 'ACTIVE'">
               {{ statusLabels[sanction.status] }}
             </span>
+            <!-- « Levée » seul ne dit ni qui, ni pourquoi : les deux figurent
+                 ici, le motif complet restant au survol quand il est long. -->
+            @if (sanction.revokedAt) {
+            <span class="date" [matTooltip]="sanction.revokedAt | frDate">
+              par {{ sanction.revokedBy?.label ?? 'auteur inconnu' }},
+              {{ sanction.revokedAt | relativeTime }}
+            </span>
+            <span class="date revoke-reason" [matTooltip]="sanction.revokeReason ?? ''">
+              {{ sanction.revokeReason ?? 'Aucun motif enregistré' }}
+            </span>
+            }
           </td>
         </ng-container>
 

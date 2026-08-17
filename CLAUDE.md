@@ -180,6 +180,21 @@ EXISTS` dans la migration initiale, pour ne pas ecraser les donnees d'XP
   deja executee, timeout/shadowban deja arrive a echeance) : il n'y a rien a
   rejouer cote Discord, et le laisser passer donnait une fausse impression de
   levee reelle.
+- **L'auteur d'une levee vit dans deux colonnes exclusives** :
+  `Sanction.revokedById` (compte dashboard) et `Sanction.revokedByDiscordId`
+  (moderateur Discord, pose par `/unban`, `/unmute`, `/unshadowban` et par
+  l'ingestion du journal d'audit). Meme couple que
+  `ModerationAttachment.uploadedById`/`uploadedByDiscordId`, et meme mapper :
+  `toActorRef(row.revokedByDiscord, row.revokedBy)`. N'en lire qu'une laissait
+  la moitie des levees s'afficher sans auteur — la moitie venue de Discord,
+  c'est-a-dire la plus courante. Les avertissements n'ont pas d'equivalent :
+  ils ne se levent que depuis la webapp.
+- **`Sanction.automodIncidentId`** relie une sanction automatique a l'incident
+  qui l'a provoquee. C'est ce qui permet d'afficher le message incrimine
+  partout ou la sanction apparait (fiche membre, liste, chronologie,
+  `/casier`) : il est supprime de Discord des le declenchement, et
+  `AutomodIncident.messageContent` en est alors la seule trace. Sans ce lien,
+  un timeout automatique n'annonce que « Automod : Filtre de mots ».
 
 ## Bot
 
@@ -388,6 +403,15 @@ le dev avec rechargement).
   Cote bot, les expressions sont compilees une fois et mises en cache sous une
   cle qui inclut `updatedAt`, pour qu'un changement du dashboard fasse tomber
   l'entree sans attendre un redemarrage.
+  L'incident est ecrit **avant** la suppression du message, et son identifiant
+  est passe a `createSanction` (`automodIncidentId`) : la sanction pourra
+  ainsi montrer ce qui a ete ecrit, alors que le message n'existe plus. La
+  suppression n'a lieu que pour une action autre que `LOG_ONLY` — un timeout
+  automatique implique donc toujours la suppression, il n'existe pas d'action
+  « exclure sans supprimer ». **`WORD_FILTER` arrive pre-regle sur
+  `LOG_ONLY`** : tant que la regle n'est pas passee a « Supprimer et exclure
+  temporairement » depuis le dashboard, elle ne supprime rien et ne sanctionne
+  personne.
   `ATTACHMENT_SPAM` est distinct de `SPAM_RATE` parce que les deux ne voient
   pas la meme chose : dix images en **un seul** message ne comptent que pour un
   message et passeraient sous un seuil de debit. Son compteur porte donc sur

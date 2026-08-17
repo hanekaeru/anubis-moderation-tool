@@ -11,6 +11,7 @@ import {
 	MAX_TIMEOUT_SECONDS,
 	SANCTION_TYPE_LABELS,
 	type Paginated,
+	type SanctionAutomodRef,
 	type SanctionDto,
 } from "@anubis/shared";
 import { AuditService } from "../audit/audit.service";
@@ -19,6 +20,7 @@ import { GuildContextService } from "../common/guild-context.service";
 import { toActorRef, toAttachmentRef, toMemberRef } from "../common/mappers";
 import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { memberSearchFilter } from "./member-filter";
 import { ModerationPointsService } from "./moderation-points.service";
 import type {
 	CreateSanctionDto,
@@ -31,6 +33,11 @@ const SANCTION_INCLUDE = {
 	moderator: true,
 	createdBy: true,
 	revokedBy: true,
+	// Une levee vient de la webapp (`revokedBy`, compte dashboard) ou de Discord
+	// (`revokedByDiscord`, moderateur). Charger les deux est ce qui permet
+	// d'annoncer un auteur dans les deux cas.
+	revokedByDiscord: true,
+	automodIncident: true,
 	// Metadonnees seulement : `data` est explicitement exclu, sinon chaque
 	// liste de sanctions transporterait les octets de toutes les preuves.
 	attachments: {
@@ -51,6 +58,34 @@ const SANCTION_INCLUDE = {
 type SanctionRow = Prisma.SanctionGetPayload<{
 	include: typeof SANCTION_INCLUDE;
 }>;
+
+/**
+ * Incident d'automoderation attache a une sanction.
+ *
+ * `details` est du JSON libre, propre a chaque type de regle : seule la clef
+ * `matched` (le mot ou l'expression trouve) est lue ici, et uniquement si elle
+ * porte bien une chaine — le reste ne se rend pas de facon generique.
+ */
+function toAutomodRef(
+	incident: SanctionRow["automodIncident"],
+): SanctionAutomodRef | null {
+	if (!incident) return null;
+
+	const details = incident.details as { matched?: unknown } | null;
+	const matched =
+		typeof details?.matched === "string" ? details.matched : null;
+
+	return {
+		// `id` est un BIGINT : converti ici, comme partout ailleurs dans les
+		// mappers, plutot que de compter sur le filet pose dans `main.ts`.
+		incidentId: incident.id.toString(),
+		ruleType: incident.ruleType,
+		messageContent: incident.messageContent,
+		matched,
+		channelId: incident.channelId,
+		occurredAt: incident.occurredAt.toISOString(),
+	};
+}
 
 @Injectable()
 export class SanctionsService {
@@ -76,8 +111,12 @@ export class SanctionsService {
 			startsAt: row.startsAt.toISOString(),
 			expiresAt: row.expiresAt?.toISOString() ?? null,
 			revokedAt: row.revokedAt?.toISOString() ?? null,
-			revokedBy: row.revokedBy ? toActorRef(null, row.revokedBy) : null,
+			revokedBy:
+				row.revokedBy || row.revokedByDiscord
+					? toActorRef(row.revokedByDiscord, row.revokedBy)
+					: null,
 			revokeReason: row.revokeReason,
+			automod: toAutomodRef(row.automodIncident),
 			warningId: row.warningId,
 			evidenceUrl: row.evidenceUrl,
 			points: row.points,
@@ -92,6 +131,7 @@ export class SanctionsService {
 		const where: Prisma.SanctionWhereInput = {
 			guildId: this.guild.guildId,
 			...(query.userId ? { userId: query.userId } : {}),
+			...memberSearchFilter(query.member),
 			...(query.type ? { type: query.type } : {}),
 			...(query.status ? { status: query.status } : {}),
 			...(query.from || query.to

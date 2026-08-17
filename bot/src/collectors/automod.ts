@@ -1,5 +1,6 @@
 import { EmbedBuilder, PermissionFlagsBits, type GuildMember, type Message } from "discord.js";
 import {
+	AUTOMOD_ACTION_LABELS,
 	AUTOMOD_RULE_TYPE_LABELS,
 	AutomodAction,
 	AutomodRuleType,
@@ -291,12 +292,34 @@ async function alertStaff(message: Message<true>, trigger: Trigger): Promise<voi
 	const channel = await message.guild.channels.fetch(channelId).catch(() => null);
 	if (!channel?.isTextBased()) return;
 
+	// Le message est deja supprime du salon quand cet embed part : son contenu
+	// n'est plus consultable ailleurs que dans ce journal et sur la fiche du
+	// membre. Le titre du champ le dit, pour qu'un moderateur ne le cherche pas
+	// dans le salon d'origine.
+	const supprime = trigger.rule.action !== AutomodAction.LOG_ONLY;
+
 	const embed = new EmbedBuilder()
 		.setColor(colors.warning)
 		.setTitle(`Automod — ${AUTOMOD_RULE_TYPE_LABELS[trigger.rule.type]}`)
-		.setDescription(`${message.author} dans ${message.channel} — action : ${trigger.rule.action}`)
-		.addFields({ name: "Message", value: message.content.slice(0, 1000) || "(vide ou pièces jointes)" })
+		.setDescription(
+			`${message.author} dans ${message.channel} — ` +
+				`action : ${AUTOMOD_ACTION_LABELS[trigger.rule.action]}`,
+		)
+		.addFields({
+			name: supprime ? "Message supprimé" : "Message",
+			value: message.content.slice(0, 1000) || "(vide ou pièces jointes)",
+		})
 		.setTimestamp();
+
+	// Le mot ou l'expression trouve : sur un filtre de plusieurs dizaines
+	// d'entrees, relire le message ne dit pas lequel a declenche la regle.
+	if (typeof trigger.details.matched === "string") {
+		embed.addFields({
+			name: "Déclencheur",
+			value: trigger.details.matched.slice(0, 200),
+			inline: true,
+		});
+	}
 
 	await channel.send({ embeds: [embed] }).catch(() => undefined);
 }
@@ -314,7 +337,10 @@ async function handleTrigger(
 		size: attachment.size,
 	}));
 
-	await prisma.automodIncident.create({
+	// L'incident est ecrit **avant** la suppression du message : c'est lui qui
+	// conserve le contenu incrimine, et son identifiant relie ensuite la
+	// sanction au message supprime.
+	const incident = await prisma.automodIncident.create({
 		data: {
 			guildId: message.guild.id,
 			ruleType: rule.type,
@@ -328,7 +354,17 @@ async function handleTrigger(
 	});
 
 	if (rule.action !== AutomodAction.LOG_ONLY) {
-		await message.delete().catch(() => undefined);
+		// L'echec est signale plutot qu'avale : un message qui survit a une
+		// regle de suppression est exactement ce qu'un moderateur cherchera a
+		// comprendre en voyant l'incident sans le message disparu du salon.
+		// (Cause la plus frequente : message deja supprime, ou permission
+		// « Gérer les messages » absente sur le salon.)
+		await message.delete().catch((err: unknown) => {
+			console.error(
+				`[Automod] Suppression du message ${message.id} échouée :`,
+				err,
+			);
+		});
 	}
 
 	// Les fenetres glissantes sont purgees des le declenchement : sans cela, les
@@ -351,6 +387,10 @@ async function handleTrigger(
 			type: SanctionType.TIMEOUT,
 			reason: `Automod : ${AUTOMOD_RULE_TYPE_LABELS[rule.type]}`,
 			durationSeconds,
+			// Sans ce lien, la sanction n'annonce que la regle declenchee : le
+			// message qui l'a provoquee vient d'etre supprime de Discord, et
+			// l'incident en est desormais la seule trace.
+			automodIncidentId: incident.id,
 		});
 	}
 

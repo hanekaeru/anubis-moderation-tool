@@ -216,6 +216,7 @@ model DiscordUser {
   warningsIssued      Warning[]               @relation("WarningModerator")
   sanctionsReceived   Sanction[]              @relation("SanctionTarget")
   sanctionsIssued     Sanction[]              @relation("SanctionModerator")
+  sanctionsRevoked    Sanction[]              @relation("SanctionDiscordRevoker")
   notes               MemberNote[]
   ticketsOpened       Ticket[]                @relation("TicketOpener")
   ticketsAssigned     Ticket[]                @relation("TicketAssignee")
@@ -404,52 +405,68 @@ model Warning {
 }
 
 model Sanction {
-  id              String         @id @default(uuid()) @db.Uuid
-  guildId         String         @map("guild_id") @db.VarChar(20)
-  userId          String         @map("user_id") @db.VarChar(20)
-  moderatorId     String?        @map("moderator_id") @db.VarChar(20)
-  createdById     String?        @map("created_by_id") @db.Uuid
-  type            SanctionType
-  status          SanctionStatus @default(ACTIVE)
-  reason          String
+  id                 String         @id @default(uuid()) @db.Uuid
+  guildId            String         @map("guild_id") @db.VarChar(20)
+  userId             String         @map("user_id") @db.VarChar(20)
+  moderatorId        String?        @map("moderator_id") @db.VarChar(20)
+  createdById        String?        @map("created_by_id") @db.Uuid
+  type               SanctionType
+  status             SanctionStatus @default(ACTIVE)
+  reason             String
   /// Poids dans le score de moderation du membre.
   ///
   /// Copie depuis `moderation_points_config` a la creation, puis fige : le
   /// bareme peut changer, cette sanction garde le poids qu'elle avait quand
   /// elle a ete prononcee.
-  points          Int            @default(3)
+  points             Int            @default(3)
   /// Duree demandee ; null = permanent.
-  durationSeconds Int?           @map("duration_seconds")
-  startsAt        DateTime       @default(now()) @map("starts_at")
-  expiresAt       DateTime?      @map("expires_at")
-  revokedAt       DateTime?      @map("revoked_at")
-  revokedById     String?        @map("revoked_by_id") @db.Uuid
-  revokeReason    String?        @map("revoke_reason")
+  durationSeconds    Int?           @map("duration_seconds")
+  startsAt           DateTime       @default(now()) @map("starts_at")
+  expiresAt          DateTime?      @map("expires_at")
+  revokedAt          DateTime?      @map("revoked_at")
+  revokedById        String?        @map("revoked_by_id") @db.Uuid
+  /// Moderateur Discord qui a leve la sanction (`/unban`, `/unmute`,
+  /// `/unshadowban`, ou geste fait a la main dans le client). Exclusif de
+  /// `revokedById` : une levee vient de la webapp ou de Discord, jamais des
+  /// deux. Meme raison d'etre que `ModerationAttachment.uploadedByDiscordId` —
+  /// sans lui, toute levee venue de Discord s'affiche sans auteur.
+  revokedByDiscordId String?        @map("revoked_by_discord_id") @db.VarChar(20)
+  revokeReason       String?        @map("revoke_reason")
+  /// Incident d'automoderation a l'origine de la sanction, le cas echeant.
+  ///
+  /// C'est ce lien qui permet d'afficher le message incrimine partout ou la
+  /// sanction apparait : le message est supprime de Discord dans la foulee, et
+  /// `AutomodIncident.messageContent` en est alors la seule trace. Sans lui,
+  /// un timeout automatique ne dit que « Automod : Filtre de mots », sans ce
+  /// qui a ete ecrit.
+  automodIncidentId  BigInt?        @map("automod_incident_id")
   /// Avertissement qui a declenche la sanction, le cas echeant.
-  warningId       String?        @map("warning_id") @db.Uuid
-  evidenceUrl     String?        @map("evidence_url")
-  createdAt       DateTime       @default(now()) @map("created_at")
+  warningId          String?        @map("warning_id") @db.Uuid
+  evidenceUrl        String?        @map("evidence_url")
+  createdAt          DateTime       @default(now()) @map("created_at")
   /// Renseigne quand le bot a rejoue l'effet Discord (timeout leve, role
   /// retire) d'une revocation. Une revocation faite par une commande bot
   /// se pose elle-meme ce champ immediatement ; une revocation faite depuis
   /// la webapp le laisse `null` jusqu'a ce que la tache periodique du bot
   /// (bot/src/tasks/sanctionSync.ts) rattrape l'effet Discord correspondant.
-  discordSyncedAt DateTime?      @map("discord_synced_at")
+  discordSyncedAt    DateTime?      @map("discord_synced_at")
   // Permet de savoir si une sanction a été appliquée ou non. Par défaut,
   // c'est le cas mais quand on passe par le site pour appliquer une sanction
   // elle n'est pas automatiquement réparcutée sur Discord du coup on vérifie
   // via cet attribut si la sanction a été appliquée sur le site ou non.
   // Il sera ensuite mise à jour dès que la sanction aura été appliquée
   // sur Discord.
-  isApplied       Boolean        @default(true) @map("is_applied")
+  isApplied          Boolean        @default(true) @map("is_applied")
 
-  guild       Guild                  @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  user        DiscordUser            @relation("SanctionTarget", fields: [userId], references: [id], onDelete: Cascade)
-  moderator   DiscordUser?           @relation("SanctionModerator", fields: [moderatorId], references: [id], onDelete: SetNull)
-  createdBy   AppUser?               @relation("SanctionAuthor", fields: [createdById], references: [id], onDelete: SetNull)
-  revokedBy   AppUser?               @relation("SanctionRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
-  warning     Warning?               @relation(fields: [warningId], references: [id], onDelete: SetNull)
-  attachments ModerationAttachment[]
+  guild            Guild                  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user             DiscordUser            @relation("SanctionTarget", fields: [userId], references: [id], onDelete: Cascade)
+  moderator        DiscordUser?           @relation("SanctionModerator", fields: [moderatorId], references: [id], onDelete: SetNull)
+  createdBy        AppUser?               @relation("SanctionAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  revokedBy        AppUser?               @relation("SanctionRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  revokedByDiscord DiscordUser?           @relation("SanctionDiscordRevoker", fields: [revokedByDiscordId], references: [id], onDelete: SetNull)
+  automodIncident  AutomodIncident?       @relation(fields: [automodIncidentId], references: [id], onDelete: SetNull)
+  warning          Warning?               @relation(fields: [warningId], references: [id], onDelete: SetNull)
+  attachments      ModerationAttachment[]
 
   @@index([guildId, userId, createdAt])
   @@index([guildId, status, expiresAt])
@@ -674,8 +691,9 @@ model AutomodIncident {
   details            Json?
   occurredAt         DateTime        @default(now()) @map("occurred_at")
 
-  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guild     Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user      DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sanctions Sanction[]
 
   @@index([guildId, occurredAt])
   @@index([guildId, userId, occurredAt])

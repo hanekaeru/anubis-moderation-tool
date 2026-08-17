@@ -1,4 +1,9 @@
-import { SanctionStatus, SanctionType, WarningSeverity } from "../enums";
+import {
+	AutomodRuleType,
+	SanctionStatus,
+	SanctionType,
+	WarningSeverity,
+} from "../enums";
 import { IsoDateString, PaginationQuery, Snowflake } from "./common";
 
 /** Reference courte vers un membre, pour ne pas dupliquer la fiche complete. */
@@ -101,10 +106,36 @@ export interface RevokeRequest {
 
 export interface WarningSearchQuery extends PaginationQuery {
 	userId?: Snowflake;
+	/**
+	 * Recherche libre sur le membre visé : pseudo, nom affiché ou identifiant.
+	 *
+	 * Distincte de `userId`, qui exige l'identifiant exact : le staff connait
+	 * un pseudo, pas un snowflake.
+	 */
+	member?: string;
 	severity?: WarningSeverity;
 	activeOnly?: boolean;
 	from?: IsoDateString;
 	to?: IsoDateString;
+}
+
+/**
+ * Incident d'automoderation a l'origine d'une sanction automatique.
+ *
+ * Le message incrimine est supprime de Discord des le declenchement : ce que
+ * porte `messageContent` en est la seule trace, et c'est ce qui permet a une
+ * sanction « Automod : Filtre de mots » de dire *ce qui* a ete ecrit, partout
+ * ou elle s'affiche.
+ */
+export interface SanctionAutomodRef {
+	incidentId: string;
+	ruleType: AutomodRuleType;
+	/** Contenu du message supprime ; `null` si le message n'avait pas de texte. */
+	messageContent: string | null;
+	/** Mot ou expression qui a declenche la regle, quand la regle en designe un. */
+	matched: string | null;
+	channelId: Snowflake | null;
+	occurredAt: IsoDateString;
 }
 
 export interface SanctionDto {
@@ -121,6 +152,8 @@ export interface SanctionDto {
 	revokedAt: IsoDateString | null;
 	revokedBy: ActorRef | null;
 	revokeReason: string | null;
+	/** Renseigne quand la sanction vient de l'automoderation, `null` sinon. */
+	automod: SanctionAutomodRef | null;
 	warningId: string | null;
 	/** Permalien vers le message incrimine : complementaire des pieces jointes. */
 	evidenceUrl: string | null;
@@ -145,6 +178,8 @@ export interface CreateSanctionRequest {
 
 export interface SanctionSearchQuery extends PaginationQuery {
 	userId?: Snowflake;
+	/** Voir `WarningSearchQuery.member`. */
+	member?: string;
 	type?: SanctionType;
 	status?: SanctionStatus;
 	from?: IsoDateString;
