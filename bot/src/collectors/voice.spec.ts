@@ -125,6 +125,18 @@ describe("enregistrerMouvement", () => {
 });
 
 describe("reconcilierSessions", () => {
+	// La reconciliation journalise son bilan a chaque appel : utile au
+	// demarrage du bot, pur bruit dans le journal de CI.
+	let silence: jest.SpyInstance;
+
+	beforeEach(() => {
+		silence = jest.spyOn(console, "log").mockImplementation(() => {});
+	});
+
+	afterEach(() => {
+		silence.mockRestore();
+	});
+
 	it("laisse ouverte la session d'un membre toujours dans le meme salon", async () => {
 		prismaMock.voiceSession.findMany.mockResolvedValue([
 			{

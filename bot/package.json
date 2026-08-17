@@ -15,19 +15,6 @@
 	},
 	"author": "hanekaeru",
 	"license": "ISC",
-	"jest": {
-		"moduleFileExtensions": [
-			"js",
-			"json",
-			"ts"
-		],
-		"rootDir": "src",
-		"testRegex": ".*\\.spec\\.ts$",
-		"transform": {
-			"^.+\\.(t|j)s$": "ts-jest"
-		},
-		"testEnvironment": "node"
-	},
 	"dependencies": {
 		"@anubis/shared": "file:../packages/shared",
 		"discord.js": "^14.15.3"

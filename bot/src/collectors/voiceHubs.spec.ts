@@ -90,12 +90,21 @@ function ligneTemporaire(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+// La reconciliation journalise son bilan a chaque appel : utile au demarrage
+// du bot, pur bruit dans le journal de CI.
+let silence: jest.SpyInstance;
+
 beforeEach(() => {
 	jest.clearAllMocks();
+	silence = jest.spyOn(console, "log").mockImplementation(() => {});
 	creerSalon.mockResolvedValue(salonFactice());
 	occupantsDuSalon.mockResolvedValue([]);
 	prismaMock.temporaryVoiceChannel.findFirst.mockResolvedValue(null);
 	prismaMock.temporaryVoiceChannel.findMany.mockResolvedValue([]);
+});
+
+afterEach(() => {
+	silence.mockRestore();
 });
 
 describe("formaterNom", () => {

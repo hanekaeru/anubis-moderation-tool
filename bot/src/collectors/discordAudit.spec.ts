@@ -50,8 +50,13 @@ beforeEach(() => {
 describe("chercherAction", () => {
 	it("renvoie null immediatement sans permission 'Voir le journal d'audit'", async () => {
 		const guild = fakeGuild([], { hasPermission: false, id: "guild-no-perm" });
+		// L'avertissement de permission manquante est le comportement teste :
+		// l'afficher ferait passer un cas nominal pour un incident en CI.
+		const silence = jest.spyOn(console, "warn").mockImplementation(() => {});
 
 		const result = await chercherAction(guild, AuditLogEvent.MemberKick, "target-1");
+
+		silence.mockRestore();
 
 		expect(result).toBeNull();
 		expect((guild.fetchAuditLogs as jest.Mock)).not.toHaveBeenCalled();

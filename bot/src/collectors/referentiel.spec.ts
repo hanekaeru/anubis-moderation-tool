@@ -262,9 +262,14 @@ describe("garantirContexte", () => {
 
 	it("renvoie false sans jeter quand Prisma echoue", async () => {
 		prismaMock.guild.upsert.mockRejectedValueOnce(new Error("DB down"));
+		// L'echec est celui qu'on provoque : sa trace n'apporte rien au journal
+		// de CI, ou elle se lit comme une vraie erreur.
+		const silence = jest.spyOn(console, "error").mockImplementation(() => {});
 		const guild = fakeGuild("guild-failure-test");
 		const user = fakeUser("user-failure-test");
 
 		await expect(referentiel.garantirContexte(guild, user)).resolves.toBe(false);
+
+		silence.mockRestore();
 	});
 });

@@ -71,13 +71,35 @@ describe("progressFromXp", () => {
 });
 
 describe("getXp", () => {
+	/**
+	 * `addXp` arme un vidage differe (`setTimeout`). Sans ce nettoyage, le timer
+	 * survit a la fin du fichier : Jest ne rend plus la main
+	 * (« did not exit one second after the test run has completed »), puis le
+	 * flush se declenche une minute plus tard et journalise apres la fin des
+	 * tests (« Cannot log after tests are done »). `flush()` desarme le timer.
+	 */
+	const managers: XPManager[] = [];
+	let silence: jest.SpyInstance;
+
+	function creerManager(): XPManager {
+		const manager = new XPManager({ maxBufferSize: 100, maxWaitTime: 60_000 });
+		managers.push(manager);
+		return manager;
+	}
+
 	beforeEach(() => {
 		jest.clearAllMocks();
+		silence = jest.spyOn(console, "log").mockImplementation(() => {});
 		prismaMock.userLevel.findUnique.mockResolvedValue({ xp: 250n });
 	});
 
+	afterEach(async () => {
+		await Promise.all(managers.splice(0).map((manager) => manager.flush()));
+		silence.mockRestore();
+	});
+
 	it("ajoute l'XP encore en attente d'ecriture au total lu en base", async () => {
-		const manager = new XPManager({ maxBufferSize: 100, maxWaitTime: 60_000 });
+		const manager = creerManager();
 
 		await manager.addXp("user-1", "guild-1", 60);
 
@@ -87,7 +109,7 @@ describe("getXp", () => {
 	});
 
 	it("rend la montee de niveau visible dans le retour de addXp", async () => {
-		const manager = new XPManager({ maxBufferSize: 100, maxWaitTime: 60_000 });
+		const manager = creerManager();
 
 		const { before, after } = await manager.addXp("user-1", "guild-1", 60);
 
