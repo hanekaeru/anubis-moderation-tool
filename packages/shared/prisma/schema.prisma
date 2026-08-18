@@ -183,6 +183,9 @@ model Guild {
   sanctions              Sanction[]
   notes                  MemberNote[]
   tickets                Ticket[]
+  ticketSubjects         TicketSubject[]
+  ticketPrefixes         TicketModeratorPrefix[]
+  ticketConfig           TicketConfig?
   messageStats           MessageStat[]
   activityProfiles       MemberActivityProfile[]
   voiceSessions          VoiceSession[]
@@ -224,33 +227,35 @@ model DiscordUser {
   firstSeenAt      DateTime  @default(now()) @map("first_seen_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  memberships          Member[]
-  identityEvents       IdentityEvent[]
-  warningsReceived     Warning[]               @relation("WarningTarget")
-  warningsIssued       Warning[]               @relation("WarningModerator")
-  sanctionsReceived    Sanction[]              @relation("SanctionTarget")
-  sanctionsIssued      Sanction[]              @relation("SanctionModerator")
-  sanctionsRevoked     Sanction[]              @relation("SanctionDiscordRevoker")
-  notes                MemberNote[]
-  ticketsOpened        Ticket[]                @relation("TicketOpener")
-  ticketsAssigned      Ticket[]                @relation("TicketAssignee")
-  ticketEvents         TicketEvent[]
-  messageStats         MessageStat[]
-  activityProfiles     MemberActivityProfile[]
-  voiceSessions        VoiceSession[]
-  memberRoles          MemberRole[]
-  roleEvents           MemberRoleEvent[]       @relation("RoleEventTarget")
-  moderationActivity   ModerationActivity[]    @relation("ActivityModerator")
-  activityTargets      ModerationActivity[]    @relation("ActivityTarget")
-  automodIncidents     AutomodIncident[]
-  accountFlags         AccountFlag[]
-  quarantineStatuses   QuarantineStatus[]
-  shadowbanRoleBackups ShadowbanRoleBackup[]
-  ownedVoiceChannels   TemporaryVoiceChannel[]
-  appUser              AppUser?
-  attachmentsUploaded  ModerationAttachment[]  @relation("AttachmentDiscordUploader")
-  giveawayEntries      GiveawayEntry[]
-  staffReminders       StaffReminder[]
+  memberships             Member[]
+  identityEvents          IdentityEvent[]
+  warningsReceived        Warning[]               @relation("WarningTarget")
+  warningsIssued          Warning[]               @relation("WarningModerator")
+  sanctionsReceived       Sanction[]              @relation("SanctionTarget")
+  sanctionsIssued         Sanction[]              @relation("SanctionModerator")
+  sanctionsRevoked        Sanction[]              @relation("SanctionDiscordRevoker")
+  notes                   MemberNote[]
+  ticketsOpened           Ticket[]                @relation("TicketOpener")
+  ticketsAssigned         Ticket[]                @relation("TicketAssignee")
+  ticketsClaimedOnDiscord Ticket[]                @relation("TicketDiscordClaimer")
+  ticketPrefixes          TicketModeratorPrefix[]
+  ticketEvents            TicketEvent[]
+  messageStats            MessageStat[]
+  activityProfiles        MemberActivityProfile[]
+  voiceSessions           VoiceSession[]
+  memberRoles             MemberRole[]
+  roleEvents              MemberRoleEvent[]       @relation("RoleEventTarget")
+  moderationActivity      ModerationActivity[]    @relation("ActivityModerator")
+  activityTargets         ModerationActivity[]    @relation("ActivityTarget")
+  automodIncidents        AutomodIncident[]
+  accountFlags            AccountFlag[]
+  quarantineStatuses      QuarantineStatus[]
+  shadowbanRoleBackups    ShadowbanRoleBackup[]
+  ownedVoiceChannels      TemporaryVoiceChannel[]
+  appUser                 AppUser?
+  attachmentsUploaded     ModerationAttachment[]  @relation("AttachmentDiscordUploader")
+  giveawayEntries         GiveawayEntry[]
+  staffReminders          StaffReminder[]
 
   @@index([username])
   @@map("discord_users")
@@ -538,46 +543,122 @@ model ModerationActivity {
 // ---------------------------------------------------------------------------
 
 model Ticket {
-  id              String         @id @default(uuid()) @db.Uuid
-  guildId         String         @map("guild_id") @db.VarChar(20)
+  id                 String         @id @default(uuid()) @db.Uuid
+  guildId            String         @map("guild_id") @db.VarChar(20)
   /// Numero lisible, unique par serveur.
-  number          Int
-  channelId       String?        @map("channel_id") @db.VarChar(20)
-  openerId        String         @map("opener_id") @db.VarChar(20)
-  assigneeId      String?        @map("assignee_id") @db.VarChar(20)
-  claimedById     String?        @map("claimed_by_id") @db.Uuid
-  subject         String
-  category        TicketCategory @default(OTHER)
-  status          TicketStatus   @default(OPEN)
-  priority        TicketPriority @default(NORMAL)
-  openedAt        DateTime       @default(now()) @map("opened_at")
+  number             Int
+  channelId          String?        @map("channel_id") @db.VarChar(20)
+  openerId           String         @map("opener_id") @db.VarChar(20)
+  assigneeId         String?        @map("assignee_id") @db.VarChar(20)
+  claimedById        String?        @map("claimed_by_id") @db.Uuid
+  /// Moderateur Discord ayant pris le ticket en charge depuis le bouton.
+  ///
+  /// Exclusif de `claimedById`, comme `Sanction.revokedByDiscordId` l'est de
+  /// `revokedById` : une prise en charge vient soit du dashboard, soit de
+  /// Discord, et n'en lire qu'une laisse la moitie des tickets sans preneur.
+  claimedByDiscordId String?        @map("claimed_by_discord_id") @db.VarChar(20)
+  claimedAt          DateTime?      @map("claimed_at")
+  /// Sujet configure choisi a l'ouverture. `null` pour les tickets ouverts
+  /// avant que les sujets ne soient configurables, ou apres sa suppression.
+  subjectId          String?        @map("subject_id") @db.Uuid
+  /// Libelle du sujet, copie a l'ouverture : renommer un sujet ne doit pas
+  /// reecrire l'intitule des tickets deja traites.
+  subject            String
+  category           TicketCategory @default(OTHER)
+  status             TicketStatus   @default(OPEN)
+  priority           TicketPriority @default(NORMAL)
+  openedAt           DateTime       @default(now()) @map("opened_at")
   /// Premiere reponse du staff : sert a calculer le delai de prise en charge.
-  firstResponseAt DateTime?      @map("first_response_at")
-  closedAt        DateTime?      @map("closed_at")
-  closedById      String?        @map("closed_by_id") @db.Uuid
-  closeReason     String?        @map("close_reason")
+  firstResponseAt    DateTime?      @map("first_response_at")
+  closedAt           DateTime?      @map("closed_at")
+  closedById         String?        @map("closed_by_id") @db.Uuid
+  closeReason        String?        @map("close_reason")
   /// Satisfaction de 1 a 5, si l'utilisateur la renseigne.
-  rating          Int?
-  messageCount    Int            @default(0) @map("message_count")
+  rating             Int?
+  messageCount       Int            @default(0) @map("message_count")
   /// Renseigne quand le bot a rejoue cote Discord (permissions du salon,
   /// embed) le statut courant. Meme role que `Sanction.discordSyncedAt` :
   /// un changement de statut fait depuis la webapp le laisse `null` jusqu'a
   /// ce que `bot/src/tasks/ticketSync.ts` rattrape l'effet Discord ; un
   /// changement fait par les boutons du bot le pose immediatement.
-  discordSyncedAt DateTime?      @map("discord_synced_at")
+  discordSyncedAt    DateTime?      @map("discord_synced_at")
 
-  guild       Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  opener      DiscordUser        @relation("TicketOpener", fields: [openerId], references: [id], onDelete: Cascade)
-  assignee    DiscordUser?       @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  claimedBy   AppUser?           @relation("TicketClaimer", fields: [claimedById], references: [id], onDelete: SetNull)
-  closedBy    AppUser?           @relation("TicketCloser", fields: [closedById], references: [id], onDelete: SetNull)
-  events      TicketEvent[]
-  attachments TicketAttachment[]
+  guild            Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  opener           DiscordUser        @relation("TicketOpener", fields: [openerId], references: [id], onDelete: Cascade)
+  assignee         DiscordUser?       @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  claimedBy        AppUser?           @relation("TicketClaimer", fields: [claimedById], references: [id], onDelete: SetNull)
+  claimedByDiscord DiscordUser?       @relation("TicketDiscordClaimer", fields: [claimedByDiscordId], references: [id], onDelete: SetNull)
+  ticketSubject    TicketSubject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  closedBy         AppUser?           @relation("TicketCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  events           TicketEvent[]
+  attachments      TicketAttachment[]
 
   @@unique([guildId, number])
   @@index([guildId, status, openedAt])
   @@index([guildId, assigneeId])
   @@map("tickets")
+}
+
+/// Sujet propose a l'ouverture d'un ticket, regle depuis le dashboard.
+///
+/// Remplace la liste figee de l'ancien select : `category` reste porte ici
+/// pour que les filtres et statistiques du dashboard, qui raisonnent en
+/// grandes familles, continuent de fonctionner par-dessus des libelles libres.
+model TicketSubject {
+  id              String         @id @default(uuid()) @db.Uuid
+  guildId         String         @map("guild_id") @db.VarChar(20)
+  label           String
+  /// Affichee sous le libelle dans le select de la modale.
+  description     String?
+  /// Unicode ou `<:nom:id>`.
+  emoji           String?
+  category        TicketCategory @default(OTHER)
+  /// Gravite pre-selectionnee dans la modale. Le membre reste libre d'en
+  /// changer : c'est une suggestion, pas une contrainte.
+  defaultPriority TicketPriority @default(NORMAL) @map("default_priority")
+  position        Int            @default(0)
+  enabled         Boolean        @default(true)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  guild   Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@index([guildId])
+  @@map("ticket_subjects")
+}
+
+/// Prefixe qu'un moderateur donne aux salons des tickets qu'il prend.
+///
+/// Pose par `/prefix_ticket` cote Discord, modifiable ensuite depuis le
+/// dashboard. Sans prefixe, le bouton « Prendre le ticket » refuse : deviner
+/// un prefixe a partir du pseudo donnerait des noms de salon incoherents avec
+/// ceux que le moderateur a deja poses.
+model TicketModeratorPrefix {
+  guildId   String   @map("guild_id") @db.VarChar(20)
+  userId    String   @map("user_id") @db.VarChar(20)
+  prefix    String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId])
+  @@map("ticket_moderator_prefixes")
+}
+
+/// Reglages des tickets, une ligne par serveur.
+model TicketConfig {
+  guildId        String   @id @map("guild_id") @db.VarChar(20)
+  /// Tickets non fermes qu'un meme membre peut avoir a la fois. 1 reproduit
+  /// le comportement d'avant le reglage.
+  maxOpenTickets Int      @default(1) @map("max_open_tickets")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_config")
 }
 
 model TicketEvent {
@@ -954,30 +1035,47 @@ model RolePermissionOverride {
   @@map("role_permission_overrides")
 }
 
+/// Ce qui decide de la categorie d'un salon temporaire.
+enum VoicePlacementMode {
+  /// Le salon reste dans la categorie d'accueil du salon de creation. Sa
+  /// personnalisation se limite au sujet et au nombre de places.
+  FIXED_CATEGORY
+  /// Le salon atterrit dans la categorie d'accueil (« En attente »), puis le
+  /// rang choisi par son proprietaire le range ailleurs.
+  RANK_CATEGORY
+}
+
 /// Salon vocal « de creation » : y entrer cree un salon temporaire dedie et y
 /// deplace l'arrivant. La liste se gere depuis le dashboard ; la commande
 /// `/create_parties` cree les salons Discord correspondants, `/delete_parties`
 /// les retire (le reglage, lui, survit a la suppression du salon Discord).
 model VoiceHub {
-  id            String   @id @default(uuid()) @db.Uuid
-  guildId       String   @map("guild_id") @db.VarChar(20)
+  id                  String             @id @default(uuid()) @db.Uuid
+  guildId             String             @map("guild_id") @db.VarChar(20)
   /// `null` tant que `/create_parties` n'a pas cree le salon Discord.
-  channelId     String?  @unique @map("channel_id") @db.VarChar(20)
-  name          String
+  channelId           String?            @unique @map("channel_id") @db.VarChar(20)
+  name                String
   /// Gabarit du nom des salons crees : `{name}` et `{index}` y sont
   /// remplaces. Un salon nomme autrement reste retrouvable par `hubId`.
-  namePattern   String   @default("{name} #{index}") @map("name_pattern")
+  namePattern         String             @default("{name} #{index}") @map("name_pattern")
   /// Limite d'occupants des salons crees. 0 = illimite, comme Discord.
-  userLimit     Int      @default(0) @map("user_limit")
+  userLimit           Int                @default(0) @map("user_limit")
+  placementMode       VoicePlacementMode @default(RANK_CATEGORY) @map("placement_mode")
+  /// Nom de la categorie ou atterrissent les salons crees. Le bot la cree si
+  /// elle n'existe pas, et retient son identifiant dans `landingCategoryId`.
+  landingCategoryName String             @default("En attente") @map("landing_category_name")
+  /// Rempli par le bot a la premiere creation. Vider ce champ suffit a lui
+  /// faire retrouver — ou recreer — la categorie au prochain salon.
+  landingCategoryId   String?            @map("landing_category_id") @db.VarChar(20)
   /// Gabarit du sujet (« voice status ») des salons crees : `{rang}`,
   /// `{plateforme}` et `{sujet}` y sont remplaces. Le rang et la plateforme
   /// vivent la et non dans le nom, que Discord ne laisse changer que deux
   /// fois par dix minutes.
-  statusPattern String   @default("{rang} {plateforme} · {sujet}") @map("status_pattern")
-  position      Int      @default(0)
-  enabled       Boolean  @default(true)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  statusPattern       String             @default("{rang} {plateforme} · {sujet}") @map("status_pattern")
+  position            Int                @default(0)
+  enabled             Boolean            @default(true)
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
 
   guild             Guild                   @relation(fields: [guildId], references: [id], onDelete: Cascade)
   temporaryChannels TemporaryVoiceChannel[]
@@ -999,7 +1097,10 @@ model VoiceHubRank {
   /// Unicode ou `<:nom:id>` : le sujet accepte les emojis personnalises.
   emoji      String?
   /// Categorie Discord ou sont deplaces les salons portant ce rang.
-  categoryId String   @map("category_id") @db.VarChar(20)
+  ///
+  /// Facultative : sans elle, le bot cree une categorie nommee d'apres le
+  /// rang au premier salon qui le choisit, et retient son identifiant ici.
+  categoryId String?  @map("category_id") @db.VarChar(20)
   position   Int      @default(0)
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")

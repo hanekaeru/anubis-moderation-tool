@@ -1,5 +1,6 @@
 import {
 	IsBoolean,
+	IsEnum,
 	IsInt,
 	IsOptional,
 	IsString,
@@ -10,7 +11,7 @@ import {
 	MinLength,
 	ValidateIf,
 } from "class-validator";
-import { MAX_VOICE_STATUS_LENGTH } from "@anubis/shared";
+import { MAX_VOICE_STATUS_LENGTH, VoicePlacementMode } from "@anubis/shared";
 
 /**
  * Le gabarit doit contenir `{index}` : sans lui, tous les salons d'un meme
@@ -48,6 +49,25 @@ export class CreateVoiceHubDto {
 	statusPattern?: string;
 
 	@IsOptional()
+	@IsEnum(VoicePlacementMode)
+	placementMode?: VoicePlacementMode;
+
+	@IsOptional()
+	@IsString()
+	@MinLength(1)
+	@MaxLength(100)
+	landingCategoryName?: string;
+
+	/**
+	 * Vider l'identifiant est le seul moyen de faire retrouver — ou recreer —
+	 * la categorie d'accueil, d'ou le `null` explicitement accepte.
+	 */
+	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
+	@Matches(SNOWFLAKE, { message: "landingCategoryId doit être un identifiant Discord." })
+	landingCategoryId?: string | null;
+
+	@IsOptional()
 	@IsInt()
 	@Min(0)
 	@Max(99)
@@ -83,6 +103,25 @@ export class UpdateVoiceHubDto {
 	@IsString()
 	@MaxLength(STATUS_PATTERN_MAX)
 	statusPattern?: string;
+
+	@IsOptional()
+	@IsEnum(VoicePlacementMode)
+	placementMode?: VoicePlacementMode;
+
+	@IsOptional()
+	@IsString()
+	@MinLength(1)
+	@MaxLength(100)
+	landingCategoryName?: string;
+
+	/**
+	 * Vider l'identifiant est le seul moyen de faire retrouver — ou recreer —
+	 * la categorie d'accueil, d'ou le `null` explicitement accepte.
+	 */
+	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
+	@Matches(SNOWFLAKE, { message: "landingCategoryId doit être un identifiant Discord." })
+	landingCategoryId?: string | null;
 
 	@IsOptional()
 	@IsInt()
@@ -123,8 +162,10 @@ export class CreateVoiceHubRankDto {
 	@MaxLength(EMOJI_MAX)
 	emoji?: string | null;
 
+	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
 	@Matches(SNOWFLAKE, { message: "categoryId doit être un identifiant Discord." })
-	categoryId!: string;
+	categoryId?: string | null;
 
 	@IsOptional()
 	@IsInt()
@@ -147,8 +188,9 @@ export class UpdateVoiceHubRankDto {
 	emoji?: string | null;
 
 	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
 	@Matches(SNOWFLAKE, { message: "categoryId doit être un identifiant Discord." })
-	categoryId?: string;
+	categoryId?: string | null;
 
 	@IsOptional()
 	@IsInt()

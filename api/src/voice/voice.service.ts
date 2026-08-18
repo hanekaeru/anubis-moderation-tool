@@ -1,8 +1,10 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import {
+	DEFAULT_VOICE_LANDING_CATEGORY,
 	DEFAULT_VOICE_NAME_PATTERN,
 	DEFAULT_VOICE_STATUS_PATTERN,
 	MAX_VOICE_HUB_OPTIONS,
+	VoicePlacementMode,
 	type LiveVoiceChannelDto,
 	type LiveVoiceDto,
 	type VoiceHubDto,
@@ -27,7 +29,7 @@ type RankRow = {
 	id: string;
 	label: string;
 	emoji: string | null;
-	categoryId: string;
+	categoryId: string | null;
 	position: number;
 };
 
@@ -46,6 +48,9 @@ type HubRow = {
 	name: string;
 	namePattern: string;
 	statusPattern: string;
+	placementMode: VoicePlacementMode;
+	landingCategoryName: string;
+	landingCategoryId: string | null;
 	userLimit: number;
 	position: number;
 	enabled: boolean;
@@ -84,6 +89,9 @@ export class VoiceService {
 			name: row.name,
 			namePattern: row.namePattern,
 			statusPattern: row.statusPattern,
+			placementMode: row.placementMode,
+			landingCategoryName: row.landingCategoryName,
+			landingCategoryId: row.landingCategoryId,
 			userLimit: row.userLimit,
 			position: row.position,
 			enabled: row.enabled,
@@ -135,6 +143,10 @@ export class VoiceService {
 				name: dto.name,
 				namePattern: dto.namePattern ?? DEFAULT_VOICE_NAME_PATTERN,
 				statusPattern: dto.statusPattern ?? DEFAULT_VOICE_STATUS_PATTERN,
+				placementMode: dto.placementMode ?? VoicePlacementMode.RANK_CATEGORY,
+				landingCategoryName:
+					dto.landingCategoryName ?? DEFAULT_VOICE_LANDING_CATEGORY,
+				landingCategoryId: dto.landingCategoryId ?? null,
 				userLimit: dto.userLimit ?? 0,
 				position: dto.position ?? 0,
 				enabled: dto.enabled ?? true,
@@ -170,6 +182,24 @@ export class VoiceService {
 				...(dto.namePattern !== undefined ? { namePattern: dto.namePattern } : {}),
 				...(dto.statusPattern !== undefined
 					? { statusPattern: dto.statusPattern }
+					: {}),
+				...(dto.placementMode !== undefined
+					? { placementMode: dto.placementMode }
+					: {}),
+				// Renommer la categorie d'accueil oublie l'identifiant retenu :
+				// sinon le bot continuerait d'utiliser l'ancienne categorie, et
+				// le nouveau nom ne servirait a rien.
+				...(dto.landingCategoryName !== undefined
+					? {
+							landingCategoryName: dto.landingCategoryName,
+							landingCategoryId:
+								dto.landingCategoryName === existing.landingCategoryName
+									? undefined
+									: null,
+						}
+					: {}),
+				...(dto.landingCategoryId !== undefined
+					? { landingCategoryId: dto.landingCategoryId }
 					: {}),
 				...(dto.userLimit !== undefined ? { userLimit: dto.userLimit } : {}),
 				...(dto.position !== undefined ? { position: dto.position } : {}),
@@ -273,7 +303,7 @@ export class VoiceService {
 				hubId,
 				label: dto.label,
 				emoji: dto.emoji ?? null,
-				categoryId: dto.categoryId,
+				categoryId: dto.categoryId ?? null,
 				position: dto.position ?? existants,
 			},
 		});
@@ -307,7 +337,9 @@ export class VoiceService {
 			data: {
 				...(dto.label !== undefined ? { label: dto.label } : {}),
 				...(dto.emoji !== undefined ? { emoji: dto.emoji ?? null } : {}),
-				...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
+				...(dto.categoryId !== undefined
+					? { categoryId: dto.categoryId ?? null }
+					: {}),
 				...(dto.position !== undefined ? { position: dto.position } : {}),
 			},
 		});

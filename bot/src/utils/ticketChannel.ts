@@ -5,10 +5,17 @@ import {
 	ChannelType,
 	EmbedBuilder,
 	PermissionFlagsBits,
+	type ColorResolvable,
 	type Guild,
 	type TextChannel,
 } from "discord.js";
-import { TICKET_TRANSCRIPT_CHANNEL_CONFIG_KEY } from "@anubis/shared";
+import {
+	TICKET_PRIORITY_LABELS,
+	TICKET_TRANSCRIPT_CHANNEL_CONFIG_KEY,
+	TicketPriority,
+	claimedTicketChannelName,
+	newTicketChannelName,
+} from "@anubis/shared";
 import * as colors from "./constantes";
 import * as guildConfig from "../collectors/guildConfig";
 
@@ -78,8 +85,30 @@ export async function ensureTranscriptChannel(guild: Guild): Promise<TextChannel
 	return channel;
 }
 
-export function closeButtonRow(ticketId: string): ActionRowBuilder<ButtonBuilder> {
-	return new ActionRowBuilder<ButtonBuilder>().addComponents(
+/**
+ * Boutons d'un ticket ouvert.
+ *
+ * « Prendre le ticket » disparait une fois quelqu'un dessus : le bouton
+ * n'aurait plus d'effet, et le laisser afficher inviterait a un clic qui
+ * repartirait en erreur. Le nom du moderateur, lui, est dans l'embed.
+ */
+export function closeButtonRow(
+	ticketId: string,
+	claimed = false,
+): ActionRowBuilder<ButtonBuilder> {
+	const row = new ActionRowBuilder<ButtonBuilder>();
+
+	if (!claimed) {
+		row.addComponents(
+			new ButtonBuilder()
+				.setCustomId(`ticket:claim:${ticketId}`)
+				.setLabel("Prendre le ticket")
+				.setEmoji("🙋")
+				.setStyle(ButtonStyle.Success),
+		);
+	}
+
+	return row.addComponents(
 		new ButtonBuilder()
 			.setCustomId(`ticket:close:${ticketId}`)
 			.setLabel("Fermer le ticket")
@@ -103,42 +132,82 @@ export function reopenDeleteButtonRow(ticketId: string): ActionRowBuilder<Button
 	);
 }
 
-export function openEmbed(
-	number: number,
-	categoryLabel: string,
-	openerId: string,
-): EmbedBuilder {
-	return new EmbedBuilder()
-		.setColor(colors.info)
-		.setTitle(`Ticket #${number} — ${categoryLabel}`)
-		.setDescription(`Bienvenue <@${openerId}>, l'équipe va prendre en charge ta demande.`)
-		.setTimestamp();
+/** Couleur de l'embed selon la gravite : le staff trie a l'oeil. */
+function priorityColor(priority: TicketPriority): ColorResolvable {
+	if (priority === TicketPriority.URGENT) return colors.danger;
+	if (priority === TicketPriority.HIGH) return colors.warning;
+	return colors.info;
 }
 
-export function closedEmbed(number: number, categoryLabel: string): EmbedBuilder {
-	return new EmbedBuilder()
-		.setColor(colors.warning)
-		.setTitle(`Ticket #${number} — ${categoryLabel} (fermé)`)
-		.setDescription("Ce ticket est fermé. Un membre du staff peut le rouvrir ou le supprimer.")
+export interface TicketEmbedState {
+	number: number;
+	subject: string;
+	priority: TicketPriority;
+	openerId: string;
+	/** Description libre saisie a l'ouverture. */
+	description?: string | null;
+	/** Moderateur Discord qui a pris le ticket. */
+	claimedById?: string | null;
+}
+
+export function openEmbed(state: TicketEmbedState): EmbedBuilder {
+	const embed = new EmbedBuilder()
+		.setColor(priorityColor(state.priority))
+		.setTitle(`Ticket #${state.number} — ${state.subject}`)
+		.setDescription(
+			`Bienvenue <@${state.openerId}>, l'équipe va prendre en charge ta demande.`,
+		)
+		.addFields({
+			name: "Gravité",
+			value: TICKET_PRIORITY_LABELS[state.priority],
+			inline: true,
+		})
 		.setTimestamp();
+
+	embed.addFields({
+		name: "Prise en charge",
+		value: state.claimedById ? `<@${state.claimedById}>` : "En attente d'un modérateur",
+		inline: true,
+	});
+
+	if (state.description) {
+		embed.addFields({ name: "Demande", value: state.description.slice(0, 1024) });
+	}
+
+	return embed;
+}
+
+export function closedEmbed(state: TicketEmbedState): EmbedBuilder {
+	const embed = new EmbedBuilder()
+		.setColor(colors.warning)
+		.setTitle(`Ticket #${state.number} — ${state.subject} (fermé)`)
+		.setDescription(
+			"Ce ticket est fermé. Un membre du staff peut le rouvrir ou le supprimer.",
+		)
+		.setTimestamp();
+
+	if (state.claimedById) {
+		embed.addFields({ name: "Pris en charge par", value: `<@${state.claimedById}>` });
+	}
+
+	return embed;
 }
 
 interface CreateTicketChannelInput {
 	guild: Guild;
-	openerId: string;
 	ticketId: string;
-	number: number;
-	categoryLabel: string;
+	state: TicketEmbedState;
 }
 
 export async function createTicketChannel(
 	input: CreateTicketChannelInput,
 ): Promise<TextChannel> {
-	const { guild, openerId, ticketId, number, categoryLabel } = input;
+	const { guild, ticketId, state } = input;
+	const openerId = state.openerId;
 	const parent = await ensureTicketsCategory(guild);
 
 	const channel = await guild.channels.create({
-		name: `ticket-${String(number).padStart(4, "0")}`,
+		name: newTicketChannelName(state.number),
 		type: ChannelType.GuildText,
 		parent: parent.id,
 		permissionOverwrites: [
@@ -164,18 +233,58 @@ export async function createTicketChannel(
 	});
 
 	await channel.send({
-		embeds: [openEmbed(number, categoryLabel, openerId)],
+		embeds: [openEmbed(state)],
 		components: [closeButtonRow(ticketId)],
 	});
 
 	return channel;
 }
 
-/** Lecture seule pour l'ouvreur une fois le ticket ferme, ecriture retablie a la reouverture. */
-export async function setOpenerCanWrite(
+/**
+ * Renomme le salon aux couleurs du moderateur qui vient de prendre le ticket.
+ *
+ * Discord n'accepte que **deux renommages par tranche de dix minutes et par
+ * salon** : c'est pourquoi la prise en charge est refusee quand quelqu'un est
+ * deja dessus, et pourquoi rien d'autre ne renomme un salon de ticket.
+ */
+export async function renameForClaim(
+	channel: TextChannel,
+	prefix: string,
+	openerUsername: string,
+	number: number,
+): Promise<boolean> {
+	try {
+		await channel.setName(
+			claimedTicketChannelName(prefix, openerUsername, number),
+			"Ticket pris en charge.",
+		);
+		return true;
+	} catch (err) {
+		console.error("[Tickets] Renommage du salon échoué :", err);
+		return false;
+	}
+}
+
+/**
+ * Acces de l'ouvreur au salon de son ticket.
+ *
+ * Un ticket ferme **disparait de sa liste de salons** : `ViewChannel` tombe
+ * avec `SendMessages`. Le laisser lire jusqu'a la suppression du salon
+ * revenait a garder ouvert, du point de vue du membre, un ticket que le staff
+ * considere clos — et a laisser trainer la conversation sous ses yeux le temps
+ * que quelqu'un pense a supprimer le salon. Le transcript, lui, reste au
+ * staff.
+ *
+ * La reouverture rend les deux droits.
+ */
+export async function setOpenerAccess(
 	channel: TextChannel,
 	openerId: string,
-	canWrite: boolean,
+	granted: boolean,
 ): Promise<void> {
-	await channel.permissionOverwrites.edit(openerId, { SendMessages: canWrite });
+	await channel.permissionOverwrites.edit(openerId, {
+		ViewChannel: granted,
+		SendMessages: granted,
+		ReadMessageHistory: granted,
+	});
 }

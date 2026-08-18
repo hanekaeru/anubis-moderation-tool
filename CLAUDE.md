@@ -352,13 +352,52 @@ le dev avec rechargement).
   salon de ticket ne supprime jamais le ticket en base : seul `channelId`
   repasse a `null` (evenement `TRANSCRIPT_ARCHIVED`), pour que la webapp reste
   consultable indefiniment.
-- **Select menu de ticket** : `handleTicketOpenSelect` accuse reception avec
-  `interaction.deferUpdate()`, jamais `deferReply()`. Seul un accuse de type
-  "mise a jour du message d'origine" reinitialise le select a son placeholder
-  cote client Discord ; `deferReply()` cree une reponse a part et laisse le
-  menu affiche bloque sur la derniere valeur choisie — c'est le bug que ce
-  choix corrige. Un cooldown memoire de 30s par utilisateur
-  (`lastOpenAttempt`) protege en plus contre le spam de clics.
+- **Le panneau de ticket porte un bouton, pas un select.** Le sujet et la
+  gravite se choisissent dans une modale, or `showModal` est refuse apres tout
+  accuse de reception — et c'etait justement le `deferUpdate()` qui remettait
+  l'ancien select a son placeholder (`deferReply()` laissait le menu bloque sur
+  la derniere valeur, bug historique). Un bouton n'a aucun etat a
+  reinitialiser, le probleme disparait. **Consequence : un panneau poste avant
+  ce changement ne repond plus, il faut rejouer `/create_ticket_panel`.** Un
+  cooldown memoire de 30s par utilisateur (`lastOpenAttempt`) protege du spam
+  de clics ; il n'est pose qu'apres les refus (limite atteinte, aucun sujet
+  configure), qui n'ont rien coute et ne doivent pas faire patienter.
+- **Sujets, gravite et limite d'ouverture** (`ticket_subjects`,
+  `ticket_config`) : le sujet choisi est **copie** dans `Ticket.subject` en plus
+  d'etre reference par `subjectId` — renommer un sujet ne doit pas reecrire
+  l'intitule des tickets deja traites, meme raison que le bareme de points.
+  Chaque sujet porte une `TicketCategory` : le membre choisit un libelle
+  precis, le dashboard filtre et compte par grande famille. La limite est
+  verifiee **deux fois**, avant d'ouvrir la modale (ne pas faire remplir un
+  formulaire pour le refuser) et a la soumission (elle a pu se remplir
+  entre-temps). L'absence de ligne `TicketConfig` vaut **un** ticket, le
+  comportement d'avant le reglage — pas « aucune limite ».
+- **Prise en charge depuis Discord** (`/prefix_ticket`, bouton « Prendre le
+  ticket ») : le salon passe de `ticket-0001` a `prefixe-pseudo-0001`. Quatre
+  points a garder :
+  - `claimTicket` filtre sur `claimedByDiscordId: null` **dans le `where` de
+    l'`updateMany`** et se lit a son `count` : deux moderateurs qui cliquent en
+    meme temps ne doivent ni se voler le ticket, ni declencher deux renommages
+    — Discord n'en accepte que **deux par tranche de dix minutes et par salon**.
+  - sans prefixe, le bouton **refuse** et renvoie vers `/prefix_ticket`. Le
+    deduire du pseudo donnerait des noms incoherents avec ceux que le
+    moderateur a deja poses.
+  - le prefixe est normalise **a l'enregistrement** (`slugifyChannelPart`,
+    partage), pas a l'usage : Discord mettrait de toute facon le nom en
+    minuscules, et le moderateur doit voir tout de suite le « hane » qui sera
+    reellement pose. Le dashboard, qui edite le meme champ, applique la meme
+    normalisation.
+  - la prise en charge pose `firstResponseAt` si elle manquait : c'est bien le
+    moment ou le staff se saisit du ticket, et le delai affiche par le
+    dashboard ne mesurait rien tant que le moderateur n'avait pas ecrit.
+  L'auteur d'une prise vit dans deux colonnes exclusives, `claimedById`
+  (dashboard) et `claimedByDiscordId` (Discord) — meme couple et meme mapper
+  `toActorRef` que `Sanction.revokedById`.
+- **Un ticket ferme disparait de la liste de salons de son ouvreur** :
+  `setOpenerAccess` retire `ViewChannel` avec `SendMessages`, la ou l'ancien
+  `setOpenerCanWrite` ne coupait que l'ecriture. Le laisser lire jusqu'a la
+  suppression du salon revenait a garder ouvert, de son point de vue, un ticket
+  que le staff considere clos. La reouverture rend les deux droits.
 - **Preuves de sanction** (`/preuve`, `src/handlers/evidenceInteractions.ts`) :
   la modale porte a la fois le select des sanctions et les deux zones de
   fichiers — possible parce que les modales Discord acceptent depuis
@@ -538,8 +577,24 @@ le dev avec rechargement).
   tache periodique.
 - **Rangs des salons vocaux temporaires** (`src/collectors/voiceHubs.ts`,
   `voice_hub_ranks`, `voice_hub_platforms`) : le proprietaire choisit un rang et
-  une plateforme depuis le panneau du salon ; le **rang seul** deplace le salon,
-  dans la categorie que le dashboard lui associe. Quatre points a garder :
+  une plateforme depuis le panneau du salon ; le **rang seul** deplace le salon.
+  Un salon de creation choisit d'abord **comment ses salons se rangent**
+  (`VoiceHub.placementMode`) :
+  - `FIXED_CATEGORY` — ils restent groupes dans la categorie d'accueil du hub
+    (« Partie Rapide »), et la modale ne propose ni rang ni deplacement. C'est
+    `chargerOptions` qui vide la liste des rangs, meme si le dashboard en garde
+    de configures : un select sans effet se lit comme un bug.
+  - `RANK_CATEGORY` — ils atterrissent dans la categorie d'accueil
+    (« En attente »), puis le rang les range ailleurs.
+
+  **Toute categorie manquante est creee**, jamais exigee : `landingCategoryId`
+  et `VoiceHubRank.categoryId` sont facultatifs et **reecrits par le bot** apres
+  coup. `garantirCategorieNommee` cherche dans cet ordre — identifiant retenu,
+  puis nom, puis creation : chercher par nom avant de creer evite de doubler une
+  categorie faite a la main, et fait que deux hubs partageant le meme nom
+  d'accueil partagent la categorie. Renommer la categorie d'accueil depuis le
+  dashboard **efface l'identifiant retenu**, sans quoi le bot continuerait
+  d'utiliser l'ancienne. Quatre autres points a garder :
   - le rang et la plateforme vivent dans le **sujet** du salon (« voice
     status »), jamais dans son nom. Discord n'accepte que **deux renommages par
     tranche de dix minutes et par salon** : dans le nom, corriger son rang puis
@@ -561,7 +616,9 @@ le dev avec rechargement).
     demande.
   Retirer un rang depuis le dashboard ne deplace **pas** les salons qui le
   portaient (`ON DELETE SET NULL`) : ils restent ou ils sont jusqu'au prochain
-  choix de leur proprietaire. `renderVoiceStatus` (`@anubis/shared`) compose le
+  choix de leur proprietaire. Le rattrapage du demarrage
+  (`reconcilierSalons`), lui, remet chaque salon dans la categorie attendue et
+  recree celle qui aurait ete supprimee a la main pendant l'arret. `renderVoiceStatus` (`@anubis/shared`) compose le
   sujet pour le bot et pour l'apercu du dashboard — meme raison que
   `renderXpLevelUpMessage`.
 

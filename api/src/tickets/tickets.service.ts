@@ -1,11 +1,18 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import type { TicketAttachment } from "@anubis/shared/prisma";
 import type { Prisma } from "@anubis/shared/prisma";
-import type {
-	Paginated,
-	TicketDetail,
-	TicketEventDto,
-	TicketListItem,
+import {
+	DEFAULT_MAX_OPEN_TICKETS,
+	MAX_TICKET_PREFIX_LENGTH,
+	MAX_TICKET_SUBJECTS,
+	slugifyChannelPart,
+	type Paginated,
+	type TicketConfigDto,
+	type TicketDetail,
+	type TicketEventDto,
+	type TicketListItem,
+	type TicketModeratorPrefixDto,
+	type TicketSubjectDto,
 } from "@anubis/shared";
 import { AuditService } from "../audit/audit.service";
 import { paginate } from "../common/dto/pagination.dto";
@@ -15,14 +22,19 @@ import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
 import type {
 	AddTicketNoteDto,
+	CreateTicketSubjectDto,
 	TicketQueryDto,
+	UpdateTicketConfigDto,
 	UpdateTicketDto,
+	UpdateTicketSubjectDto,
+	UpsertTicketPrefixDto,
 } from "./dto/ticket.dto";
 
 const TICKET_INCLUDE = {
 	opener: true,
 	assignee: true,
 	claimedBy: true,
+	claimedByDiscord: true,
 	closedBy: true,
 } satisfies Prisma.TicketInclude;
 
@@ -72,12 +84,297 @@ export class TicketsService {
 			opener: toMemberRef(row.opener),
 			assignee: row.assignee ? toMemberRef(row.assignee) : null,
 			openedAt: row.openedAt.toISOString(),
+			claimedAt: row.claimedAt?.toISOString() ?? null,
 			closedAt: row.closedAt?.toISOString() ?? null,
 			messageCount: row.messageCount,
 			firstResponseSeconds,
 			resolutionSeconds,
 			rating: row.rating,
 		};
+	}
+
+	private toSubjectDto(row: {
+		id: string;
+		label: string;
+		description: string | null;
+		emoji: string | null;
+		category: TicketSubjectDto["category"];
+		defaultPriority: TicketSubjectDto["defaultPriority"];
+		position: number;
+		enabled: boolean;
+	}): TicketSubjectDto {
+		return {
+			id: row.id,
+			label: row.label,
+			description: row.description,
+			emoji: row.emoji,
+			category: row.category,
+			defaultPriority: row.defaultPriority,
+			position: row.position,
+			enabled: row.enabled,
+		};
+	}
+
+	/**
+	 * Reglages des tickets.
+	 *
+	 * L'absence de ligne ne vaut pas « aucune limite » : le defaut reproduit
+	 * le comportement d'avant le reglage, ou un seul ticket ouvert etait
+	 * tolere. Bot, API et dashboard partagent la meme valeur de repli.
+	 */
+	async getConfig(): Promise<TicketConfigDto> {
+		const row = await this.prisma.ticketConfig.findUnique({
+			where: { guildId: this.guild.guildId },
+		});
+
+		return {
+			maxOpenTickets: row?.maxOpenTickets ?? DEFAULT_MAX_OPEN_TICKETS,
+			updatedAt: row?.updatedAt.toISOString() ?? null,
+		};
+	}
+
+	async updateConfig(
+		dto: UpdateTicketConfigDto,
+		actor: AuthenticatedUser,
+	): Promise<TicketConfigDto> {
+		const guildId = this.guild.guildId;
+		const maxOpenTickets = dto.maxOpenTickets ?? DEFAULT_MAX_OPEN_TICKETS;
+
+		const row = await this.prisma.ticketConfig.upsert({
+			where: { guildId },
+			create: { guildId, maxOpenTickets },
+			update: { maxOpenTickets },
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "ticket.config.update",
+			entityType: "ticket_config",
+			entityId: guildId,
+			after: { maxOpenTickets },
+		});
+
+		return {
+			maxOpenTickets: row.maxOpenTickets,
+			updatedAt: row.updatedAt.toISOString(),
+		};
+	}
+
+	/** Tous les sujets, desactives compris : c'est un ecran de reglage. */
+	async listSubjects(): Promise<TicketSubjectDto[]> {
+		const rows = await this.prisma.ticketSubject.findMany({
+			where: { guildId: this.guild.guildId },
+			orderBy: [{ position: "asc" }, { label: "asc" }],
+		});
+
+		return rows.map((row) => this.toSubjectDto(row));
+	}
+
+	async createSubject(
+		dto: CreateTicketSubjectDto,
+		actor: AuthenticatedUser,
+	): Promise<TicketSubjectDto> {
+		const guildId = this.guild.guildId;
+
+		// Le select de la modale Discord plafonne a 25 options : au-dela, les
+		// sujets en trop seraient invisibles cote Discord sans que le
+		// dashboard ne le laisse deviner.
+		const existants = await this.prisma.ticketSubject.count({ where: { guildId } });
+		if (existants >= MAX_TICKET_SUBJECTS) {
+			throw new ConflictException(
+				`Un serveur ne peut pas proposer plus de ${MAX_TICKET_SUBJECTS} sujets de ticket.`,
+			);
+		}
+
+		const created = await this.prisma.ticketSubject.create({
+			data: {
+				guildId,
+				label: dto.label,
+				description: dto.description ?? null,
+				emoji: dto.emoji ?? null,
+				...(dto.category ? { category: dto.category } : {}),
+				...(dto.defaultPriority ? { defaultPriority: dto.defaultPriority } : {}),
+				position: dto.position ?? existants,
+				enabled: dto.enabled ?? true,
+			},
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "ticket.subject.create",
+			entityType: "ticket_subject",
+			entityId: created.id,
+			after: { ...dto },
+		});
+
+		return this.toSubjectDto(created);
+	}
+
+	async updateSubject(
+		id: string,
+		dto: UpdateTicketSubjectDto,
+		actor: AuthenticatedUser,
+	): Promise<TicketSubjectDto> {
+		const existing = await this.prisma.ticketSubject.findFirst({
+			where: { id, guildId: this.guild.guildId },
+		});
+		if (!existing) throw new NotFoundException("Sujet de ticket introuvable.");
+
+		const updated = await this.prisma.ticketSubject.update({
+			where: { id },
+			data: {
+				...(dto.label !== undefined ? { label: dto.label } : {}),
+				...(dto.description !== undefined
+					? { description: dto.description ?? null }
+					: {}),
+				...(dto.emoji !== undefined ? { emoji: dto.emoji ?? null } : {}),
+				...(dto.category !== undefined ? { category: dto.category } : {}),
+				...(dto.defaultPriority !== undefined
+					? { defaultPriority: dto.defaultPriority }
+					: {}),
+				...(dto.position !== undefined ? { position: dto.position } : {}),
+				...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
+			},
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "ticket.subject.update",
+			entityType: "ticket_subject",
+			entityId: id,
+			before: { label: existing.label, enabled: existing.enabled },
+			after: { ...dto },
+		});
+
+		return this.toSubjectDto(updated);
+	}
+
+	/**
+	 * Retire un sujet de la liste.
+	 *
+	 * Les tickets ouverts avec ce sujet gardent leur intitule : `subject` est
+	 * une copie du libelle, et `subjectId` repasse simplement a `null`
+	 * (`ON DELETE SET NULL`). Desactiver plutot que supprimer reste preferable
+	 * quand on veut garder le lien pour les statistiques.
+	 */
+	async deleteSubject(id: string, actor: AuthenticatedUser): Promise<void> {
+		const existing = await this.prisma.ticketSubject.findFirst({
+			where: { id, guildId: this.guild.guildId },
+		});
+		if (!existing) throw new NotFoundException("Sujet de ticket introuvable.");
+
+		await this.prisma.ticketSubject.delete({ where: { id } });
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "ticket.subject.delete",
+			entityType: "ticket_subject",
+			entityId: id,
+			before: { label: existing.label },
+		});
+	}
+
+	/** Prefixes de nommage des salons, un par moderateur ayant lance /prefix_ticket. */
+	async listPrefixes(): Promise<TicketModeratorPrefixDto[]> {
+		const guildId = this.guild.guildId;
+
+		const rows = await this.prisma.ticketModeratorPrefix.findMany({
+			where: { guildId },
+			orderBy: { prefix: "asc" },
+			include: { user: true },
+		});
+
+		const charges = await this.prisma.ticket.groupBy({
+			by: ["claimedByDiscordId"],
+			where: {
+				guildId,
+				status: { not: "CLOSED" },
+				claimedByDiscordId: { not: null },
+			},
+			_count: { _all: true },
+		});
+
+		const parModerateur = new Map(
+			charges.map((ligne) => [ligne.claimedByDiscordId, ligne._count._all]),
+		);
+
+		return rows.map((row) => ({
+			userId: row.userId,
+			username: row.user.username,
+			displayName: row.user.globalName,
+			avatarUrl: row.user.avatarUrl,
+			prefix: row.prefix,
+			updatedAt: row.updatedAt.toISOString(),
+			openTickets: parModerateur.get(row.userId) ?? 0,
+		}));
+	}
+
+	/**
+	 * Modifie le prefixe d'un moderateur depuis le dashboard.
+	 *
+	 * Normalise comme cote Discord : le nom de salon est de toute facon mis en
+	 * minuscules par Discord, et un prefixe saisi ici doit produire exactement
+	 * le meme resultat que le meme prefixe saisi par `/prefix_ticket`.
+	 *
+	 * Ne cree pas de ligne pour un compte inconnu : le prefixe suit un
+	 * moderateur que le referentiel a deja croise.
+	 */
+	async upsertPrefix(
+		userId: string,
+		dto: UpsertTicketPrefixDto,
+		actor: AuthenticatedUser,
+	): Promise<TicketModeratorPrefixDto> {
+		const guildId = this.guild.guildId;
+		const prefix = slugifyChannelPart(dto.prefix).slice(0, MAX_TICKET_PREFIX_LENGTH);
+
+		if (!prefix) {
+			throw new ConflictException(
+				"Ce préfixe ne contient aucun caractère utilisable dans un nom de salon.",
+			);
+		}
+
+		const user = await this.prisma.discordUser.findUnique({ where: { id: userId } });
+		if (!user) throw new NotFoundException("Compte Discord inconnu.");
+
+		await this.prisma.ticketModeratorPrefix.upsert({
+			where: { guildId_userId: { guildId, userId } },
+			create: { guildId, userId, prefix },
+			update: { prefix },
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "ticket.prefix.update",
+			entityType: "ticket_moderator_prefix",
+			entityId: userId,
+			after: { prefix },
+		});
+
+		const prefixes = await this.listPrefixes();
+		const ligne = prefixes.find((entree) => entree.userId === userId);
+		if (!ligne) throw new NotFoundException("Préfixe introuvable.");
+		return ligne;
+	}
+
+	async deletePrefix(userId: string, actor: AuthenticatedUser): Promise<void> {
+		const guildId = this.guild.guildId;
+
+		const existing = await this.prisma.ticketModeratorPrefix.findUnique({
+			where: { guildId_userId: { guildId, userId } },
+		});
+		if (!existing) throw new NotFoundException("Préfixe introuvable.");
+
+		await this.prisma.ticketModeratorPrefix.delete({
+			where: { guildId_userId: { guildId, userId } },
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "ticket.prefix.delete",
+			entityType: "ticket_moderator_prefix",
+			entityId: userId,
+			before: { prefix: existing.prefix },
+		});
 	}
 
 	async search(query: TicketQueryDto): Promise<Paginated<TicketListItem>> {
@@ -177,7 +474,10 @@ export class TicketsService {
 			...this.toListItem(row),
 			guildId: row.guildId,
 			channelId: row.channelId,
-			claimedBy: row.claimedBy ? toActorRef(null, row.claimedBy) : null,
+			claimedBy:
+				row.claimedByDiscord || row.claimedBy
+					? toActorRef(row.claimedByDiscord, row.claimedBy)
+					: null,
 			closedBy: row.closedBy ? toActorRef(null, row.closedBy) : null,
 			closeReason: row.closeReason,
 			events,

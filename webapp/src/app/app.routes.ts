@@ -93,6 +93,17 @@ export const routes: Routes = [
 					import('./features/tickets/ticket-list/ticket-list').then((m) => m.TicketListPage),
 				title: 'Tickets — Anubis',
 			},
+			// Declaree avant `tickets/:id`, qui prendrait sinon « configuration »
+			// pour un identifiant de ticket.
+			{
+				path: 'tickets/configuration',
+				canActivate: [permissionGuard(Permission.TICKETS_READ)],
+				loadComponent: () =>
+					import('./features/tickets/ticket-config/ticket-config').then(
+						(m) => m.TicketConfigPage,
+					),
+				title: 'Configuration des tickets — Anubis',
+			},
 			{
 				path: 'tickets/:id',
 				canActivate: [permissionGuard(Permission.TICKETS_READ)],

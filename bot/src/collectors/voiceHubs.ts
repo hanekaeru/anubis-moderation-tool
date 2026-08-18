@@ -102,12 +102,25 @@ export async function accueillirDansHub(
 	const index = await prochainIndex(hub.id);
 	const name = formaterNom(hub, index);
 
+	// Le salon nait dans la categorie d'accueil du hub — « En attente » quand
+	// le rang decidera de sa place, la categorie du hub quand elle est fixe.
+	// Une categorie pleine ou impossible a creer ne doit pas empecher le salon
+	// d'exister : le membre attend deja dans le salon de creation.
+	const accueil = await categorieDAccueil(state.guild, hub);
+	const accueilUtilisable =
+		accueil && accueil.children.cache.size < MAX_CHANNELS_PER_CATEGORY;
+
+	if (accueil && !accueilUtilisable) {
+		console.error(
+			`[Vocaux] Catégorie « ${accueil.name} » pleine : salon créé à côté du salon de création.`,
+		);
+	}
+
 	const salon = await state.guild.channels.create({
 		name,
 		type: ChannelType.GuildVoice,
-		parent: salonHub.parentId,
+		parent: accueilUtilisable ? accueil.id : salonHub.parentId,
 		userLimit: hub.userLimit,
-		position: salonHub.position + 1,
 		permissionOverwrites: accesDeBase(state.guild, membre.id),
 	});
 
@@ -217,6 +230,112 @@ export async function oublierSalon(channelId: string): Promise<void> {
 }
 
 /**
+ * Retrouve une categorie, ou la cree.
+ *
+ * Trois chemins dans cet ordre, et l'ordre compte : l'identifiant deja retenu,
+ * puis le nom, puis la creation. Chercher par nom avant de creer est ce qui
+ * evite de doubler une categorie que le staff a faite a la main entre-temps —
+ * et ce qui fait que deux salons de creation partageant le meme nom d'accueil
+ * partagent aussi la categorie.
+ *
+ * Renvoie `null` si Discord refuse la creation : l'appelant doit alors laisser
+ * le salon ou il est plutot que de le deposer a la racine du serveur.
+ */
+async function garantirCategorieNommee(
+	guild: Guild,
+	categoryId: string | null,
+	nom: string,
+): Promise<CategoryChannel | null> {
+	if (categoryId) {
+		const connue = await guild.channels.fetch(categoryId).catch(() => null);
+		if (connue?.type === ChannelType.GuildCategory) return connue;
+	}
+
+	const homonyme = guild.channels.cache.find(
+		(salon) =>
+			salon.type === ChannelType.GuildCategory &&
+			salon.name.toLowerCase() === nom.toLowerCase(),
+	);
+	if (homonyme?.type === ChannelType.GuildCategory) return homonyme;
+
+	try {
+		return await guild.channels.create({
+			name: nom,
+			type: ChannelType.GuildCategory,
+		});
+	} catch (err) {
+		console.error(`[Vocaux] Création de la catégorie « ${nom} » échouée :`, err);
+		return null;
+	}
+}
+
+/**
+ * Categorie ou atterrissent les salons d'un salon de creation.
+ *
+ * L'identifiant trouve est reecrit en base : la recherche par nom et la
+ * creation ne se rejouent donc qu'une fois, pas a chaque arrivee en vocal.
+ */
+async function categorieDAccueil(
+	guild: Guild,
+	hub: VoiceHub,
+): Promise<CategoryChannel | null> {
+	const categorie = await garantirCategorieNommee(
+		guild,
+		hub.landingCategoryId,
+		hub.landingCategoryName,
+	);
+
+	if (categorie && categorie.id !== hub.landingCategoryId) {
+		await prisma.voiceHub.update({
+			where: { id: hub.id },
+			data: { landingCategoryId: categorie.id },
+		});
+	}
+
+	return categorie;
+}
+
+/** Categorie d'un rang, creee d'apres son libelle si elle n'existe pas. */
+async function categorieDuRang(
+	guild: Guild,
+	rank: VoiceHubRank,
+): Promise<CategoryChannel | null> {
+	const categorie = await garantirCategorieNommee(
+		guild,
+		rank.categoryId,
+		rank.label,
+	);
+
+	if (categorie && categorie.id !== rank.categoryId) {
+		await prisma.voiceHubRank.update({
+			where: { id: rank.id },
+			data: { categoryId: categorie.id },
+		});
+	}
+
+	return categorie;
+}
+
+/**
+ * Categorie attendue pour un salon : celle de son rang, ou celle d'accueil.
+ *
+ * Un salon de creation en `FIXED_CATEGORY` ne regarde jamais le rang — c'est
+ * ce qui distingue « Partie Rapide », dont les salons restent groupes, de
+ * « Partie Classée », dont les salons se rangent par niveau.
+ */
+async function categorieAttendue(
+	guild: Guild,
+	hub: VoiceHub,
+	rank: VoiceHubRank | null,
+): Promise<CategoryChannel | null> {
+	if (hub.placementMode === "RANK_CATEGORY" && rank) {
+		return categorieDuRang(guild, rank);
+	}
+
+	return categorieDAccueil(guild, hub);
+}
+
+/**
  * Rangs et plateformes proposes par un salon de creation.
  *
  * Relus a chaque ouverture de la modale, sans cache : les options se comptent
@@ -227,7 +346,8 @@ export async function chargerOptions(hubId: string): Promise<{
 	ranks: VoiceHubRank[];
 	platforms: VoiceHubPlatform[];
 }> {
-	const [ranks, platforms] = await Promise.all([
+	const [hub, ranks, platforms] = await Promise.all([
+		prisma.voiceHub.findUnique({ where: { id: hubId } }),
 		prisma.voiceHubRank.findMany({
 			where: { hubId },
 			orderBy: { position: "asc" },
@@ -238,7 +358,12 @@ export async function chargerOptions(hubId: string): Promise<{
 		}),
 	]);
 
-	return { ranks, platforms };
+	// Un salon de creation a categorie fixe ne propose pas de rang, meme si le
+	// dashboard en garde de configures : le choix serait sans effet, et une
+	// liste inerte dans la modale se lirait comme un bug.
+	const proposables = hub?.placementMode === "RANK_CATEGORY" ? ranks : [];
+
+	return { ranks: proposables, platforms };
 }
 
 /**
@@ -275,16 +400,6 @@ function composerSujet(
 	return renderVoiceStatus(hub.statusPattern, { rank, platform, topic });
 }
 
-/** Categorie d'accueil quand le salon n'a aucun rang : celle de son hub. */
-async function categorieDuHub(
-	guild: Guild,
-	hub: VoiceHub,
-): Promise<string | null> {
-	if (!hub.channelId) return null;
-	const salonHub = await guild.channels.fetch(hub.channelId).catch(() => null);
-	return salonHub?.parentId ?? null;
-}
-
 /**
  * Deplace un salon vers la categorie d'un rang, ou explique pourquoi il ne
  * peut pas l'etre.
@@ -296,26 +411,20 @@ async function categorieDuHub(
  */
 async function deplacerVers(
 	salon: VoiceBasedChannel,
-	categoryId: string | null,
+	categorie: CategoryChannel | null,
 ): Promise<string | null> {
-	if (salon.parentId === categoryId) return null;
+	if (!categorie) {
+		return "La catégorie de destination n'a pas pu être créée. Préviens le staff.";
+	}
 
-	if (categoryId) {
-		const categorie = await salon.guild.channels
-			.fetch(categoryId)
-			.catch(() => null);
+	if (salon.parentId === categorie.id) return null;
 
-		if (categorie?.type !== ChannelType.GuildCategory) {
-			return "La catégorie configurée pour ce rang est introuvable. Préviens le staff.";
-		}
-
-		if ((categorie as CategoryChannel).children.cache.size >= MAX_CHANNELS_PER_CATEGORY) {
-			return `La catégorie « ${categorie.name} » est pleine (${MAX_CHANNELS_PER_CATEGORY} salons). Choisis un autre rang ou attends qu'une place se libère.`;
-		}
+	if (categorie.children.cache.size >= MAX_CHANNELS_PER_CATEGORY) {
+		return `La catégorie « ${categorie.name} » est pleine (${MAX_CHANNELS_PER_CATEGORY} salons). Choisis un autre rang ou attends qu'une place se libère.`;
 	}
 
 	try {
-		await salon.setParent(categoryId, {
+		await salon.setParent(categorie.id, {
 			lockPermissions: false,
 			reason: "Rang du salon temporaire modifié.",
 		});
@@ -400,13 +509,17 @@ export async function appliquerPersonnalisation(
 			: null,
 	]);
 
-	const rangDemande = choix.rankId !== temporaire.rankId;
+	const rangDemande =
+		hub.placementMode === "RANK_CATEGORY" && choix.rankId !== temporaire.rankId;
 	let avertissement: string | null = null;
-	let rangApplique: VoiceHubRank | null = rank;
+	let rangApplique: VoiceHubRank | null =
+		hub.placementMode === "RANK_CATEGORY" ? rank : null;
 
 	if (rangDemande) {
-		const cible = rank ? rank.categoryId : await categorieDuHub(salon.guild, hub);
-		avertissement = await deplacerVers(salon, cible);
+		avertissement = await deplacerVers(
+			salon,
+			await categorieAttendue(salon.guild, hub, rank),
+		);
 
 		// Le deplacement a echoue : on garde le rang precedent plutot que
 		// d'enregistrer un rangement qui n'a pas eu lieu.
@@ -486,12 +599,18 @@ export async function reconcilierSalons(guild: Guild): Promise<void> {
 		if (!salon.isVoiceBased()) continue;
 
 		// La categorie d'un rang a pu changer depuis le dashboard pendant
-		// l'arret, ou le rang disparaitre : le salon se remet a sa place.
-		const attendue = temporaire.rank
-			? temporaire.rank.categoryId
-			: await categorieDuHub(guild, temporaire.hub);
+		// l'arret, ou le rang disparaitre : le salon se remet a sa place. La
+		// categorie manquante est recreee au passage — c'est aussi ce qui
+		// rattrape une catégorie supprimee a la main pendant l'arret.
+		const attendue = await categorieAttendue(
+			guild,
+			temporaire.hub,
+			temporaire.rank,
+		);
 
-		if (salon.parentId !== attendue) await deplacerVers(salon, attendue);
+		if (attendue && salon.parentId !== attendue.id) {
+			await deplacerVers(salon, attendue);
+		}
 
 		// Discord efface le sujet quand un salon se vide : le reposer est la
 		// seule facon qu'un salon repris apres l'arret retrouve le sien.

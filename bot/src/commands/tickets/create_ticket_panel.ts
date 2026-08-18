@@ -1,22 +1,29 @@
 import {
 	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
 	ChannelType,
 	EmbedBuilder,
 	MessageFlags,
 	PermissionFlagsBits,
 	SlashCommandBuilder,
-	StringSelectMenuBuilder,
 } from "discord.js";
-import { TICKET_CATEGORY_LABELS, TicketCategory } from "@anubis/shared";
 import type { Command } from "../../types";
+import { TICKET_OPEN_BUTTON } from "../../handlers/ticketInteractions";
 import { ensureTranscriptChannel } from "../../utils/ticketChannel";
 import * as colors from "../../utils/constantes";
 
 /**
- * Poste le panneau d'ouverture de ticket (embed + select menu des raisons)
- * dans le salon choisi, et prepare le salon d'archive des transcripts s'il
- * n'existe pas encore. Le select menu est ecoute par
- * `src/handlers/ticketInteractions.ts` via son customId `ticket:open`.
+ * Poste le panneau d'ouverture de ticket (embed + bouton) dans le salon
+ * choisi, et prepare le salon d'archive des transcripts s'il n'existe pas
+ * encore. Le bouton est ecoute par `src/handlers/ticketInteractions.ts` via
+ * son customId `ticket:open`.
+ *
+ * Un **bouton** et non un select : le sujet et la gravite se choisissent dans
+ * une modale, et `showModal` est refuse apres l'accuse de reception qui serait
+ * necessaire pour remettre un select a sa place. Le panneau doit donc etre
+ * repose apres mise a jour du bot — les anciens panneaux, eux, ne repondent
+ * plus.
  */
 const command: Command = {
 	data: new SlashCommandBuilder()
@@ -57,31 +64,25 @@ const command: Command = {
 
 		await ensureTranscriptChannel(interaction.guild);
 
-		const select = new StringSelectMenuBuilder()
-			.setCustomId("ticket:open")
-			.setPlaceholder("Tu as besoin de parler à l'équipe de modération ?")
-			.addOptions(
-				Object.values(TicketCategory).map((category) => ({
-					label: TICKET_CATEGORY_LABELS[category],
-					value: category,
-				})),
-			);
+		const bouton = new ButtonBuilder()
+			.setCustomId(TICKET_OPEN_BUTTON)
+			.setLabel("Ouvrir un ticket")
+			.setEmoji("🎫")
+			.setStyle(ButtonStyle.Primary);
 
 		const embed = new EmbedBuilder()
 			.setColor(colors.info)
 			.setTitle("Support")
 			.setDescription(
 				`Bienvenue sur le support du serveur ! Si jamais tu as besoin d'ouvrir un ticket (que ce soit
-				pour un bug, un membre à signaler ou une simple remarque), tu peux le faire via le petit
-				formulaire en dessous. Choisis simplement une catégorie et un ticket sera ouvert directement
-				avec l'équipe de modération. Elle fera de son mieux pour t'aider et te guider !`,
+				pour un bug, un membre à signaler ou une simple remarque), tu peux le faire via le bouton
+				ci-dessous. Choisis un sujet et une gravité, et un ticket sera ouvert directement avec
+				l'équipe de modération. Elle fera de son mieux pour t'aider et te guider !`,
 			);
 
 		await channel.send({
 			embeds: [embed],
-			components: [
-				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
-			],
+			components: [new ActionRowBuilder<ButtonBuilder>().addComponents(bouton)],
 		});
 
 		await interaction.editReply({

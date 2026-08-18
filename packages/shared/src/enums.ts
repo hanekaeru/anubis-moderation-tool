@@ -172,6 +172,13 @@ export const XpAnnouncementMode = {
 export type XpAnnouncementMode =
 	(typeof XpAnnouncementMode)[keyof typeof XpAnnouncementMode];
 
+export const VoicePlacementMode = {
+	FIXED_CATEGORY: "FIXED_CATEGORY",
+	RANK_CATEGORY: "RANK_CATEGORY",
+} as const;
+export type VoicePlacementMode =
+	(typeof VoicePlacementMode)[keyof typeof VoicePlacementMode];
+
 /** Libelles francais, pour ne pas les repeter dans chaque composant. */
 export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
 	TIMEOUT: "Exclusion temporaire",
@@ -295,6 +302,21 @@ export const XP_ANNOUNCEMENT_MODE_DESCRIPTIONS: Record<
 		"Personne d'autre que l'intéressé ne voit l'annonce. Un membre qui a fermé ses messages privés ne reçoit rien.",
 	DISABLED:
 		"Aucun message n'est envoyé. Les rôles de palier continuent d'être attribués.",
+};
+
+export const VOICE_PLACEMENT_MODE_LABELS: Record<VoicePlacementMode, string> = {
+	FIXED_CATEGORY: "Catégorie fixe",
+	RANK_CATEGORY: "Catégorie du rang choisi",
+};
+
+export const VOICE_PLACEMENT_MODE_DESCRIPTIONS: Record<
+	VoicePlacementMode,
+	string
+> = {
+	FIXED_CATEGORY:
+		"Les salons créés restent dans leur catégorie d'accueil. Leur propriétaire ne règle que le sujet et le nombre de places.",
+	RANK_CATEGORY:
+		"Les salons créés attendent dans la catégorie d'accueil, puis rejoignent celle du rang que leur propriétaire choisit.",
 };
 
 export const WIKI_CATEGORY_LABELS: Record<WikiCategory, string> = {
