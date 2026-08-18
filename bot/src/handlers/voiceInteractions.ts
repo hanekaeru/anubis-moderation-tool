@@ -1,27 +1,38 @@
 import {
 	ActionRowBuilder,
+	LabelBuilder,
 	MessageFlags,
 	ModalBuilder,
 	StringSelectMenuBuilder,
+	StringSelectMenuOptionBuilder,
 	TextInputBuilder,
 	TextInputStyle,
+	parseEmoji,
 	type ButtonInteraction,
+	type ComponentEmojiResolvable,
 	type ModalSubmitInteraction,
 	type StringSelectMenuInteraction,
 	type VoiceBasedChannel,
 } from "discord.js";
-import type { TemporaryVoiceChannel } from "@anubis/shared/prisma";
+import { MAX_VOICE_TOPIC_LENGTH } from "@anubis/shared";
+import type {
+	TemporaryVoiceChannel,
+	VoiceHubPlatform,
+	VoiceHubRank,
+} from "@anubis/shared/prisma";
 import prisma from "../prisma";
 import * as voice from "../collectors/voice";
 import * as voiceHubs from "../collectors/voiceHubs";
 import * as voiceLog from "../collectors/voiceLog";
 import {
+	VOICE_CUSTOMIZE_MODAL,
 	VOICE_KICK_SELECT,
 	VOICE_LIMIT_INPUT,
-	VOICE_RENAME_INPUT,
-	VOICE_RENAME_MODAL,
+	VOICE_PLATFORM_SELECT,
+	VOICE_RANK_SELECT,
 	VOICE_REPORT_INPUT,
 	VOICE_REPORT_MODAL,
+	VOICE_TOPIC_INPUT,
 	VoicePanelAction,
 	panelEmbed,
 	panelRow,
@@ -103,11 +114,13 @@ async function contexteProprietaire(
 
 async function rafraichirPanneau(
 	interaction: ButtonInteraction,
-	ownerId: string,
-	locked: boolean,
+	etat: { ownerId: string; locked: boolean; sujet: string },
 ): Promise<void> {
 	await interaction.message
-		.edit({ embeds: [panelEmbed(ownerId, locked)], components: [panelRow(locked)] })
+		.edit({
+			embeds: [panelEmbed(etat)],
+			components: [panelRow(etat.locked)],
+		})
 		.catch(() => undefined);
 }
 
@@ -119,7 +132,7 @@ export async function handleVoicePanelButton(
 	// Une modale doit s'ouvrir sur une interaction encore vierge : Discord
 	// refuse `showModal` apres un accuse de reception.
 	if (
-		interaction.customId === VoicePanelAction.RENAME ||
+		interaction.customId === VoicePanelAction.CUSTOMIZE ||
 		interaction.customId === VoicePanelAction.REPORT
 	) {
 		await ouvrirModale(interaction);
@@ -136,7 +149,11 @@ export async function handleVoicePanelButton(
 	if (interaction.customId === VoicePanelAction.LOCK) {
 		const verrouille = !temporaire.locked;
 		await voiceHubs.definirVerrou(salon, verrouille);
-		await rafraichirPanneau(interaction, temporaire.ownerId, verrouille);
+		await rafraichirPanneau(interaction, {
+			ownerId: temporaire.ownerId,
+			locked: verrouille,
+			sujet: await voiceHubs.sujetDuSalon(temporaire),
+		});
 		await voiceLog.verrouChange(
 			interaction.guild,
 			salon,
@@ -191,6 +208,123 @@ export async function handleVoicePanelButton(
 	}
 }
 
+/**
+ * Emoji d'une option de rang ou de plateforme.
+ *
+ * Le dashboard laisse saisir aussi bien un emoji unicode qu'un emoji
+ * personnalise sous la forme `<:nom:id>`. Discord n'accepte cette seconde
+ * forme telle quelle que dans du texte : dans un composant, il lui faut
+ * l'identifiant. `parseEmoji` fait la difference, et un champ vide reste vide.
+ */
+function emojiDOption(emoji: string | null): ComponentEmojiResolvable | undefined {
+	if (!emoji) return undefined;
+
+	const analyse = parseEmoji(emoji);
+	if (!analyse?.name) return undefined;
+
+	return analyse.id
+		? { id: analyse.id, name: analyse.name, animated: analyse.animated }
+		: { name: analyse.name };
+}
+
+function optionsDeChoix(
+	entrees: { id: string; label: string; emoji: string | null }[],
+	choisi: string | null,
+): StringSelectMenuOptionBuilder[] {
+	return entrees.map((entree) => {
+		const option = new StringSelectMenuOptionBuilder()
+			.setLabel(entree.label.slice(0, 100))
+			.setValue(entree.id)
+			.setDefault(entree.id === choisi);
+
+		const emoji = emojiDOption(entree.emoji);
+		if (emoji) option.setEmoji(emoji);
+
+		return option;
+	});
+}
+
+/**
+ * Modale de personnalisation du salon.
+ *
+ * Le nom n'y figure pas : il vient du gabarit du salon de creation et n'a
+ * jamais a bouger. Le rang, la plateforme et le texte libre composent le
+ * *sujet* du salon, que Discord affiche sous son nom sans plafonner les
+ * changements — la ou un renommage est limite a deux par dix minutes.
+ *
+ * Les deux selects sont facultatifs (`setRequired(false)`, `minValues` a 0) :
+ * les vider est le seul moyen de retirer un rang deja pose, et un salon sans
+ * rang retourne dans la categorie de son salon de creation.
+ */
+function modaleDePersonnalisation(
+	salon: VoiceBasedChannel,
+	temporaire: TemporaryVoiceChannel,
+	options: { ranks: VoiceHubRank[]; platforms: VoiceHubPlatform[] },
+): ModalBuilder {
+	const modale = new ModalBuilder()
+		.setCustomId(VOICE_CUSTOMIZE_MODAL)
+		.setTitle("Personnaliser le salon");
+
+	if (options.ranks.length) {
+		modale.addLabelComponents(
+			new LabelBuilder()
+				.setLabel("Rang")
+				.setDescription("Range le salon dans la catégorie correspondante.")
+				.setStringSelectMenuComponent(
+					new StringSelectMenuBuilder()
+						.setCustomId(VOICE_RANK_SELECT)
+						.setPlaceholder("Aucun rang")
+						.setMinValues(0)
+						.setMaxValues(1)
+						.setRequired(false)
+						.addOptions(optionsDeChoix(options.ranks, temporaire.rankId)),
+				),
+		);
+	}
+
+	if (options.platforms.length) {
+		modale.addLabelComponents(
+			new LabelBuilder()
+				.setLabel("Plateforme")
+				.setStringSelectMenuComponent(
+					new StringSelectMenuBuilder()
+						.setCustomId(VOICE_PLATFORM_SELECT)
+						.setPlaceholder("Aucune plateforme")
+						.setMinValues(0)
+						.setMaxValues(1)
+						.setRequired(false)
+						.addOptions(
+							optionsDeChoix(options.platforms, temporaire.platformId),
+						),
+				),
+		);
+	}
+
+	modale.addLabelComponents(
+		new LabelBuilder().setLabel("Places (0 = illimité)").setTextInputComponent(
+			new TextInputBuilder()
+				.setCustomId(VOICE_LIMIT_INPUT)
+				.setStyle(TextInputStyle.Short)
+				.setMaxLength(2)
+				.setRequired(false)
+				.setValue(String(salon.userLimit)),
+		),
+		new LabelBuilder()
+			.setLabel("Sujet")
+			.setDescription("Places et rôles recherchés, mode de jeu…")
+			.setTextInputComponent(
+				new TextInputBuilder()
+					.setCustomId(VOICE_TOPIC_INPUT)
+					.setStyle(TextInputStyle.Paragraph)
+					.setMaxLength(MAX_VOICE_TOPIC_LENGTH)
+					.setRequired(false)
+					.setValue(temporaire.topic ?? ""),
+			),
+	);
+
+	return modale;
+}
+
 async function ouvrirModale(interaction: ButtonInteraction): Promise<void> {
 	// Le signalement est ouvert a tous les occupants : reserve au
 	// proprietaire, il ne servirait a rien dans le cas ou c'est justement lui
@@ -201,33 +335,14 @@ async function ouvrirModale(interaction: ButtonInteraction): Promise<void> {
 			: await contexteProprietaire(interaction);
 	if (!contexte) return;
 
-	if (interaction.customId === VoicePanelAction.RENAME) {
-		// Discord n'expose pas de description sur un salon vocal : le nom et la
-		// limite de places sont les deux seuls reglages a offrir ici.
-		const nom = new TextInputBuilder()
-			.setCustomId(VOICE_RENAME_INPUT)
-			.setLabel("Nom du salon")
-			.setStyle(TextInputStyle.Short)
-			.setMaxLength(100)
-			.setRequired(true)
-			.setValue(contexte.salon.name);
-
-		const limite = new TextInputBuilder()
-			.setCustomId(VOICE_LIMIT_INPUT)
-			.setLabel("Places (0 = illimité)")
-			.setStyle(TextInputStyle.Short)
-			.setMaxLength(2)
-			.setRequired(false)
-			.setValue(String(contexte.salon.userLimit));
+	if (interaction.customId === VoicePanelAction.CUSTOMIZE) {
+		// `showModal` est refuse apres un accuse de reception : la lecture des
+		// rangs doit tenir dans les trois secondes de l'interaction. Deux
+		// requetes indexees sur `hub_id`, comme pour `/preuve`.
+		const options = await voiceHubs.chargerOptions(contexte.temporaire.hubId);
 
 		await interaction.showModal(
-			new ModalBuilder()
-				.setCustomId(VOICE_RENAME_MODAL)
-				.setTitle("Modifier le salon")
-				.addComponents(
-					new ActionRowBuilder<TextInputBuilder>().addComponents(nom),
-					new ActionRowBuilder<TextInputBuilder>().addComponents(limite),
-				),
+			modaleDePersonnalisation(contexte.salon, contexte.temporaire, options),
 		);
 		return;
 	}
@@ -248,7 +363,6 @@ async function ouvrirModale(interaction: ButtonInteraction): Promise<void> {
 			),
 	);
 }
-
 export async function handleVoiceKickSelect(
 	interaction: StringSelectMenuInteraction,
 ): Promise<void> {
@@ -308,14 +422,20 @@ export async function handleVoiceModal(
 	const contexte = await contexteProprietaire(interaction);
 	if (!contexte) return;
 
-	const { salon } = contexte;
-	const ancienNom = salon.name;
-	const nouveau = interaction.fields.getTextInputValue(VOICE_RENAME_INPUT).trim();
+	const { salon, temporaire } = contexte;
 
-	if (!nouveau) {
-		await interaction.editReply({ content: "Le nom ne peut pas être vide." });
-		return;
-	}
+	// Les deux selects ne sont dans la modale que si le salon de creation
+	// propose des rangs : lire un champ absent leverait une erreur, la aussi
+	// c'est la configuration du hub qui dit lesquels ont ete envoyes.
+	const options = await voiceHubs.chargerOptions(temporaire.hubId);
+
+	const rankId = options.ranks.length
+		? (interaction.fields.getStringSelectValues(VOICE_RANK_SELECT)[0] ?? null)
+		: temporaire.rankId;
+
+	const platformId = options.platforms.length
+		? (interaction.fields.getStringSelectValues(VOICE_PLATFORM_SELECT)[0] ?? null)
+		: temporaire.platformId;
 
 	const limiteBrute = interaction.fields
 		.getTextInputValue(VOICE_LIMIT_INPUT)
@@ -329,22 +449,69 @@ export async function handleVoiceModal(
 		return;
 	}
 
-	await salon.setName(nouveau.slice(0, 100), "Modifié par le propriétaire.");
-	if (limiteBrute) {
-		await salon.setUserLimit(limite, "Modifié par le propriétaire.");
-	}
+	const sujetLibre = interaction.fields
+		.getTextInputValue(VOICE_TOPIC_INPUT)
+		.trim();
 
-	await prisma.temporaryVoiceChannel.updateMany({
-		where: { channelId: salon.id, closedAt: null },
-		data: { name: salon.name },
+	const resultat = await voiceHubs.appliquerPersonnalisation(salon, temporaire, {
+		rankId,
+		platformId,
+		topic: sujetLibre || null,
+		userLimit: limiteBrute ? limite : null,
 	});
 
-	await voiceLog.salonRenomme(interaction.guild, salon, interaction.user.id, ancienNom);
+	await voiceLog.salonPersonnalise(
+		interaction.guild,
+		salon,
+		interaction.user.id,
+		resultat,
+	);
 
-	// Discord plafonne un salon a deux renommages par tranche de dix minutes :
-	// au-dela, la requete reste en attente cote API au lieu d'echouer, ce que
-	// le membre lirait comme un bug s'il n'etait pas prevenu.
+	await rafraichirPanneauDepuisModale(interaction, {
+		ownerId: temporaire.ownerId,
+		locked: temporaire.locked,
+		sujet: resultat.sujet,
+	});
+
+	// L'avertissement prime sur la confirmation : un rang refuse parce que sa
+	// categorie est pleine laisse le reste des choix appliques, et le taire
+	// ferait croire a un rangement qui n'a pas eu lieu.
 	await interaction.editReply({
-		content: `Salon mis à jour. Discord n'accepte que deux renommages par tranche de dix minutes.`,
+		content: resultat.avertissement
+			? `Salon mis à jour, sauf le rang. ${resultat.avertissement}`
+			: "Salon mis à jour.",
 	});
+}
+
+/**
+ * Remet le panneau en phase apres une modale.
+ *
+ * Une soumission de modale n'a pas de `message` : le panneau se retrouve par
+ * le salon, ce qui suppose de le relire. Un panneau introuvable — efface a la
+ * main — n'est pas une erreur : la personnalisation, elle, a bien eu lieu.
+ */
+async function rafraichirPanneauDepuisModale(
+	interaction: ModalSubmitInteraction,
+	etat: { ownerId: string; locked: boolean; sujet: string },
+): Promise<void> {
+	const salon = interaction.channel;
+	if (!salon?.isVoiceBased()) return;
+
+	// Le panneau est poste juste apres la creation du salon : le chercher
+	// depuis le debut plutot que dans les derniers messages est ce qui le
+	// retrouve encore dans un salon ou l'on a beaucoup parle.
+	const messages = await salon.messages
+		.fetch({ after: salon.id, limit: 5 })
+		.catch(() => null);
+	if (!messages) return;
+
+	const panneau = messages.find(
+		(message) =>
+			message.author.id === interaction.client.user.id &&
+			message.components.length > 0,
+	);
+
+	await panneau
+		?.edit({ embeds: [panelEmbed(etat)], components: [panelRow(etat.locked)] })
+		.catch(() => undefined);
 }

@@ -224,33 +224,33 @@ model DiscordUser {
   firstSeenAt      DateTime  @default(now()) @map("first_seen_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  memberships         Member[]
-  identityEvents      IdentityEvent[]
-  warningsReceived    Warning[]               @relation("WarningTarget")
-  warningsIssued      Warning[]               @relation("WarningModerator")
-  sanctionsReceived   Sanction[]              @relation("SanctionTarget")
-  sanctionsIssued     Sanction[]              @relation("SanctionModerator")
-  sanctionsRevoked    Sanction[]              @relation("SanctionDiscordRevoker")
-  notes               MemberNote[]
-  ticketsOpened       Ticket[]                @relation("TicketOpener")
-  ticketsAssigned     Ticket[]                @relation("TicketAssignee")
-  ticketEvents        TicketEvent[]
-  messageStats        MessageStat[]
-  activityProfiles    MemberActivityProfile[]
-  voiceSessions       VoiceSession[]
-  memberRoles         MemberRole[]
-  roleEvents          MemberRoleEvent[]       @relation("RoleEventTarget")
-  moderationActivity  ModerationActivity[]    @relation("ActivityModerator")
-  activityTargets     ModerationActivity[]    @relation("ActivityTarget")
-  automodIncidents    AutomodIncident[]
-  accountFlags        AccountFlag[]
-  quarantineStatuses  QuarantineStatus[]
+  memberships          Member[]
+  identityEvents       IdentityEvent[]
+  warningsReceived     Warning[]               @relation("WarningTarget")
+  warningsIssued       Warning[]               @relation("WarningModerator")
+  sanctionsReceived    Sanction[]              @relation("SanctionTarget")
+  sanctionsIssued      Sanction[]              @relation("SanctionModerator")
+  sanctionsRevoked     Sanction[]              @relation("SanctionDiscordRevoker")
+  notes                MemberNote[]
+  ticketsOpened        Ticket[]                @relation("TicketOpener")
+  ticketsAssigned      Ticket[]                @relation("TicketAssignee")
+  ticketEvents         TicketEvent[]
+  messageStats         MessageStat[]
+  activityProfiles     MemberActivityProfile[]
+  voiceSessions        VoiceSession[]
+  memberRoles          MemberRole[]
+  roleEvents           MemberRoleEvent[]       @relation("RoleEventTarget")
+  moderationActivity   ModerationActivity[]    @relation("ActivityModerator")
+  activityTargets      ModerationActivity[]    @relation("ActivityTarget")
+  automodIncidents     AutomodIncident[]
+  accountFlags         AccountFlag[]
+  quarantineStatuses   QuarantineStatus[]
   shadowbanRoleBackups ShadowbanRoleBackup[]
-  ownedVoiceChannels  TemporaryVoiceChannel[]
-  appUser             AppUser?
-  attachmentsUploaded ModerationAttachment[]  @relation("AttachmentDiscordUploader")
-  giveawayEntries     GiveawayEntry[]
-  staffReminders      StaffReminder[]
+  ownedVoiceChannels   TemporaryVoiceChannel[]
+  appUser              AppUser?
+  attachmentsUploaded  ModerationAttachment[]  @relation("AttachmentDiscordUploader")
+  giveawayEntries      GiveawayEntry[]
+  staffReminders       StaffReminder[]
 
   @@index([username])
   @@map("discord_users")
@@ -814,21 +814,21 @@ model ShadowbanRoleBackup {
 
 /// Reglage de quarantaine a l'arrivee, une ligne par serveur.
 model QuarantineConfig {
-  guildId     String   @id @map("guild_id") @db.VarChar(20)
-  enabled     Boolean  @default(false)
+  guildId              String   @id @map("guild_id") @db.VarChar(20)
+  enabled              Boolean  @default(false)
   /// Role attribue a l'arrivee, retire a l'acceptation du reglement.
-  roleId      String?  @map("role_id") @db.VarChar(20)
+  roleId               String?  @map("role_id") @db.VarChar(20)
   /// Salon ou le message de reglement (embed + bouton) est publie.
-  channelId   String?  @map("channel_id") @db.VarChar(20)
-  message     String?  @db.Text
-  buttonLabel String   @default("J'accepte le reglement") @map("button_label")
+  channelId            String?  @map("channel_id") @db.VarChar(20)
+  message              String?  @db.Text
+  buttonLabel          String   @default("J'accepte le reglement") @map("button_label")
   /// Roles donnes au membre a la levee de la quarantaine (acceptation du
   /// reglement ou deblocage depuis la webapp) — typiquement le role qui ouvre
   /// reellement le serveur.
   releaseAddRoleIds    String[] @default([]) @map("release_add_role_ids")
   /// Roles retires au membre a la levee de la quarantaine.
   releaseRemoveRoleIds String[] @default([]) @map("release_remove_role_ids")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
@@ -959,26 +959,74 @@ model RolePermissionOverride {
 /// `/create_parties` cree les salons Discord correspondants, `/delete_parties`
 /// les retire (le reglage, lui, survit a la suppression du salon Discord).
 model VoiceHub {
-  id          String   @id @default(uuid()) @db.Uuid
-  guildId     String   @map("guild_id") @db.VarChar(20)
+  id            String   @id @default(uuid()) @db.Uuid
+  guildId       String   @map("guild_id") @db.VarChar(20)
   /// `null` tant que `/create_parties` n'a pas cree le salon Discord.
-  channelId   String?  @unique @map("channel_id") @db.VarChar(20)
-  name        String
+  channelId     String?  @unique @map("channel_id") @db.VarChar(20)
+  name          String
   /// Gabarit du nom des salons crees : `{name}` et `{index}` y sont
   /// remplaces. Un salon nomme autrement reste retrouvable par `hubId`.
-  namePattern String   @default("{name} #{index}") @map("name_pattern")
+  namePattern   String   @default("{name} #{index}") @map("name_pattern")
   /// Limite d'occupants des salons crees. 0 = illimite, comme Discord.
-  userLimit   Int      @default(0) @map("user_limit")
-  position    Int      @default(0)
-  enabled     Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  userLimit     Int      @default(0) @map("user_limit")
+  /// Gabarit du sujet (« voice status ») des salons crees : `{rang}`,
+  /// `{plateforme}` et `{sujet}` y sont remplaces. Le rang et la plateforme
+  /// vivent la et non dans le nom, que Discord ne laisse changer que deux
+  /// fois par dix minutes.
+  statusPattern String   @default("{rang} {plateforme} · {sujet}") @map("status_pattern")
+  position      Int      @default(0)
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   guild             Guild                   @relation(fields: [guildId], references: [id], onDelete: Cascade)
   temporaryChannels TemporaryVoiceChannel[]
+  ranks             VoiceHubRank[]
+  platforms         VoiceHubPlatform[]
 
   @@index([guildId])
   @@map("voice_hubs")
+}
+
+/// Rang propose dans les options de personnalisation d'un salon temporaire.
+///
+/// C'est le seul reglage qui **range** le salon : le choisir le deplace dans
+/// `categoryId`. La plateforme, elle, ne se lit que dans le sujet.
+model VoiceHubRank {
+  id         String   @id @default(uuid()) @db.Uuid
+  hubId      String   @map("hub_id") @db.Uuid
+  label      String
+  /// Unicode ou `<:nom:id>` : le sujet accepte les emojis personnalises.
+  emoji      String?
+  /// Categorie Discord ou sont deplaces les salons portant ce rang.
+  categoryId String   @map("category_id") @db.VarChar(20)
+  position   Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  hub               VoiceHub                @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  temporaryChannels TemporaryVoiceChannel[]
+
+  @@index([hubId])
+  @@map("voice_hub_ranks")
+}
+
+/// Plateforme proposee dans les options de personnalisation d'un salon
+/// temporaire. Purement descriptive : elle n'influence pas la categorie.
+model VoiceHubPlatform {
+  id        String   @id @default(uuid()) @db.Uuid
+  hubId     String   @map("hub_id") @db.Uuid
+  label     String
+  emoji     String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  hub               VoiceHub                @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  temporaryChannels TemporaryVoiceChannel[]
+
+  @@index([hubId])
+  @@map("voice_hub_platforms")
 }
 
 /// Salon vocal temporaire, vivant tant qu'il reste quelqu'un dedans.
@@ -987,25 +1035,36 @@ model VoiceHub {
 /// encore ouvertes (`leftAt = null`) du salon, deja tenues a jour par
 /// `collectors/voice.ts` et remises a plat au demarrage du bot.
 model TemporaryVoiceChannel {
-  id        String    @id @default(uuid()) @db.Uuid
-  hubId     String    @map("hub_id") @db.Uuid
-  guildId   String    @map("guild_id") @db.VarChar(20)
-  channelId String    @unique @map("channel_id") @db.VarChar(20)
-  name      String
+  id         String    @id @default(uuid()) @db.Uuid
+  hubId      String    @map("hub_id") @db.Uuid
+  guildId    String    @map("guild_id") @db.VarChar(20)
+  channelId  String    @unique @map("channel_id") @db.VarChar(20)
+  name       String
   /// Numero affiche dans le nom (`#1`, `#2`, ...), unique parmi les salons
   /// vivants du meme hub — un numero libere est reattribue.
-  index     Int
+  index      Int
   /// Proprietaire courant : transfere au plus ancien occupant restant quand
   /// il s'en va, jamais laisse vide tant que le salon est occupe.
-  ownerId   String    @map("owner_id") @db.VarChar(20)
-  locked    Boolean   @default(false)
-  createdAt DateTime  @default(now()) @map("created_at")
+  ownerId    String    @map("owner_id") @db.VarChar(20)
+  locked     Boolean   @default(false)
+  /// Rang choisi par le proprietaire, `null` tant qu'il n'a rien choisi — le
+  /// salon reste alors dans la categorie de son salon de creation.
+  rankId     String?   @map("rank_id") @db.Uuid
+  platformId String?   @map("platform_id") @db.Uuid
+  /// Texte libre du sujet, sans le rang ni la plateforme : le gabarit du hub
+  /// les compose a l'affichage.
+  topic      String?
+  createdAt  DateTime  @default(now()) @map("created_at")
   /// Pose a la suppression du salon Discord : la ligne reste pour l'audit.
-  closedAt  DateTime? @map("closed_at")
+  closedAt   DateTime? @map("closed_at")
 
-  hub   VoiceHub    @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  owner DiscordUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  hub      VoiceHub          @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  guild    Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  owner    DiscordUser       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// `SetNull` et non `Cascade` : retirer un rang du dashboard ne doit pas
+  /// effacer l'historique des salons qui l'ont porte.
+  rank     VoiceHubRank?     @relation(fields: [rankId], references: [id], onDelete: SetNull)
+  platform VoiceHubPlatform? @relation(fields: [platformId], references: [id], onDelete: SetNull)
 
   @@index([guildId, closedAt])
   @@map("temporary_voice_channels")

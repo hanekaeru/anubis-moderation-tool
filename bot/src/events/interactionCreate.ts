@@ -26,7 +26,7 @@ import type { BotEvent } from "../types";
 import {
 	VOICE_KICK_SELECT,
 	VOICE_PANEL_PREFIX,
-	VOICE_RENAME_MODAL,
+	VOICE_CUSTOMIZE_MODAL,
 	VOICE_REPORT_MODAL,
 } from "../utils/voicePanel";
 import { LEADERBOARD_BUTTON_PREFIX } from "../utils/xpEmbeds";
@@ -71,7 +71,7 @@ const ROUTES: readonly Route[] = [
 	route(
 		(i) =>
 			i.isModalSubmit() &&
-			(i.customId === VOICE_RENAME_MODAL || i.customId === VOICE_REPORT_MODAL),
+			(i.customId === VOICE_CUSTOMIZE_MODAL || i.customId === VOICE_REPORT_MODAL),
 		handleVoiceModal,
 		"[Vocaux] Formulaire du panneau échoué :",
 	),

@@ -24,6 +24,49 @@ export type VoiceSessionQuery = PaginationQuery;
 /** Gabarit par defaut du nom des salons crees par un salon de creation. */
 export const DEFAULT_VOICE_NAME_PATTERN = "{name} #{index}";
 
+/**
+ * Gabarit par defaut du sujet des salons crees.
+ *
+ * Le rang et la plateforme vivent dans le **sujet** et non dans le nom :
+ * Discord n'autorise que deux renommages par dix minutes et par salon, et un
+ * proprietaire qui corrige son rang puis sa plateforme atteindrait le plafond
+ * du premier coup.
+ */
+export const DEFAULT_VOICE_STATUS_PATTERN = "{rang} {plateforme} · {sujet}";
+
+/** Plafond Discord du sujet d'un salon vocal. */
+export const MAX_VOICE_STATUS_LENGTH = 500;
+
+/** Plafond de la partie libre du sujet, saisie par le proprietaire. */
+export const MAX_VOICE_TOPIC_LENGTH = 200;
+
+/** Nombre de rangs (ou de plateformes) proposables par salon de creation. */
+export const MAX_VOICE_HUB_OPTIONS = 25;
+
+/**
+ * Rang propose dans les options de personnalisation d'un salon temporaire.
+ *
+ * C'est le seul reglage qui **range** le salon : le choisir le deplace dans
+ * `categoryId`.
+ */
+export interface VoiceHubRankDto {
+	id: string;
+	label: string;
+	/** Unicode ou `<:nom:id>` : le sujet accepte les emojis personnalises. */
+	emoji: string | null;
+	/** Categorie Discord ou sont deplaces les salons portant ce rang. */
+	categoryId: Snowflake;
+	position: number;
+}
+
+/** Plateforme proposee au proprietaire. Descriptive : elle ne range rien. */
+export interface VoiceHubPlatformDto {
+	id: string;
+	label: string;
+	emoji: string | null;
+	position: number;
+}
+
 export interface VoiceHubDto {
 	id: string;
 	guildId: Snowflake;
@@ -31,10 +74,15 @@ export interface VoiceHubDto {
 	channelId: Snowflake | null;
 	name: string;
 	namePattern: string;
+	/** `{rang}`, `{plateforme}` et `{sujet}` y sont remplaces. */
+	statusPattern: string;
 	/** 0 = illimite, comme Discord. */
 	userLimit: number;
 	position: number;
 	enabled: boolean;
+	/** Vide : le hub ne propose aucun rang, et ne range donc aucun salon. */
+	ranks: VoiceHubRankDto[];
+	platforms: VoiceHubPlatformDto[];
 	/** Salons temporaires actuellement ouverts pour ce salon de creation. */
 	activeChannels: number;
 	updatedAt: IsoDateString;
@@ -43,6 +91,7 @@ export interface VoiceHubDto {
 export interface CreateVoiceHubRequest {
 	name: string;
 	namePattern?: string;
+	statusPattern?: string;
 	userLimit?: number;
 	position?: number;
 	enabled?: boolean;
@@ -51,9 +100,83 @@ export interface CreateVoiceHubRequest {
 export interface UpdateVoiceHubRequest {
 	name?: string;
 	namePattern?: string;
+	statusPattern?: string;
 	userLimit?: number;
 	position?: number;
 	enabled?: boolean;
+}
+
+export interface CreateVoiceHubRankRequest {
+	label: string;
+	emoji?: string | null;
+	categoryId: Snowflake;
+	position?: number;
+}
+
+export interface UpdateVoiceHubRankRequest {
+	label?: string;
+	emoji?: string | null;
+	categoryId?: Snowflake;
+	position?: number;
+}
+
+export interface CreateVoiceHubPlatformRequest {
+	label: string;
+	emoji?: string | null;
+	position?: number;
+}
+
+export interface UpdateVoiceHubPlatformRequest {
+	label?: string;
+	emoji?: string | null;
+	position?: number;
+}
+
+/** Une option telle qu'elle s'ecrit dans le sujet : emoji puis libelle. */
+export interface VoiceStatusOption {
+	label: string;
+	emoji?: string | null;
+}
+
+export interface VoiceStatusContext {
+	rank?: VoiceStatusOption | null;
+	platform?: VoiceStatusOption | null;
+	topic?: string | null;
+}
+
+function formatOption(option?: VoiceStatusOption | null): string {
+	if (!option) return "";
+	return option.emoji ? `${option.emoji} ${option.label}` : option.label;
+}
+
+/**
+ * Compose le sujet d'un salon temporaire a partir du gabarit de son hub.
+ *
+ * Le bot pousse le resultat sur Discord et le dashboard le previsualise par
+ * cette meme fonction : recopiee aux deux endroits, l'apercu finirait par
+ * mentir sur ce que voit le serveur.
+ *
+ * Un salon n'a longtemps aucun rang ni plateforme — ils se choisissent apres
+ * l'arrivee. Les jetons vides sont donc retires **avec les separateurs restes
+ * orphelins**, sans quoi un salon sans plateforme afficherait « Or  · » suivi
+ * de rien.
+ */
+export function renderVoiceStatus(
+	pattern: string,
+	context: VoiceStatusContext,
+): string {
+	const rendered = pattern
+		.replaceAll("{rang}", formatOption(context.rank))
+		.replaceAll("{plateforme}", formatOption(context.platform))
+		.replaceAll("{sujet}", context.topic?.trim() ?? "");
+
+	return rendered
+		// Separateurs laisses par un jeton vide : « Or  · » ou « · PC ».
+		.replace(/\s*[·|\-–—]\s*(?=\s*[·|\-–—]|$)/g, "")
+		.replace(/^\s*[·|\-–—]\s*/, "")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, MAX_VOICE_STATUS_LENGTH);
 }
 
 export interface VoiceOccupantDto {

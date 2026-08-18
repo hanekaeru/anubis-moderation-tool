@@ -1,11 +1,18 @@
 import {
 	ChannelType,
 	PermissionFlagsBits,
+	type CategoryChannel,
 	type Guild,
 	type VoiceBasedChannel,
 	type VoiceState,
 } from "discord.js";
-import type { TemporaryVoiceChannel, VoiceHub } from "@anubis/shared/prisma";
+import { renderVoiceStatus } from "@anubis/shared";
+import type {
+	TemporaryVoiceChannel,
+	VoiceHub,
+	VoiceHubPlatform,
+	VoiceHubRank,
+} from "@anubis/shared/prisma";
 import prisma from "../prisma";
 import { posterPanneau } from "../utils/voicePanel";
 import * as referentiel from "./referentiel";
@@ -26,8 +33,17 @@ import * as voiceLog from "./voiceLog";
  * d'arrivee dont depend le transfert de propriete.
  */
 
+/**
+ * Plafond Discord de salons dans une categorie.
+ *
+ * Il est atteint sans prevenir : la requete de deplacement echoue en 50035 et
+ * le salon reste ou il est. Le compter avant permet de le dire au
+ * proprietaire, qui saura choisir un autre rang.
+ */
+export const MAX_CHANNELS_PER_CATEGORY = 50;
+
 /** Categorie ou `/create_parties` place les salons de creation. */
-export const PARTIES_CATEGORY_NAME = "Parties";
+export const PARTIES_CATEGORY_NAME = "🗺️ • Protocole de communication";
 
 /**
  * Le hub est relu en base a chaque arrivee, sans cache.
@@ -201,6 +217,228 @@ export async function oublierSalon(channelId: string): Promise<void> {
 }
 
 /**
+ * Rangs et plateformes proposes par un salon de creation.
+ *
+ * Relus a chaque ouverture de la modale, sans cache : les options se comptent
+ * en quelques-unes et un rang ajoute depuis le dashboard doit apparaitre au
+ * clic suivant, pas au redemarrage du bot.
+ */
+export async function chargerOptions(hubId: string): Promise<{
+	ranks: VoiceHubRank[];
+	platforms: VoiceHubPlatform[];
+}> {
+	const [ranks, platforms] = await Promise.all([
+		prisma.voiceHubRank.findMany({
+			where: { hubId },
+			orderBy: { position: "asc" },
+		}),
+		prisma.voiceHubPlatform.findMany({
+			where: { hubId },
+			orderBy: { position: "asc" },
+		}),
+	]);
+
+	return { ranks, platforms };
+}
+
+/**
+ * Pose le sujet du salon (« voice status »), celui qui s'affiche sous son nom.
+ *
+ * discord.js n'expose pas cette route : l'appel part en brut. Le rang et la
+ * plateforme y vivent plutot que dans le nom, que Discord ne laisse changer
+ * que deux fois par tranche de dix minutes — un proprietaire qui corrige son
+ * rang puis sa plateforme atteindrait le plafond du premier coup.
+ *
+ * Demande la permission `SetVoiceChannelStatus`, verifiee par
+ * `permissionsManquantes`.
+ */
+export async function definirSujet(
+	salon: VoiceBasedChannel,
+	sujet: string,
+): Promise<void> {
+	await salon.client.rest
+		.put(`/channels/${salon.id}/voice-status`, {
+			body: { status: sujet || null },
+		})
+		.catch((err: unknown) => {
+			console.error("[Vocaux] Sujet du salon refusé par Discord :", err);
+		});
+}
+
+/** Recompose le sujet a partir du gabarit du hub et des choix courants. */
+function composerSujet(
+	hub: Pick<VoiceHub, "statusPattern">,
+	rank: VoiceHubRank | null,
+	platform: VoiceHubPlatform | null,
+	topic: string | null,
+): string {
+	return renderVoiceStatus(hub.statusPattern, { rank, platform, topic });
+}
+
+/** Categorie d'accueil quand le salon n'a aucun rang : celle de son hub. */
+async function categorieDuHub(
+	guild: Guild,
+	hub: VoiceHub,
+): Promise<string | null> {
+	if (!hub.channelId) return null;
+	const salonHub = await guild.channels.fetch(hub.channelId).catch(() => null);
+	return salonHub?.parentId ?? null;
+}
+
+/**
+ * Deplace un salon vers la categorie d'un rang, ou explique pourquoi il ne
+ * peut pas l'etre.
+ *
+ * `lockPermissions: false` est le point sensible : synchroniser les
+ * permissions sur la nouvelle categorie effacerait les surcharges du salon —
+ * le verrou du panneau sauterait a chaque changement de rang, et l'acces
+ * garanti du proprietaire avec lui.
+ */
+async function deplacerVers(
+	salon: VoiceBasedChannel,
+	categoryId: string | null,
+): Promise<string | null> {
+	if (salon.parentId === categoryId) return null;
+
+	if (categoryId) {
+		const categorie = await salon.guild.channels
+			.fetch(categoryId)
+			.catch(() => null);
+
+		if (categorie?.type !== ChannelType.GuildCategory) {
+			return "La catégorie configurée pour ce rang est introuvable. Préviens le staff.";
+		}
+
+		if ((categorie as CategoryChannel).children.cache.size >= MAX_CHANNELS_PER_CATEGORY) {
+			return `La catégorie « ${categorie.name} » est pleine (${MAX_CHANNELS_PER_CATEGORY} salons). Choisis un autre rang ou attends qu'une place se libère.`;
+		}
+	}
+
+	try {
+		await salon.setParent(categoryId, {
+			lockPermissions: false,
+			reason: "Rang du salon temporaire modifié.",
+		});
+	} catch (err) {
+		console.error("[Vocaux] Déplacement du salon temporaire échoué :", err);
+		return "Discord a refusé de déplacer le salon. Préviens le staff.";
+	}
+
+	return null;
+}
+
+/**
+ * Sujet tel qu'il devrait etre affiche pour un salon donne.
+ *
+ * Relu depuis la base plutot que garde en memoire : le panneau se rafraichit
+ * aussi sur des actions qui ne touchent pas au sujet (verrouillage), et il ne
+ * doit pas pour autant l'effacer de l'affichage.
+ */
+export async function sujetDuSalon(
+	temporaire: TemporaryVoiceChannel,
+): Promise<string> {
+	const ligne = await prisma.temporaryVoiceChannel.findUnique({
+		where: { id: temporaire.id },
+		include: { hub: true, rank: true, platform: true },
+	});
+	if (!ligne) return "";
+
+	return composerSujet(ligne.hub, ligne.rank, ligne.platform, ligne.topic);
+}
+
+/** Choix soumis par le proprietaire depuis la modale de personnalisation. */
+export interface ChoixPersonnalisation {
+	/** `null` retire le rang : le salon repart dans la categorie de son hub. */
+	rankId: string | null;
+	platformId: string | null;
+	topic: string | null;
+	/** `null` laisse la limite inchangee. */
+	userLimit: number | null;
+}
+
+export interface ResultatPersonnalisation {
+	rank: VoiceHubRank | null;
+	platform: VoiceHubPlatform | null;
+	sujet: string;
+	/** Message a montrer au proprietaire quand le rangement n'a pas pu se faire. */
+	avertissement: string | null;
+}
+
+/**
+ * Applique en un seul point les choix de personnalisation d'un salon.
+ *
+ * L'ordre compte : le deplacement d'abord, l'ecriture en base ensuite, le
+ * sujet en dernier. Si Discord refuse le deplacement, le rang n'est pas
+ * enregistre — un rang en base pointant vers une categorie que le salon n'a
+ * jamais rejointe ferait mentir la fiche du salon et le rattrapage du
+ * demarrage le deplacerait plus tard, sans que personne ne l'ait demande.
+ *
+ * Le nom, lui, n'est jamais touche : il reste celui du gabarit du hub.
+ */
+export async function appliquerPersonnalisation(
+	salon: VoiceBasedChannel,
+	temporaire: TemporaryVoiceChannel,
+	choix: ChoixPersonnalisation,
+): Promise<ResultatPersonnalisation> {
+	const hub = await prisma.voiceHub.findUnique({ where: { id: temporaire.hubId } });
+	if (!hub) {
+		return { rank: null, platform: null, sujet: "", avertissement: null };
+	}
+
+	// Les identifiants viennent du client : ils ne prouvent rien tant qu'on
+	// n'a pas verifie qu'ils appartiennent bien a ce salon de creation.
+	const [rank, platform] = await Promise.all([
+		choix.rankId
+			? prisma.voiceHubRank.findFirst({
+					where: { id: choix.rankId, hubId: hub.id },
+				})
+			: null,
+		choix.platformId
+			? prisma.voiceHubPlatform.findFirst({
+					where: { id: choix.platformId, hubId: hub.id },
+				})
+			: null,
+	]);
+
+	const rangDemande = choix.rankId !== temporaire.rankId;
+	let avertissement: string | null = null;
+	let rangApplique: VoiceHubRank | null = rank;
+
+	if (rangDemande) {
+		const cible = rank ? rank.categoryId : await categorieDuHub(salon.guild, hub);
+		avertissement = await deplacerVers(salon, cible);
+
+		// Le deplacement a echoue : on garde le rang precedent plutot que
+		// d'enregistrer un rangement qui n'a pas eu lieu.
+		if (avertissement) {
+			rangApplique = temporaire.rankId
+				? await prisma.voiceHubRank.findUnique({ where: { id: temporaire.rankId } })
+				: null;
+		}
+	}
+
+	if (choix.userLimit !== null && choix.userLimit !== salon.userLimit) {
+		await salon
+			.setUserLimit(choix.userLimit, "Modifié par le propriétaire.")
+			.catch(() => undefined);
+	}
+
+	await prisma.temporaryVoiceChannel.update({
+		where: { id: temporaire.id },
+		data: {
+			rankId: rangApplique?.id ?? null,
+			platformId: platform?.id ?? null,
+			topic: choix.topic,
+		},
+	});
+
+	const sujet = composerSujet(hub, rangApplique, platform, choix.topic);
+	await definirSujet(salon, sujet);
+
+	return { rank: rangApplique, platform, sujet, avertissement };
+}
+
+/**
  * Remise a plat au demarrage.
  *
  * Rien de ce qui se passe bot eteint ne genere d'evenement : un salon a pu se
@@ -210,6 +448,7 @@ export async function oublierSalon(channelId: string): Promise<void> {
 export async function reconcilierSalons(guild: Guild): Promise<void> {
 	const vivants = await prisma.temporaryVoiceChannel.findMany({
 		where: { guildId: guild.id, closedAt: null },
+		include: { hub: true, rank: true, platform: true },
 	});
 
 	let fermes = 0;
@@ -243,6 +482,28 @@ export async function reconcilierSalons(guild: Guild): Promise<void> {
 				data: { ownerId: doyen.userId },
 			});
 		}
+
+		if (!salon.isVoiceBased()) continue;
+
+		// La categorie d'un rang a pu changer depuis le dashboard pendant
+		// l'arret, ou le rang disparaitre : le salon se remet a sa place.
+		const attendue = temporaire.rank
+			? temporaire.rank.categoryId
+			: await categorieDuHub(guild, temporaire.hub);
+
+		if (salon.parentId !== attendue) await deplacerVers(salon, attendue);
+
+		// Discord efface le sujet quand un salon se vide : le reposer est la
+		// seule facon qu'un salon repris apres l'arret retrouve le sien.
+		await definirSujet(
+			salon,
+			composerSujet(
+				temporaire.hub,
+				temporaire.rank,
+				temporaire.platform,
+				temporaire.topic,
+			),
+		);
 	}
 
 	if (fermes) {
@@ -443,6 +704,9 @@ export function permissionsManquantes(guild: Guild): string[] {
 		// Editer les permissions d'un salon (le verrou du panneau) demande
 		// « Gérer les rôles » : sans elle, le bouton echoue sans rien dire.
 		[PermissionFlagsBits.ManageRoles, "Gérer les rôles"],
+		// Le sujet du salon porte le rang et la plateforme : sans cette
+		// permission, la personnalisation ne laisse aucune trace visible.
+		[PermissionFlagsBits.SetVoiceChannelStatus, "Définir le sujet des salons vocaux"],
 	];
 
 	return requises

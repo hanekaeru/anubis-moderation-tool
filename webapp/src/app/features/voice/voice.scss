@@ -135,3 +135,65 @@ code {
 	text-align: center;
 	color: var(--mat-sys-on-surface-variant);
 }
+
+.wide {
+	flex-basis: 100%;
+}
+
+.muted {
+	color: var(--mat-sys-on-surface-variant);
+}
+
+/*
+ * Apercu du sujet. Fond neutre et non pas sombre comme celui des messages
+ * composes : le sujet s'affiche dans la liste des salons, pas dans un embed,
+ * et rien ne justifie ici de reproduire le fond de Discord.
+ */
+.preview {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+	margin: 8px 0 16px;
+	padding: 12px 16px;
+	border-radius: 8px;
+	background: var(--mat-sys-surface-variant);
+}
+
+.preview-label {
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--mat-sys-on-surface-variant);
+}
+
+.preview-value {
+	font-weight: 500;
+}
+
+.option-list {
+	list-style: none;
+	margin: 0 0 16px;
+	padding: 0;
+
+	li {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 8px 0;
+		border-bottom: 1px solid var(--mat-sys-outline-variant);
+	}
+}
+
+.option-emoji {
+	min-width: 1.5rem;
+	text-align: center;
+}
+
+.option-label {
+	font-weight: 500;
+}
+
+.option-id {
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.85rem;
+}

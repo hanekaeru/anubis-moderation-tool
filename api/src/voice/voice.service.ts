@@ -1,16 +1,42 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import {
 	DEFAULT_VOICE_NAME_PATTERN,
+	DEFAULT_VOICE_STATUS_PATTERN,
+	MAX_VOICE_HUB_OPTIONS,
 	type LiveVoiceChannelDto,
 	type LiveVoiceDto,
 	type VoiceHubDto,
+	type VoiceHubPlatformDto,
+	type VoiceHubRankDto,
 	type VoiceOccupantDto,
 } from "@anubis/shared";
 import { AuditService } from "../audit/audit.service";
 import { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
-import type { CreateVoiceHubDto, UpdateVoiceHubDto } from "./dto/voice-hub.dto";
+import type {
+	CreateVoiceHubDto,
+	CreateVoiceHubPlatformDto,
+	CreateVoiceHubRankDto,
+	UpdateVoiceHubDto,
+	UpdateVoiceHubPlatformDto,
+	UpdateVoiceHubRankDto,
+} from "./dto/voice-hub.dto";
+
+type RankRow = {
+	id: string;
+	label: string;
+	emoji: string | null;
+	categoryId: string;
+	position: number;
+};
+
+type PlatformRow = {
+	id: string;
+	label: string;
+	emoji: string | null;
+	position: number;
+};
 
 /** Ligne `VoiceHub` accompagnee du compte de ses salons encore ouverts. */
 type HubRow = {
@@ -19,12 +45,28 @@ type HubRow = {
 	channelId: string | null;
 	name: string;
 	namePattern: string;
+	statusPattern: string;
 	userLimit: number;
 	position: number;
 	enabled: boolean;
 	updatedAt: Date;
+	ranks?: RankRow[];
+	platforms?: PlatformRow[];
 	_count?: { temporaryChannels: number };
 };
+
+/**
+ * Tout ce qu'un `VoiceHubDto` complet demande de charger.
+ *
+ * Partage entre les quatre chemins qui renvoient un hub : oublier `ranks` sur
+ * l'un d'eux ferait disparaitre les rangs du dashboard juste apres une
+ * modification, sans que rien n'ait change en base.
+ */
+const HUB_INCLUDE = {
+	ranks: { orderBy: { position: "asc" } },
+	platforms: { orderBy: { position: "asc" } },
+	_count: { select: { temporaryChannels: { where: { closedAt: null } } } },
+} as const;
 
 @Injectable()
 export class VoiceService {
@@ -41,11 +83,35 @@ export class VoiceService {
 			channelId: row.channelId,
 			name: row.name,
 			namePattern: row.namePattern,
+			statusPattern: row.statusPattern,
 			userLimit: row.userLimit,
 			position: row.position,
 			enabled: row.enabled,
+			ranks: (row.ranks ?? []).map((rank) => this.toRankDto(rank)),
+			platforms: (row.platforms ?? []).map((platform) =>
+				this.toPlatformDto(platform),
+			),
 			activeChannels: row._count?.temporaryChannels ?? 0,
 			updatedAt: row.updatedAt.toISOString(),
+		};
+	}
+
+	private toRankDto(row: RankRow): VoiceHubRankDto {
+		return {
+			id: row.id,
+			label: row.label,
+			emoji: row.emoji,
+			categoryId: row.categoryId,
+			position: row.position,
+		};
+	}
+
+	private toPlatformDto(row: PlatformRow): VoiceHubPlatformDto {
+		return {
+			id: row.id,
+			label: row.label,
+			emoji: row.emoji,
+			position: row.position,
 		};
 	}
 
@@ -53,9 +119,7 @@ export class VoiceService {
 		const rows = await this.prisma.voiceHub.findMany({
 			where: { guildId: this.guild.guildId },
 			orderBy: [{ position: "asc" }, { name: "asc" }],
-			include: {
-				_count: { select: { temporaryChannels: { where: { closedAt: null } } } },
-			},
+			include: HUB_INCLUDE,
 		});
 
 		return rows.map((row) => this.toHubDto(row));
@@ -70,10 +134,12 @@ export class VoiceService {
 				guildId: this.guild.guildId,
 				name: dto.name,
 				namePattern: dto.namePattern ?? DEFAULT_VOICE_NAME_PATTERN,
+				statusPattern: dto.statusPattern ?? DEFAULT_VOICE_STATUS_PATTERN,
 				userLimit: dto.userLimit ?? 0,
 				position: dto.position ?? 0,
 				enabled: dto.enabled ?? true,
 			},
+			include: HUB_INCLUDE,
 		});
 
 		await this.audit.record({
@@ -102,13 +168,14 @@ export class VoiceService {
 			data: {
 				...(dto.name !== undefined ? { name: dto.name } : {}),
 				...(dto.namePattern !== undefined ? { namePattern: dto.namePattern } : {}),
+				...(dto.statusPattern !== undefined
+					? { statusPattern: dto.statusPattern }
+					: {}),
 				...(dto.userLimit !== undefined ? { userLimit: dto.userLimit } : {}),
 				...(dto.position !== undefined ? { position: dto.position } : {}),
 				...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
 			},
-			include: {
-				_count: { select: { temporaryChannels: { where: { closedAt: null } } } },
-			},
+			include: HUB_INCLUDE,
 		});
 
 		await this.audit.record({
@@ -166,6 +233,217 @@ export class VoiceService {
 		});
 
 		return { channelId: existing.channelId };
+	}
+
+	/**
+	 * Retrouve un salon de creation du serveur courant.
+	 *
+	 * Les rangs et plateformes sont adresses par leur seul identifiant dans les
+	 * URL : sans ce controle, un compte d'un autre serveur pourrait en modifier
+	 * en connaissant un UUID.
+	 */
+	private async hubDuServeur(hubId: string) {
+		const hub = await this.prisma.voiceHub.findFirst({
+			where: { id: hubId, guildId: this.guild.guildId },
+			select: { id: true, name: true },
+		});
+		if (!hub) throw new NotFoundException("Salon de création introuvable.");
+		return hub;
+	}
+
+	async createRank(
+		hubId: string,
+		dto: CreateVoiceHubRankDto,
+		actor: AuthenticatedUser,
+	): Promise<VoiceHubRankDto> {
+		const hub = await this.hubDuServeur(hubId);
+
+		// Le select de la modale Discord plafonne a 25 options : au-dela, les
+		// rangs en trop seraient invisibles cote Discord sans que le dashboard
+		// ne le laisse deviner.
+		const existants = await this.prisma.voiceHubRank.count({ where: { hubId } });
+		if (existants >= MAX_VOICE_HUB_OPTIONS) {
+			throw new ConflictException(
+				`Un salon de création ne peut pas proposer plus de ${MAX_VOICE_HUB_OPTIONS} rangs.`,
+			);
+		}
+
+		const created = await this.prisma.voiceHubRank.create({
+			data: {
+				hubId,
+				label: dto.label,
+				emoji: dto.emoji ?? null,
+				categoryId: dto.categoryId,
+				position: dto.position ?? existants,
+			},
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "voice.hub.rank.create",
+			entityType: "voice_hub_rank",
+			entityId: created.id,
+			after: { hub: hub.name, ...dto },
+		});
+
+		return this.toRankDto(created);
+	}
+
+	async updateRank(
+		hubId: string,
+		rankId: string,
+		dto: UpdateVoiceHubRankDto,
+		actor: AuthenticatedUser,
+	): Promise<VoiceHubRankDto> {
+		await this.hubDuServeur(hubId);
+
+		const existing = await this.prisma.voiceHubRank.findFirst({
+			where: { id: rankId, hubId },
+		});
+		if (!existing) throw new NotFoundException("Rang introuvable.");
+
+		const updated = await this.prisma.voiceHubRank.update({
+			where: { id: rankId },
+			data: {
+				...(dto.label !== undefined ? { label: dto.label } : {}),
+				...(dto.emoji !== undefined ? { emoji: dto.emoji ?? null } : {}),
+				...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
+				...(dto.position !== undefined ? { position: dto.position } : {}),
+			},
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "voice.hub.rank.update",
+			entityType: "voice_hub_rank",
+			entityId: rankId,
+			before: { label: existing.label, categoryId: existing.categoryId },
+			after: { ...dto },
+		});
+
+		return this.toRankDto(updated);
+	}
+
+	/**
+	 * Retire un rang de la liste.
+	 *
+	 * Les salons qui le portent ne sont **pas** deplaces : leur `rankId` repasse
+	 * a `null` (`ON DELETE SET NULL`) et ils restent la ou ils sont. Les
+	 * renvoyer d'office dans la categorie de leur salon de creation
+	 * deplacerait des conversations en cours pour un reglage de dashboard.
+	 */
+	async deleteRank(
+		hubId: string,
+		rankId: string,
+		actor: AuthenticatedUser,
+	): Promise<void> {
+		await this.hubDuServeur(hubId);
+
+		const existing = await this.prisma.voiceHubRank.findFirst({
+			where: { id: rankId, hubId },
+		});
+		if (!existing) throw new NotFoundException("Rang introuvable.");
+
+		await this.prisma.voiceHubRank.delete({ where: { id: rankId } });
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "voice.hub.rank.delete",
+			entityType: "voice_hub_rank",
+			entityId: rankId,
+			before: { label: existing.label, categoryId: existing.categoryId },
+		});
+	}
+
+	async createPlatform(
+		hubId: string,
+		dto: CreateVoiceHubPlatformDto,
+		actor: AuthenticatedUser,
+	): Promise<VoiceHubPlatformDto> {
+		const hub = await this.hubDuServeur(hubId);
+
+		const existants = await this.prisma.voiceHubPlatform.count({ where: { hubId } });
+		if (existants >= MAX_VOICE_HUB_OPTIONS) {
+			throw new ConflictException(
+				`Un salon de création ne peut pas proposer plus de ${MAX_VOICE_HUB_OPTIONS} plateformes.`,
+			);
+		}
+
+		const created = await this.prisma.voiceHubPlatform.create({
+			data: {
+				hubId,
+				label: dto.label,
+				emoji: dto.emoji ?? null,
+				position: dto.position ?? existants,
+			},
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "voice.hub.platform.create",
+			entityType: "voice_hub_platform",
+			entityId: created.id,
+			after: { hub: hub.name, ...dto },
+		});
+
+		return this.toPlatformDto(created);
+	}
+
+	async updatePlatform(
+		hubId: string,
+		platformId: string,
+		dto: UpdateVoiceHubPlatformDto,
+		actor: AuthenticatedUser,
+	): Promise<VoiceHubPlatformDto> {
+		await this.hubDuServeur(hubId);
+
+		const existing = await this.prisma.voiceHubPlatform.findFirst({
+			where: { id: platformId, hubId },
+		});
+		if (!existing) throw new NotFoundException("Plateforme introuvable.");
+
+		const updated = await this.prisma.voiceHubPlatform.update({
+			where: { id: platformId },
+			data: {
+				...(dto.label !== undefined ? { label: dto.label } : {}),
+				...(dto.emoji !== undefined ? { emoji: dto.emoji ?? null } : {}),
+				...(dto.position !== undefined ? { position: dto.position } : {}),
+			},
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "voice.hub.platform.update",
+			entityType: "voice_hub_platform",
+			entityId: platformId,
+			before: { label: existing.label },
+			after: { ...dto },
+		});
+
+		return this.toPlatformDto(updated);
+	}
+
+	async deletePlatform(
+		hubId: string,
+		platformId: string,
+		actor: AuthenticatedUser,
+	): Promise<void> {
+		await this.hubDuServeur(hubId);
+
+		const existing = await this.prisma.voiceHubPlatform.findFirst({
+			where: { id: platformId, hubId },
+		});
+		if (!existing) throw new NotFoundException("Plateforme introuvable.");
+
+		await this.prisma.voiceHubPlatform.delete({ where: { id: platformId } });
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "voice.hub.platform.delete",
+			entityType: "voice_hub_platform",
+			entityId: platformId,
+			before: { label: existing.label },
+		});
 	}
 
 	/**
