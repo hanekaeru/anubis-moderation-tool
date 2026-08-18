@@ -1,0 +1,182 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Configuration des tickets</h1>
+			<p class="subtitle">
+				Sujets proposés à l'ouverture, préfixes de nommage des salons et nombre de tickets
+				qu'un même membre peut avoir ouverts.
+			</p>
+		</div>
+	</header>
+
+	<mat-card appearance="outlined" [formGroup]="configForm">
+		<mat-card-header>
+			<mat-card-title>Limite d'ouverture</mat-card-title>
+			<mat-card-subtitle>
+				Comptée sur les tickets non fermés. Un membre qui atteint la limite est refusé avant même
+				d'avoir rempli le formulaire.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<mat-form-field>
+				<mat-label>Tickets ouverts par membre</mat-label>
+				<input matInput type="number" formControlName="maxOpenTickets" min="1" max="10" />
+			</mat-form-field>
+		</mat-card-content>
+
+		<mat-card-actions align="end">
+			<button
+				matButton="filled"
+				[disabled]="saving()"
+				(click)="save()"
+				*appHasPermission="Permission.TICKETS_WRITE"
+			>
+				Enregistrer
+			</button>
+		</mat-card-actions>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Sujets proposés</mat-card-title>
+			<mat-card-subtitle>
+				Ce que le membre choisit dans la modale d'ouverture. La catégorie sert aux filtres et aux
+				statistiques, la gravité n'est qu'une suggestion : le membre reste libre d'en changer.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			@if (subjects().length) {
+				<ul class="option-list">
+					@for (subject of subjects(); track subject.id) {
+						<li [class.disabled]="!subject.enabled">
+							<span class="option-emoji">{{ subject.emoji || '•' }}</span>
+							<span class="option-main">
+								<span class="option-label">{{ subject.label }}</span>
+								@if (subject.description) {
+									<span class="option-description">{{ subject.description }}</span>
+								}
+							</span>
+							<span class="tag">{{ categoryLabels[subject.category] }}</span>
+							<span class="tag">{{ priorityLabels[subject.defaultPriority] }}</span>
+							<span class="spacer"></span>
+							<div class="row-actions" *appHasPermission="Permission.TICKETS_WRITE">
+								<button
+									matIconButton
+									[matTooltip]="subject.enabled ? 'Désactiver' : 'Activer'"
+									(click)="toggleSubject(subject)"
+								>
+									<mat-icon>{{ subject.enabled ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+								</button>
+								<button matIconButton matTooltip="Retirer" (click)="removeSubject(subject)">
+									<mat-icon>delete</mat-icon>
+								</button>
+							</div>
+						</li>
+					}
+				</ul>
+			} @else {
+				<p class="empty-state">
+					Aucun sujet configuré : le bouton du panneau refuse d'ouvrir un ticket tant qu'il n'y en
+					a pas.
+				</p>
+			}
+
+			<div class="row" [formGroup]="subjectForm" *appHasPermission="Permission.TICKETS_WRITE">
+				<mat-form-field>
+					<mat-label>Libellé</mat-label>
+					<input matInput formControlName="label" placeholder="Signaler un membre" />
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Description</mat-label>
+					<input matInput formControlName="description" />
+					<mat-hint>Affichée sous le libellé dans le menu Discord.</mat-hint>
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Emoji</mat-label>
+					<input matInput formControlName="emoji" placeholder="🚨" />
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Catégorie</mat-label>
+					<mat-select formControlName="category">
+						@for (category of categories; track category) {
+							<mat-option [value]="category">{{ categoryLabels[category] }}</mat-option>
+						}
+					</mat-select>
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Gravité conseillée</mat-label>
+					<mat-select formControlName="defaultPriority">
+						@for (priority of priorities; track priority) {
+							<mat-option [value]="priority">{{ priorityLabels[priority] }}</mat-option>
+						}
+					</mat-select>
+				</mat-form-field>
+
+				<button matButton="filled" (click)="addSubject()">Ajouter le sujet</button>
+			</div>
+		</mat-card-content>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Préfixes des modérateurs</mat-card-title>
+			<mat-card-subtitle>
+				Le salon d'un ticket pris en charge s'appelle <code>préfixe-pseudo-numéro</code>. Un
+				modérateur se déclare lui-même avec <code>/prefix_ticket</code> sur Discord ; cette page
+				corrige et retire, elle n'ajoute pas.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			@if (prefixes().length) {
+				<ul class="option-list">
+					@for (prefix of prefixes(); track prefix.userId) {
+						<li>
+							<span class="option-main">
+								<span class="option-label">{{ prefix.displayName ?? prefix.username }}</span>
+								<span class="option-description">
+									Mis à jour {{ prefix.updatedAt | relativeTime }}
+									@if (prefix.openTickets) {
+										· {{ prefix.openTickets }} ticket(s) en cours
+									}
+								</span>
+							</span>
+
+							<mat-form-field class="prefix-field" *appHasPermission="Permission.TICKETS_WRITE">
+								<mat-label>Préfixe</mat-label>
+								<input
+									matInput
+									#champ
+									[value]="prefix.prefix"
+									(blur)="savePrefix(prefix, champ.value)"
+								/>
+							</mat-form-field>
+
+							<span class="spacer"></span>
+							<button
+								matIconButton
+								matTooltip="Retirer"
+								(click)="removePrefix(prefix)"
+								*appHasPermission="Permission.TICKETS_WRITE"
+							>
+								<mat-icon>delete</mat-icon>
+							</button>
+						</li>
+					}
+				</ul>
+			} @else {
+				<p class="empty-state">
+					Aucun modérateur n'a encore choisi de préfixe. Tant qu'ils n'ont pas lancé
+					<code>/prefix_ticket</code>, le bouton « Prendre le ticket » les renvoie vers la
+					commande.
+				</p>
+			}
+		</mat-card-content>
+	</mat-card>
+</div>

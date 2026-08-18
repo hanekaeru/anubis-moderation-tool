@@ -85,6 +85,12 @@ const NAV_SECTIONS: NavSection[] = [
         icon: 'confirmation_number',
         permissions: [Permission.TICKETS_READ],
       },
+      {
+        path: '/tickets/configuration',
+        label: 'Configuration des tickets',
+        icon: 'tune',
+        permissions: [Permission.TICKETS_READ],
+      },
       // A la suite du bloc moderation : c'est une reference qu'on ouvre en
       // traitant un cas, pas un reglage qu'on visite une fois par mois.
       {

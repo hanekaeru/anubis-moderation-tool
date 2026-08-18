@@ -14,8 +14,11 @@ import {
 	handleQuarantineAccept,
 } from "../handlers/quarantineInteractions";
 import {
+	TICKET_OPEN_BUTTON,
+	TICKET_OPEN_MODAL,
 	handleTicketButton,
-	handleTicketOpenSelect,
+	handleTicketOpenButton,
+	handleTicketOpenModal,
 } from "../handlers/ticketInteractions";
 import {
 	handleVoiceKickSelect,
@@ -63,10 +66,17 @@ function route<T extends Interaction>(
 }
 
 const ROUTES: readonly Route[] = [
+	// Declare avant la route generique `ticket:` : le bouton d'ouverture porte
+	// lui aussi ce prefixe, et partirait sinon vers le panneau de controle.
 	route(
-		(i) => i.isStringSelectMenu() && i.customId === "ticket:open",
-		handleTicketOpenSelect,
+		(i) => i.isButton() && i.customId === TICKET_OPEN_BUTTON,
+		handleTicketOpenButton,
 		"[Tickets] Ouverture depuis le panneau échouée :",
+	),
+	route(
+		(i) => i.isModalSubmit() && i.customId === TICKET_OPEN_MODAL,
+		handleTicketOpenModal,
+		"[Tickets] Formulaire d'ouverture échoué :",
 	),
 	route(
 		(i) =>

@@ -1,3 +1,4 @@
+import type { VoicePlacementMode } from "../enums";
 import type { IsoDateString, PaginationQuery, Snowflake } from "./common";
 
 /**
@@ -43,6 +44,17 @@ export const MAX_VOICE_TOPIC_LENGTH = 200;
 /** Nombre de rangs (ou de plateformes) proposables par salon de creation. */
 export const MAX_VOICE_HUB_OPTIONS = 25;
 
+/** Nom par defaut de la categorie ou atterrissent les salons crees. */
+export const DEFAULT_VOICE_LANDING_CATEGORY = "En attente";
+
+/**
+ * Plafond Discord de salons dans une categorie.
+ *
+ * Partage avec le bot, qui le verifie avant de deplacer un salon : le
+ * dashboard s'en sert pour expliquer le refus plutot que de le subir.
+ */
+export const MAX_CHANNELS_PER_CATEGORY = 50;
+
 /**
  * Rang propose dans les options de personnalisation d'un salon temporaire.
  *
@@ -54,8 +66,13 @@ export interface VoiceHubRankDto {
 	label: string;
 	/** Unicode ou `<:nom:id>` : le sujet accepte les emojis personnalises. */
 	emoji: string | null;
-	/** Categorie Discord ou sont deplaces les salons portant ce rang. */
-	categoryId: Snowflake;
+	/**
+	 * Categorie Discord ou sont deplaces les salons portant ce rang.
+	 *
+	 * `null` tant qu'aucun salon n'a pris ce rang : le bot cree alors une
+	 * categorie nommee d'apres le libelle et retient son identifiant ici.
+	 */
+	categoryId: Snowflake | null;
 	position: number;
 }
 
@@ -76,6 +93,12 @@ export interface VoiceHubDto {
 	namePattern: string;
 	/** `{rang}`, `{plateforme}` et `{sujet}` y sont remplaces. */
 	statusPattern: string;
+	/** Ce qui decide de la categorie des salons crees. */
+	placementMode: VoicePlacementMode;
+	/** Categorie ou atterrissent les salons crees, creee au besoin. */
+	landingCategoryName: string;
+	/** Rempli par le bot a la premiere creation. */
+	landingCategoryId: Snowflake | null;
 	/** 0 = illimite, comme Discord. */
 	userLimit: number;
 	position: number;
@@ -92,6 +115,10 @@ export interface CreateVoiceHubRequest {
 	name: string;
 	namePattern?: string;
 	statusPattern?: string;
+	placementMode?: VoicePlacementMode;
+	landingCategoryName?: string;
+	/** Vider ce champ fait retrouver — ou recreer — la categorie d'accueil. */
+	landingCategoryId?: Snowflake | null;
 	userLimit?: number;
 	position?: number;
 	enabled?: boolean;
@@ -101,6 +128,9 @@ export interface UpdateVoiceHubRequest {
 	name?: string;
 	namePattern?: string;
 	statusPattern?: string;
+	placementMode?: VoicePlacementMode;
+	landingCategoryName?: string;
+	landingCategoryId?: Snowflake | null;
 	userLimit?: number;
 	position?: number;
 	enabled?: boolean;
@@ -109,14 +139,15 @@ export interface UpdateVoiceHubRequest {
 export interface CreateVoiceHubRankRequest {
 	label: string;
 	emoji?: string | null;
-	categoryId: Snowflake;
+	/** Facultatif : sans lui, le bot cree la categorie au premier usage. */
+	categoryId?: Snowflake | null;
 	position?: number;
 }
 
 export interface UpdateVoiceHubRankRequest {
 	label?: string;
 	emoji?: string | null;
-	categoryId?: Snowflake;
+	categoryId?: Snowflake | null;
 	position?: number;
 }
 

@@ -15,6 +15,13 @@
 					Catégorie {{ categoryLabels[data.category] }}
 					<span class="dot">·</span>
 					Ouvert {{ data.openedAt | relativeTime }}
+					@if (data.claimedAt) {
+						<span class="dot">·</span>
+						Pris en charge {{ data.claimedAt | relativeTime }}
+						@if (data.claimedBy) {
+							par {{ data.claimedBy.label }}
+						}
+					}
 					@if (data.closedAt) {
 						<span class="dot">·</span>
 						Fermé {{ data.closedAt | relativeTime }}

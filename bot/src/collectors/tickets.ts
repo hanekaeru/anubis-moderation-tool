@@ -1,11 +1,12 @@
 import type { Message } from "discord.js";
 import {
-	TICKET_CATEGORY_LABELS,
+	DEFAULT_MAX_OPEN_TICKETS,
 	TicketCategory,
 	TicketEventType,
+	TicketPriority,
 	TicketStatus,
 } from "@anubis/shared";
-import { Prisma } from "@anubis/shared/prisma";
+import { Prisma, type TicketSubject } from "@anubis/shared/prisma";
 import prisma from "../prisma";
 
 /**
@@ -54,15 +55,70 @@ export async function loadTicketChannelsCache(guildId: string): Promise<void> {
 	}
 }
 
-export async function hasOpenTicket(
+/**
+ * Tickets encore ouverts d'un membre, et plafond du serveur.
+ *
+ * Le plafond est relu a chaque ouverture, sans cache : une ouverture de ticket
+ * se compte en quelques-unes par jour, et un reglage abaisse depuis le
+ * dashboard doit valoir tout de suite.
+ *
+ * L'absence de ligne `TicketConfig` ne vaut pas « aucune limite » : le defaut
+ * reproduit exactement le comportement d'avant le reglage, ou un seul ticket
+ * ouvert etait tolere.
+ */
+export async function openTicketQuota(
 	guildId: string,
 	openerId: string,
-): Promise<boolean> {
-	const existing = await prisma.ticket.findFirst({
-		where: { guildId, openerId, status: { not: TicketStatus.CLOSED } },
-		select: { id: true },
+): Promise<{ open: number; max: number; reached: boolean }> {
+	const [open, config] = await Promise.all([
+		prisma.ticket.count({
+			where: { guildId, openerId, status: { not: TicketStatus.CLOSED } },
+		}),
+		prisma.ticketConfig.findUnique({ where: { guildId } }),
+	]);
+
+	const max = config?.maxOpenTickets ?? DEFAULT_MAX_OPEN_TICKETS;
+	return { open, max, reached: open >= max };
+}
+
+/** Sujets proposes a l'ouverture, dans l'ordre regle depuis le dashboard. */
+export async function listSubjects(guildId: string): Promise<TicketSubject[]> {
+	return prisma.ticketSubject.findMany({
+		where: { guildId, enabled: true },
+		orderBy: [{ position: "asc" }, { label: "asc" }],
 	});
-	return existing !== null;
+}
+
+/** Sujet relu avec son `guildId` : l'identifiant vient du client. */
+export async function findSubject(
+	guildId: string,
+	subjectId: string,
+): Promise<TicketSubject | null> {
+	return prisma.ticketSubject.findFirst({
+		where: { id: subjectId, guildId, enabled: true },
+	});
+}
+
+export async function getPrefix(
+	guildId: string,
+	userId: string,
+): Promise<string | null> {
+	const ligne = await prisma.ticketModeratorPrefix.findUnique({
+		where: { guildId_userId: { guildId, userId } },
+	});
+	return ligne?.prefix ?? null;
+}
+
+export async function setPrefix(
+	guildId: string,
+	userId: string,
+	prefix: string,
+): Promise<void> {
+	await prisma.ticketModeratorPrefix.upsert({
+		where: { guildId_userId: { guildId, userId } },
+		create: { guildId, userId, prefix },
+		update: { prefix },
+	});
 }
 
 export async function getTicketSummary(ticketId: string) {
@@ -70,12 +126,64 @@ export async function getTicketSummary(ticketId: string) {
 		where: { id: ticketId },
 		select: {
 			number: true,
+			subject: true,
 			category: true,
+			priority: true,
 			status: true,
 			openerId: true,
 			guildId: true,
+			claimedByDiscordId: true,
+			opener: { select: { username: true } },
 		},
 	});
+}
+
+/**
+ * Prise en charge par un moderateur Discord.
+ *
+ * Renseigne `firstResponseAt` s'il ne l'etait pas : prendre un ticket est bien
+ * le moment ou le staff s'en saisit, et le delai de prise en charge affiche
+ * par le dashboard n'aurait sinon rien mesure tant que le moderateur n'aurait
+ * pas ecrit.
+ *
+ * Renvoie `false` si le ticket est deja pris : deux moderateurs qui cliquent
+ * en meme temps ne doivent pas se voler le ticket, ni renommer le salon deux
+ * fois — Discord n'accepte que deux renommages par tranche de dix minutes.
+ */
+export async function claimTicket(
+	ticketId: string,
+	moderatorId: string,
+): Promise<boolean> {
+	const now = new Date();
+
+	const { count } = await prisma.ticket.updateMany({
+		where: { id: ticketId, claimedByDiscordId: null, claimedById: null },
+		data: {
+			claimedByDiscordId: moderatorId,
+			claimedAt: now,
+			assigneeId: moderatorId,
+			status: TicketStatus.PENDING,
+			discordSyncedAt: now,
+		},
+	});
+
+	if (!count) return false;
+
+	await prisma.ticket.updateMany({
+		where: { id: ticketId, firstResponseAt: null },
+		data: { firstResponseAt: now },
+	});
+
+	await prisma.ticketEvent.create({
+		data: {
+			ticketId,
+			type: TicketEventType.CLAIMED,
+			actorId: moderatorId,
+			payload: { source: "discord" },
+		},
+	});
+
+	return true;
 }
 
 function isUniqueNumberConflict(err: unknown): boolean {
@@ -90,7 +198,10 @@ function isUniqueNumberConflict(err: unknown): boolean {
 interface CreateTicketInput {
 	guildId: string;
 	openerId: string;
-	category: TicketCategory;
+	/** `null` quand aucun sujet n'est configure : le ticket reste possible. */
+	subject: TicketSubject | null;
+	priority: TicketPriority;
+	description: string | null;
 }
 
 /**
@@ -117,8 +228,13 @@ export async function createTicket(input: CreateTicketInput) {
 						guildId: input.guildId,
 						number,
 						openerId: input.openerId,
-						subject: TICKET_CATEGORY_LABELS[input.category],
-						category: input.category,
+						subjectId: input.subject?.id ?? null,
+						// Le libelle est copie, pas seulement reference : renommer
+						// un sujet ne doit pas reecrire l'intitule des tickets
+						// deja traites.
+						subject: input.subject?.label ?? "Demande",
+						category: input.subject?.category ?? TicketCategory.OTHER,
+						priority: input.priority,
 					},
 				});
 
@@ -127,7 +243,12 @@ export async function createTicket(input: CreateTicketInput) {
 						ticketId: ticket.id,
 						type: TicketEventType.OPENED,
 						actorId: input.openerId,
-						payload: { category: input.category },
+						payload: {
+							subject: ticket.subject,
+							category: ticket.category,
+							priority: input.priority,
+							...(input.description ? { description: input.description } : {}),
+						},
 					},
 				});
 

@@ -1,12 +1,12 @@
 import { ChannelType, type Client, type TextChannel } from "discord.js";
-import { TICKET_CATEGORY_LABELS, TicketStatus, type TicketCategory } from "@anubis/shared";
+import { TicketStatus, type TicketPriority } from "@anubis/shared";
 import prisma from "../prisma";
 import {
 	closeButtonRow,
 	closedEmbed,
 	openEmbed,
 	reopenDeleteButtonRow,
-	setOpenerCanWrite,
+	setOpenerAccess,
 } from "../utils/ticketChannel";
 
 /**
@@ -42,7 +42,7 @@ export async function checkPendingTicketSync(client: Client): Promise<void> {
 
 		try {
 			const isClosed = ticket.status === TicketStatus.CLOSED;
-			await setOpenerCanWrite(channel, ticket.openerId, !isClosed);
+			await setOpenerAccess(channel, ticket.openerId, !isClosed);
 			await syncControlMessage(channel, ticket, isClosed);
 		} catch (err) {
 			console.error(
@@ -61,8 +61,10 @@ export async function checkPendingTicketSync(client: Client): Promise<void> {
 interface TicketRow {
 	id: string;
 	number: number;
-	category: TicketCategory;
+	subject: string;
+	priority: TicketPriority;
 	openerId: string;
+	claimedByDiscordId: string | null;
 }
 
 /**
@@ -82,20 +84,26 @@ async function syncControlMessage(
 	);
 	if (!control) return;
 
-	const categoryLabel = TICKET_CATEGORY_LABELS[ticket.category];
+	const state = {
+		number: ticket.number,
+		subject: ticket.subject,
+		priority: ticket.priority,
+		openerId: ticket.openerId,
+		claimedById: ticket.claimedByDiscordId,
+	};
 
 	if (isClosed) {
 		await control
 			.edit({
-				embeds: [closedEmbed(ticket.number, categoryLabel)],
+				embeds: [closedEmbed(state)],
 				components: [reopenDeleteButtonRow(ticket.id)],
 			})
 			.catch(() => undefined);
 	} else {
 		await control
 			.edit({
-				embeds: [openEmbed(ticket.number, categoryLabel, ticket.openerId)],
-				components: [closeButtonRow(ticket.id)],
+				embeds: [openEmbed(state)],
+				components: [closeButtonRow(ticket.id, Boolean(ticket.claimedByDiscordId))],
 			})
 			.catch(() => undefined);
 	}

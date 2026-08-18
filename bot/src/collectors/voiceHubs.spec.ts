@@ -21,6 +21,7 @@ const prismaMock = {
 		findFirst: jest.fn().mockResolvedValue(null),
 		findUnique: jest.fn().mockResolvedValue(null),
 		findMany: jest.fn().mockResolvedValue([]),
+		update: jest.fn().mockResolvedValue(undefined),
 	},
 	voiceHubPlatform: {
 		findFirst: jest.fn().mockResolvedValue(null),
@@ -63,6 +64,10 @@ const definirLimite = jest.fn().mockResolvedValue(undefined);
 const poserSujet = jest.fn().mockResolvedValue(undefined);
 /** Categorie renvoyee par `guild.channels.fetch` dans les tests de rangement. */
 const chercherSalon = jest.fn().mockResolvedValue(null);
+/** `guild.channels.create`, appele quand une categorie manque. */
+const creerCategorie = jest.fn();
+/** Recherche par nom dans le cache, avant toute creation. */
+const chercherDansCache = jest.fn().mockReturnValue(undefined);
 
 const BOT_ID = "bot-1";
 
@@ -73,7 +78,11 @@ function salonFactice(overrides: Record<string, unknown> = {}) {
 			id: GUILD_ID,
 			members: { me: { id: BOT_ID } },
 			roles: { everyone: { id: GUILD_ID } },
-			channels: { fetch: chercherSalon },
+			channels: {
+				fetch: chercherSalon,
+				create: creerCategorie,
+				cache: { find: chercherDansCache },
+			},
 		},
 		client: { rest: { put: poserSujet }, user: { id: BOT_ID } },
 		parentId: null,
@@ -89,10 +98,10 @@ function salonFactice(overrides: Record<string, unknown> = {}) {
 }
 
 /** Categorie Discord factice, avec le nombre de salons qu'elle contient. */
-function categorieFactice(id: string, salons = 0) {
+function categorieFactice(id: string, salons = 0, nom = `Categorie ${id}`) {
 	return {
 		id,
-		name: `Categorie ${id}`,
+		name: nom,
 		// 4 = ChannelType.GuildCategory
 		type: 4,
 		children: { cache: { size: salons } },
@@ -109,6 +118,7 @@ function serveur(salonExiste = true): Guild {
 		channels: {
 			fetch: jest.fn().mockResolvedValue(salonExiste ? salonFactice() : null),
 			create: creerSalon,
+			cache: { find: chercherDansCache },
 		},
 	} as unknown as Guild;
 }
@@ -145,6 +155,9 @@ function hubFactice(overrides: Record<string, unknown> = {}) {
 		name: "Partie Rapide (5v5)",
 		namePattern: "{name} #{index}",
 		statusPattern: "{rang} {plateforme} · {sujet}",
+		placementMode: "RANK_CATEGORY",
+		landingCategoryName: "En attente",
+		landingCategoryId: "categorie-attente",
 		userLimit: 0,
 		position: 0,
 		enabled: true,
@@ -171,14 +184,22 @@ let silence: jest.SpyInstance;
 beforeEach(() => {
 	jest.clearAllMocks();
 	silence = jest.spyOn(console, "log").mockImplementation(() => {});
-	creerSalon.mockResolvedValue(salonFactice());
+	creerSalon.mockImplementation(async ({ name, type }: { name: string; type: number }) =>
+		type === 4 ? categorieFactice(`categorie-creee-${name}`, 0, name) : salonFactice(),
+	);
 	occupantsDuSalon.mockResolvedValue([]);
 	prismaMock.temporaryVoiceChannel.findFirst.mockResolvedValue(null);
 	prismaMock.temporaryVoiceChannel.findMany.mockResolvedValue([]);
 	prismaMock.voiceHub.findUnique.mockResolvedValue(hubFactice());
 	prismaMock.voiceHubRank.findFirst.mockResolvedValue(null);
 	prismaMock.voiceHubPlatform.findFirst.mockResolvedValue(null);
-	chercherSalon.mockResolvedValue(null);
+	chercherDansCache.mockReturnValue(undefined);
+	creerCategorie.mockImplementation(async ({ name }: { name: string }) =>
+		categorieFactice(`categorie-creee-${name}`, 0, name),
+	);
+	// Par defaut, toute categorie demandee existe : les tests qui veulent
+	// l'inverse la font disparaitre explicitement.
+	chercherSalon.mockImplementation(async (id: string) => categorieFactice(id));
 });
 
 afterEach(() => {
@@ -410,13 +431,8 @@ describe("appliquerPersonnalisation", () => {
 		);
 	});
 
-	it("renvoie le salon dans la categorie de son hub quand le rang est retire", async () => {
+	it("renvoie le salon en attente quand le rang est retire", async () => {
 		const salon = salonFactice({ parentId: "categorie-or" });
-		chercherSalon.mockImplementation(async (id: string) =>
-			id === "salon-hub-1"
-				? { id, parentId: "categorie-hub" }
-				: categorieFactice(id),
-		);
 
 		await voiceHubs.appliquerPersonnalisation(
 			salon as never,
@@ -425,9 +441,79 @@ describe("appliquerPersonnalisation", () => {
 		);
 
 		expect(deplacerSalon).toHaveBeenCalledWith(
-			"categorie-hub",
+			"categorie-attente",
 			expect.objectContaining({ lockPermissions: false }),
 		);
+	});
+
+	// Le staff n'a plus a creer neuf categories a la main ni a en recopier les
+	// identifiants : le premier salon qui prend le rang la fait naitre.
+	it("cree la categorie du rang quand elle n'existe pas encore", async () => {
+		const salon = salonFactice();
+		prismaMock.voiceHubRank.findFirst.mockResolvedValue(
+			rangFactice({ categoryId: null }),
+		);
+		chercherDansCache.mockReturnValue(undefined);
+
+		await voiceHubs.appliquerPersonnalisation(
+			salon as never,
+			ligneTemporaire() as never,
+			{ rankId: "rank-or", platformId: null, topic: null, userLimit: null },
+		);
+
+		expect(creerCategorie).toHaveBeenCalledWith(
+			expect.objectContaining({ name: "Or" }),
+		);
+		// L'identifiant est retenu : la recherche et la creation ne se
+		// rejouent pas au salon suivant.
+		expect(prismaMock.voiceHubRank.update).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: { categoryId: "categorie-creee-Or" },
+			}),
+		);
+	});
+
+	// Une categorie faite a la main entre-temps ne doit pas etre doublee.
+	it("reutilise une categorie deja nommee comme le rang", async () => {
+		const salon = salonFactice();
+		prismaMock.voiceHubRank.findFirst.mockResolvedValue(
+			rangFactice({ categoryId: null }),
+		);
+		chercherDansCache.mockReturnValue(categorieFactice("categorie-or-existante"));
+
+		await voiceHubs.appliquerPersonnalisation(
+			salon as never,
+			ligneTemporaire() as never,
+			{ rankId: "rank-or", platformId: null, topic: null, userLimit: null },
+		);
+
+		expect(creerCategorie).not.toHaveBeenCalled();
+		expect(deplacerSalon).toHaveBeenCalledWith(
+			"categorie-or-existante",
+			expect.objectContaining({ lockPermissions: false }),
+		);
+	});
+
+	// « Partie Rapide » range tous ses salons ensemble : le rang n'y a pas de
+	// sens, et le proposer donnerait un choix sans effet.
+	it("ignore le rang quand le salon de creation a une categorie fixe", async () => {
+		const salon = salonFactice({ parentId: "categorie-attente" });
+		prismaMock.voiceHub.findUnique.mockResolvedValue(
+			hubFactice({
+				placementMode: "FIXED_CATEGORY",
+				landingCategoryName: "Partie Rapide",
+			}),
+		);
+		prismaMock.voiceHubRank.findFirst.mockResolvedValue(rangFactice());
+
+		const resultat = await voiceHubs.appliquerPersonnalisation(
+			salon as never,
+			ligneTemporaire() as never,
+			{ rankId: "rank-or", platformId: null, topic: "duo", userLimit: null },
+		);
+
+		expect(deplacerSalon).not.toHaveBeenCalled();
+		expect(resultat.rank).toBeNull();
 	});
 
 	// Le nom porte le gabarit du hub et rien d'autre : Discord ne laisse le
@@ -457,9 +543,6 @@ describe("appliquerPersonnalisation", () => {
 	it("ignore un rang qui n'appartient pas au salon de creation", async () => {
 		const salon = salonFactice();
 		prismaMock.voiceHubRank.findFirst.mockResolvedValue(null);
-		chercherSalon.mockImplementation(async (id: string) =>
-			id === "salon-hub-1" ? { id, parentId: null } : categorieFactice(id),
-		);
 
 		const resultat = await voiceHubs.appliquerPersonnalisation(
 			salon as never,
@@ -468,7 +551,11 @@ describe("appliquerPersonnalisation", () => {
 		);
 
 		expect(resultat.rank).toBeNull();
-		expect(deplacerSalon).not.toHaveBeenCalled();
+		expect(deplacerSalon).toHaveBeenCalledWith(
+			"categorie-attente",
+			expect.anything(),
+		);
+		expect(deplacerSalon).not.toHaveBeenCalledWith("categorie-or", expect.anything());
 	});
 });
 

@@ -8,15 +8,20 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { interval, startWith, switchMap } from 'rxjs';
 import {
+	DEFAULT_VOICE_LANDING_CATEGORY,
 	DEFAULT_VOICE_NAME_PATTERN,
 	DEFAULT_VOICE_STATUS_PATTERN,
 	MAX_VOICE_TOPIC_LENGTH,
 	Permission,
+	VOICE_PLACEMENT_MODE_DESCRIPTIONS,
+	VOICE_PLACEMENT_MODE_LABELS,
+	VoicePlacementMode,
 	renderVoiceStatus,
 	type LiveVoiceDto,
 	type VoiceHubDto,
@@ -47,6 +52,7 @@ const SNOWFLAKE = /^\d{17,20}$/;
 		MatIconModule,
 		MatInputModule,
 		MatProgressBarModule,
+		MatSelectModule,
 		MatSlideToggleModule,
 		MatTableModule,
 		MatTooltipModule,
@@ -65,6 +71,12 @@ export class VoicePage {
 	private readonly dialog = inject(MatDialog);
 
 	readonly Permission = Permission;
+	readonly placementModes = Object.values(VoicePlacementMode);
+	// Indexés depuis le template, où les lignes de mat-table arrivent typées
+	// `any` : un `Record<VoicePlacementMode, string>` ne s'y indexe pas.
+	readonly placementLabels: Record<string, string> = VOICE_PLACEMENT_MODE_LABELS;
+	readonly placementDescriptions: Record<string, string> =
+		VOICE_PLACEMENT_MODE_DESCRIPTIONS;
 	readonly hubColumns = ['name', 'pattern', 'options', 'userLimit', 'state', 'actions'];
 	readonly maxTopicLength = MAX_VOICE_TOPIC_LENGTH;
 
@@ -88,6 +100,11 @@ export class VoicePage {
 			[Validators.required, Validators.pattern(/\{index\}/)],
 		],
 		statusPattern: [DEFAULT_VOICE_STATUS_PATTERN, [Validators.required]],
+		placementMode: [VoicePlacementMode.RANK_CATEGORY as VoicePlacementMode],
+		landingCategoryName: [
+			DEFAULT_VOICE_LANDING_CATEGORY,
+			[Validators.required, Validators.maxLength(100)],
+		],
 		userLimit: [0, [Validators.required, Validators.min(0), Validators.max(99)]],
 		position: [0, [Validators.required, Validators.min(0)]],
 		enabled: [true],
@@ -97,7 +114,7 @@ export class VoicePage {
 	readonly rankForm = this.formBuilder.nonNullable.group({
 		label: ['', [Validators.required, Validators.maxLength(40)]],
 		emoji: [''],
-		categoryId: ['', [Validators.required, Validators.pattern(SNOWFLAKE)]],
+		categoryId: ['', [Validators.pattern(SNOWFLAKE)]],
 	});
 
 	readonly platformForm = this.formBuilder.nonNullable.group({
@@ -160,6 +177,8 @@ export class VoicePage {
 			name: hub.name,
 			namePattern: hub.namePattern,
 			statusPattern: hub.statusPattern,
+			placementMode: hub.placementMode,
+			landingCategoryName: hub.landingCategoryName,
 			userLimit: hub.userLimit,
 			position: hub.position,
 			enabled: hub.enabled,
@@ -172,6 +191,8 @@ export class VoicePage {
 			name: '',
 			namePattern: DEFAULT_VOICE_NAME_PATTERN,
 			statusPattern: DEFAULT_VOICE_STATUS_PATTERN,
+			placementMode: VoicePlacementMode.RANK_CATEGORY,
+			landingCategoryName: DEFAULT_VOICE_LANDING_CATEGORY,
 			userLimit: 0,
 			position: 0,
 			enabled: true,
@@ -193,7 +214,9 @@ export class VoicePage {
 			.createRank(hub.id, {
 				label: raw.label,
 				emoji: raw.emoji.trim() || null,
-				categoryId: raw.categoryId.trim(),
+				// Vide : le bot creera la categorie d'apres le libelle du rang,
+				// au premier salon qui le choisit.
+				categoryId: raw.categoryId.trim() || null,
 			})
 			.subscribe({
 				next: () => {
