@@ -73,6 +73,25 @@
 				<mat-label>Libellé du bouton</mat-label>
 				<input matInput formControlName="buttonLabel" maxlength="80" />
 			</mat-form-field>
+
+			<h3 class="section-title">Rôles appliqués à la levée</h3>
+			<p class="section-hint">
+				Joués quand le membre accepte le règlement, et quand la quarantaine est levée
+				depuis cette page. Le rôle de quarantaine est retiré dans tous les cas — inutile
+				de le répéter ici. {{ maxReleaseRoles }} rôles au maximum par liste ; un rôle
+				placé au-dessus du bot dans la hiérarchie est ignoré.
+			</p>
+
+			<div class="row">
+				<mat-form-field>
+					<mat-label>Rôles à ajouter (identifiants séparés par des virgules)</mat-label>
+					<input matInput formControlName="releaseAddRoleIds" placeholder="123456789012345678" />
+				</mat-form-field>
+				<mat-form-field>
+					<mat-label>Rôles à retirer (identifiants séparés par des virgules)</mat-label>
+					<input matInput formControlName="releaseRemoveRoleIds" placeholder="123456789012345678" />
+				</mat-form-field>
+			</div>
 		</mat-card-content>
 
 		<mat-card-actions align="end" *appHasPermission="Permission.QUARANTINE_CONFIGURE">

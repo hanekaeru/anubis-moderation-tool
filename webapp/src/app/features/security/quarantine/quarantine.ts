@@ -12,6 +12,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import {
 	DEFAULT_QUARANTINE_BUTTON_LABEL,
+	MAX_QUARANTINE_RELEASE_ROLES,
 	Permission,
 	type QuarantineStatusDto,
 } from '@anubis/shared';
@@ -50,6 +51,7 @@ export class QuarantinePage {
 	private readonly notifications = inject(NotificationService);
 
 	readonly Permission = Permission;
+	readonly maxReleaseRoles = MAX_QUARANTINE_RELEASE_ROLES;
 	readonly columns = ['member', 'quarantinedAt', 'status', 'actions'];
 
 	readonly loading = signal(true);
@@ -77,6 +79,8 @@ export class QuarantinePage {
 			DEFAULT_QUARANTINE_BUTTON_LABEL,
 			[Validators.required, Validators.maxLength(80)],
 		],
+		releaseAddRoleIds: [''],
+		releaseRemoveRoleIds: [''],
 	});
 
 	constructor() {
@@ -99,6 +103,8 @@ export class QuarantinePage {
 				channelId: SNOWFLAKE.test(raw.channelId) ? raw.channelId : null,
 				message: raw.message.trim() ? raw.message.trim() : null,
 				buttonLabel: raw.buttonLabel,
+				releaseAddRoleIds: this.splitIds(raw.releaseAddRoleIds),
+				releaseRemoveRoleIds: this.splitIds(raw.releaseRemoveRoleIds),
 			})
 			.subscribe({
 				next: (config) => {
@@ -123,6 +129,24 @@ export class QuarantinePage {
 		});
 	}
 
+	/**
+	 * Identifiants saisis en texte libre, comme les roles dispenses de l'automod.
+	 *
+	 * Ce qui n'est pas un snowflake est ecarte en silence : le champ tolere ainsi
+	 * un separateur en trop ou une liste collee avec des espaces, plutot que de
+	 * refuser l'enregistrement entier pour une virgule finale.
+	 */
+	private splitIds(value: string): string[] {
+		const ids = value
+			.split(',')
+			.map((id) => id.trim())
+			.filter((id) => SNOWFLAKE.test(id));
+
+		// Doublons retires : l'API borne le nombre d'entrees, et deux fois le
+		// meme role consommerait une place pour rien.
+		return [...new Set(ids)].slice(0, MAX_QUARANTINE_RELEASE_ROLES);
+	}
+
 	private load(): void {
 		this.loading.set(true);
 
@@ -134,6 +158,8 @@ export class QuarantinePage {
 					channelId: config.channelId ?? '',
 					message: config.message ?? '',
 					buttonLabel: config.buttonLabel,
+					releaseAddRoleIds: config.releaseAddRoleIds.join(', '),
+					releaseRemoveRoleIds: config.releaseRemoveRoleIds.join(', '),
 				});
 				this.saved.set({ enabled: config.enabled, roleId: config.roleId });
 				this.loading.set(false);

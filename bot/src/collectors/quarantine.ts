@@ -1,4 +1,4 @@
-import type { Client, Guild, GuildMember } from "discord.js";
+import type { Client, Guild, GuildMember, Role } from "discord.js";
 import prisma from "../prisma";
 
 /**
@@ -53,6 +53,91 @@ export async function quarantineNewMember(member: GuildMember): Promise<void> {
 	});
 }
 
+/** Ce que la levee a besoin de savoir du reglage, et rien de plus. */
+type ReglageLevee = {
+	roleId: string | null;
+	releaseAddRoleIds: string[];
+	releaseRemoveRoleIds: string[];
+};
+
+/**
+ * Un role n'est modifiable que s'il n'est ni gere par une integration (role de
+ * bot, role de boost) ni place au-dessus du plus haut role du bot. Meme regle
+ * que `partitionRoles` du shadowban, et pour la meme raison : `roles.set` est
+ * un appel unique, un seul role interdit ferait echouer la levee entiere.
+ */
+function gerable(role: Role | null | undefined, botHighest: Role | null): boolean {
+	if (!role) return false;
+	return (
+		!role.managed && botHighest !== null && role.comparePositionTo(botHighest) < 0
+	);
+}
+
+/**
+ * Applique la levee : role de quarantaine retire, roles configures poses et
+ * retires, en **un seul** `roles.set`.
+ *
+ * Un `remove` suivi d'un `add` ferait traverser au membre un etat ou il a
+ * quitte la quarantaine sans avoir encore le role qui ouvre le serveur — un
+ * arrivant y verrait un serveur vide pendant le temps d'un aller-retour reseau,
+ * et un echec entre les deux appels l'y laisserait pour de bon.
+ *
+ * Un role que le bot ne peut pas modifier est **ignore, pas fatal** : la levee
+ * doit aboutir meme si un role de la liste a depuis ete deplace au-dessus du
+ * bot. Le journal le signale, car un role configure qui ne s'applique jamais
+ * passerait autrement pour un bug du bouton.
+ */
+export async function appliquerRolesDeLevee(
+	member: GuildMember,
+	config: ReglageLevee,
+	raison: string,
+): Promise<void> {
+	const botHighest = member.guild.members.me?.roles.highest ?? null;
+
+	const aRetirer = new Set<string>(config.releaseRemoveRoleIds);
+	if (config.roleId) aRetirer.add(config.roleId);
+
+	const final = new Set<string>();
+
+	for (const role of member.roles.cache.values()) {
+		// `@everyone` porte l'identifiant du serveur et n'est jamais transmis.
+		if (role.id === member.guild.id) continue;
+
+		if (aRetirer.has(role.id)) {
+			// Hors de portee du bot : on le laisse dans le lot pour que Discord n'y
+			// voie aucun changement, plutot que de faire echouer l'appel entier.
+			if (!gerable(role, botHighest)) {
+				console.warn(
+					`[Quarantaine] Rôle ${role.id} non retirable à ${member.id} (géré ou au-dessus du bot).`,
+				);
+				final.add(role.id);
+			}
+			continue;
+		}
+
+		final.add(role.id);
+	}
+
+	for (const roleId of config.releaseAddRoleIds) {
+		if (aRetirer.has(roleId)) continue;
+
+		const role =
+			member.guild.roles.cache.get(roleId) ??
+			(await member.guild.roles.fetch(roleId).catch(() => null));
+
+		if (!gerable(role, botHighest)) {
+			console.warn(
+				`[Quarantaine] Rôle ${roleId} non attribuable à ${member.id} (introuvable, géré ou au-dessus du bot).`,
+			);
+			continue;
+		}
+
+		final.add(roleId);
+	}
+
+	await member.roles.set([...final], raison);
+}
+
 /**
  * Acceptation du reglement par le membre lui-meme (bouton).
  *
@@ -76,7 +161,7 @@ export async function accepterReglement(
 		return "deja-acceptee";
 	}
 
-	await member.roles.remove(config.roleId, "Règlement accepte.");
+	await appliquerRolesDeLevee(member, config, "Règlement accepté.");
 
 	const maintenant = new Date();
 	await prisma.quarantineStatus.upsert({
@@ -140,5 +225,9 @@ async function retirerRole(guild: Guild, userId: string): Promise<void> {
 	const member = await guild.members.fetch(userId).catch(() => null);
 	if (!member) return;
 
-	await member.roles.remove(config.roleId, "Quarantaine levée depuis le dashboard.");
+	await appliquerRolesDeLevee(
+		member,
+		config,
+		"Quarantaine levée depuis le dashboard.",
+	);
 }

@@ -822,6 +822,12 @@ model QuarantineConfig {
   channelId   String?  @map("channel_id") @db.VarChar(20)
   message     String?  @db.Text
   buttonLabel String   @default("J'accepte le reglement") @map("button_label")
+  /// Roles donnes au membre a la levee de la quarantaine (acceptation du
+  /// reglement ou deblocage depuis la webapp) — typiquement le role qui ouvre
+  /// reellement le serveur.
+  releaseAddRoleIds    String[] @default([]) @map("release_add_role_ids")
+  /// Roles retires au membre a la levee de la quarantaine.
+  releaseRemoveRoleIds String[] @default([]) @map("release_remove_role_ids")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
