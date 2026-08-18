@@ -57,6 +57,72 @@ describe("QuarantineService.getConfig", () => {
 		expect(config.roleId).toBeNull();
 		expect(config.buttonLabel).toBe("J'accepte le reglement");
 	});
+
+	// Le bot itere sur ces listes a chaque levee : un `undefined` la ferait
+	// echouer sur un serveur qui n'a jamais ouvert la page.
+	it("renvoie des listes de roles vides, jamais indefinies", async () => {
+		const { service } = makeService();
+		const config = await service.getConfig();
+
+		expect(config.releaseAddRoleIds).toEqual([]);
+		expect(config.releaseRemoveRoleIds).toEqual([]);
+	});
+});
+
+describe("QuarantineService.updateConfig", () => {
+	// Listes remplacees en bloc : `[]` doit vider le reglage, et non etre
+	// confondu avec « champ absent, ne touche a rien ».
+	it("ecrit une liste vide quand le champ est fourni vide", async () => {
+		const { service, prisma } = makeService({
+			quarantineConfig: {
+				findUnique: jest.fn().mockResolvedValue(null),
+				upsert: jest.fn().mockResolvedValue({
+					guildId: GUILD_ID,
+					enabled: true,
+					roleId: null,
+					channelId: null,
+					message: null,
+					buttonLabel: "J'accepte le reglement",
+					releaseAddRoleIds: [],
+					releaseRemoveRoleIds: [],
+					updatedAt: new Date("2026-08-18T10:00:00.000Z"),
+				}),
+			},
+		});
+
+		await service.updateConfig({ releaseAddRoleIds: [] }, ACTOR);
+
+		const { update } = (prisma.quarantineConfig.upsert as jest.Mock).mock
+			.calls[0]![0];
+		expect(update.releaseAddRoleIds).toEqual([]);
+		expect(update).not.toHaveProperty("releaseRemoveRoleIds");
+	});
+
+	it("laisse intactes les listes absentes de la requete", async () => {
+		const { service, prisma } = makeService({
+			quarantineConfig: {
+				findUnique: jest.fn().mockResolvedValue(null),
+				upsert: jest.fn().mockResolvedValue({
+					guildId: GUILD_ID,
+					enabled: true,
+					roleId: null,
+					channelId: null,
+					message: null,
+					buttonLabel: "J'accepte le reglement",
+					releaseAddRoleIds: ["136122497891303425"],
+					releaseRemoveRoleIds: [],
+					updatedAt: new Date("2026-08-18T10:00:00.000Z"),
+				}),
+			},
+		});
+
+		const saved = await service.updateConfig({ enabled: true }, ACTOR);
+
+		const { update } = (prisma.quarantineConfig.upsert as jest.Mock).mock
+			.calls[0]![0];
+		expect(update).not.toHaveProperty("releaseAddRoleIds");
+		expect(saved.releaseAddRoleIds).toEqual(["136122497891303425"]);
+	});
 });
 
 describe("QuarantineService.release", () => {

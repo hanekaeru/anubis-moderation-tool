@@ -315,6 +315,16 @@ le dev avec rechargement).
   `activite.ts` ne persiste toujours que la longueur des messages, jamais leur
   texte — seuls les messages des salons de ticket voient leur contenu ecrit en
   base, par `collectors/tickets.ts`.
+- **`MessageUpdate` ne veut pas dire « edition ».** Discord reutilise le meme
+  evenement pour annoncer la resolution de l'apercu d'un lien (Tenor, Giphy,
+  toute URL), un epinglage ou une suppression d'apercu — envoyer un GIF
+  remontait ainsi dans les logs comme une modification, et gonflait
+  `editedCount`. Le depart se fait sur **`editedTimestamp`**, seul pose par une
+  vraie edition. Un second garde est necessaire malgre tout : l'apercu du lien
+  *ajoute par une edition* declenche un `MessageUpdate` de plus, celui-la avec
+  un `editedTimestamp` deja renseigne. C'est le contenu identique qui le
+  trahit — comparaison faite seulement si l'ancien message etait en cache, son
+  `content` valant `null` quand il est partiel.
 - Les jours sont calcules en **UTC** et `weekday` compte a partir de lundi
   (`(getUTCDay() + 6) % 7`), pas de dimanche comme JavaScript.
 - Les suppressions de roles et de salons sont **logiques** (`deletedAt`) :
@@ -473,6 +483,23 @@ le dev avec rechargement).
   **purgees au declenchement** — sans cela les horodatages deja au-dessus du
   seuil y restent et chaque message suivant rouvre un incident et une sanction
   pour la meme inondation.
+- **Roles appliques a la levee de quarantaine**
+  (`QuarantineConfig.releaseAddRoleIds` / `releaseRemoveRoleIds`, regles depuis
+  le dashboard) : ils valent pour les **deux** chemins de levee — le bouton
+  d'acceptation et le deblocage depuis la webapp — parce que les deux passent
+  par `appliquerRolesDeLevee`. Trois points a garder :
+  - **un seul `roles.set`**, jamais un `remove` suivi d'un `add` : entre les
+    deux appels le membre a quitte la quarantaine sans porter encore le role
+    qui ouvre le serveur, et un echec a mi-chemin l'y laisse pour de bon.
+  - un role **gere par une integration ou place au-dessus du bot** est ignore,
+    pas fatal. Comme `roles.set` est un appel unique, l'inclure ferait echouer
+    la levee entiere pour un role qui n'aurait de toute facon pas bouge ; celui
+    a retirer est donc **laisse dans le lot** pour que Discord n'y voie aucun
+    changement. Un avertissement en console, sinon un role configure qui ne
+    s'applique jamais passe pour un bug du bouton.
+  - les listes sont **remplacees en bloc** par l'API, jamais fusionnees :
+    envoyer `[]` est le seul moyen de vider un reglage, et une absorption
+    partielle laisserait un role retire du dashboard continuer d'etre pose.
 - **Ce qui n'est PAS rattrape automatiquement.** Le patron `discordSyncedAt`
   couvre sanctions, avertissements (message prive), tickets, anti-raid,
   quarantine (levees), concours et messages composes. Il reste **un** reglage

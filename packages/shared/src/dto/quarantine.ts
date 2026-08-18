@@ -6,6 +6,15 @@ export const DEFAULT_QUARANTINE_BUTTON_LABEL = "J'accepte le reglement";
 export const DEFAULT_QUARANTINE_MESSAGE =
 	"Bienvenue ! Prends connaissance du reglement, puis clique sur le bouton ci-dessous pour acceder au serveur.";
 
+/**
+ * Plafond par liste de roles appliques a la levee.
+ *
+ * Chaque levee se joue en un seul `roles.set` : la borne protege moins la base
+ * que la requete Discord, dont l'echec est global — un lot demesure ferait
+ * echouer la levee entiere, pas seulement le role fautif.
+ */
+export const MAX_QUARANTINE_RELEASE_ROLES = 10;
+
 export interface QuarantineConfigDto {
 	guildId: Snowflake;
 	enabled: boolean;
@@ -15,6 +24,10 @@ export interface QuarantineConfigDto {
 	channelId: Snowflake | null;
 	message: string | null;
 	buttonLabel: string;
+	/** Roles donnes a la levee — acceptation du reglement ou deblocage webapp. */
+	releaseAddRoleIds: Snowflake[];
+	/** Roles retires a la levee, en plus du role de quarantaine lui-meme. */
+	releaseRemoveRoleIds: Snowflake[];
 	updatedAt: IsoDateString;
 }
 
@@ -24,6 +37,8 @@ export interface UpdateQuarantineConfigRequest {
 	channelId?: Snowflake | null;
 	message?: string | null;
 	buttonLabel?: string;
+	releaseAddRoleIds?: Snowflake[];
+	releaseRemoveRoleIds?: Snowflake[];
 }
 
 export interface QuarantineStatusDto {

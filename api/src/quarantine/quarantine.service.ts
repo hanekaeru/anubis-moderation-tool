@@ -16,6 +16,8 @@ const DEFAULTS = {
 	channelId: null as string | null,
 	message: null as string | null,
 	buttonLabel: DEFAULT_QUARANTINE_BUTTON_LABEL,
+	releaseAddRoleIds: [] as string[],
+	releaseRemoveRoleIds: [] as string[],
 };
 
 /** Ligne de `quarantine_status` avec ce qu'il faut pour l'afficher. */
@@ -54,6 +56,8 @@ export class QuarantineService {
 			channelId: existing.channelId,
 			message: existing.message,
 			buttonLabel: existing.buttonLabel,
+			releaseAddRoleIds: existing.releaseAddRoleIds,
+			releaseRemoveRoleIds: existing.releaseRemoveRoleIds,
 			updatedAt: existing.updatedAt.toISOString(),
 		};
 	}
@@ -72,6 +76,12 @@ export class QuarantineService {
 				...(dto.channelId !== undefined ? { channelId: dto.channelId } : {}),
 				...(dto.message !== undefined ? { message: dto.message } : {}),
 				...(dto.buttonLabel !== undefined ? { buttonLabel: dto.buttonLabel } : {}),
+				...(dto.releaseAddRoleIds !== undefined
+					? { releaseAddRoleIds: dto.releaseAddRoleIds }
+					: {}),
+				...(dto.releaseRemoveRoleIds !== undefined
+					? { releaseRemoveRoleIds: dto.releaseRemoveRoleIds }
+					: {}),
 			},
 			create: {
 				guildId,
@@ -80,6 +90,9 @@ export class QuarantineService {
 				channelId: dto.channelId ?? DEFAULTS.channelId,
 				message: dto.message ?? DEFAULTS.message,
 				buttonLabel: dto.buttonLabel ?? DEFAULTS.buttonLabel,
+				releaseAddRoleIds: dto.releaseAddRoleIds ?? DEFAULTS.releaseAddRoleIds,
+				releaseRemoveRoleIds:
+					dto.releaseRemoveRoleIds ?? DEFAULTS.releaseRemoveRoleIds,
 			},
 		});
 
@@ -98,6 +111,8 @@ export class QuarantineService {
 			channelId: saved.channelId,
 			message: saved.message,
 			buttonLabel: saved.buttonLabel,
+			releaseAddRoleIds: saved.releaseAddRoleIds,
+			releaseRemoveRoleIds: saved.releaseRemoveRoleIds,
 			updatedAt: saved.updatedAt.toISOString(),
 		};
 	}

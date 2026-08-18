@@ -72,3 +72,16 @@ code {
 	text-align: center;
 	color: var(--mat-sys-on-surface-variant);
 }
+
+/* `mat-card-content` est une colonne flex a gouttiere fixe : l'intertitre et sa
+   note portent donc des marges nulles, la gouttiere fait l'espacement. */
+.section-title {
+	margin: 8px 0 0;
+	font: var(--mat-sys-title-small);
+}
+
+.section-hint {
+	margin: 0;
+	color: var(--mat-sys-on-surface-variant);
+	font: var(--mat-sys-body-small);
+}

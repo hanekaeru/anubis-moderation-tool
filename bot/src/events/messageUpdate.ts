@@ -23,6 +23,21 @@ const event: BotEvent<typeof Events.MessageUpdate> = {
 		// a qui attribuer l'edition.
 		if (!message.author) return;
 
+		// Discord emet `MessageUpdate` pour bien plus qu'une edition : c'est le
+		// meme evenement qui annonce la resolution de l'apercu d'un lien
+		// (Tenor, Giphy, toute URL), un epinglage ou une suppression d'apercu.
+		// Envoyer un GIF remontait ainsi comme une « modification » une seconde
+		// apres l'envoi. Seule une vraie edition pose `editedTimestamp`.
+		if (!message.editedTimestamp) return;
+
+		// `editedTimestamp` reste pose apres coup : l'apercu du lien ajoute par
+		// une edition declenche un second `MessageUpdate`, celui-la avec un
+		// horodatage d'edition deja renseigne. Le texte, lui, n'a pas bouge —
+		// c'est ce qui distingue les deux. Comparaison seulement quand l'ancien
+		// message etait en cache : partiel, son contenu est `null` et ne prouve
+		// rien.
+		if (ancien.content !== null && ancien.content === message.content) return;
+
 		// On enregistre l'activité au niveau base
 		activite.enregistrerEdition(message);
 

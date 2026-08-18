@@ -1,4 +1,6 @@
 import {
+	ArrayMaxSize,
+	IsArray,
 	IsBoolean,
 	IsOptional,
 	IsString,
@@ -7,6 +9,7 @@ import {
 	MinLength,
 	ValidateIf,
 } from "class-validator";
+import { MAX_QUARANTINE_RELEASE_ROLES } from "@anubis/shared";
 
 const SNOWFLAKE = /^\d{17,20}$/;
 
@@ -38,4 +41,19 @@ export class UpdateQuarantineConfigDto {
 	@MinLength(1)
 	@MaxLength(80)
 	buttonLabel?: string;
+
+	// Listes remplacees en bloc, jamais fusionnees : envoyer `[]` est le seul
+	// moyen de vider un reglage, et une absorption partielle laisserait un role
+	// retire du dashboard continuer a etre pose par le bot.
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(MAX_QUARANTINE_RELEASE_ROLES)
+	@Matches(SNOWFLAKE, { each: true })
+	releaseAddRoleIds?: string[];
+
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(MAX_QUARANTINE_RELEASE_ROLES)
+	@Matches(SNOWFLAKE, { each: true })
+	releaseRemoveRoleIds?: string[];
 }
