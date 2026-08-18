@@ -536,6 +536,35 @@ le dev avec rechargement).
   acces) ; un declenchement ou une resolution demandes depuis la webapp
   laissent `discordSyncedAt` a `null` et attendent le prochain passage de la
   tache periodique.
+- **Rangs des salons vocaux temporaires** (`src/collectors/voiceHubs.ts`,
+  `voice_hub_ranks`, `voice_hub_platforms`) : le proprietaire choisit un rang et
+  une plateforme depuis le panneau du salon ; le **rang seul** deplace le salon,
+  dans la categorie que le dashboard lui associe. Quatre points a garder :
+  - le rang et la plateforme vivent dans le **sujet** du salon (« voice
+    status »), jamais dans son nom. Discord n'accepte que **deux renommages par
+    tranche de dix minutes et par salon** : dans le nom, corriger son rang puis
+    sa plateforme atteindrait le plafond du premier coup, et le troisieme essai
+    resterait bloque dix minutes sans erreur lisible. C'est aussi pourquoi la
+    modale ne propose plus le nom du tout.
+  - le sujet n'existe pas dans discord.js 14.27 : l'appel part en brut sur
+    `PUT /channels/:id/voice-status`, et demande la permission
+    `SetVoiceChannelStatus` — ajoutee a `permissionsManquantes`, sans quoi la
+    personnalisation ne laisse aucune trace visible.
+  - `setParent` recoit **`lockPermissions: false`**. Synchroniser les
+    permissions sur la categorie d'arrivee effacerait les surcharges du salon :
+    le verrou du panneau sauterait a chaque changement de rang, et l'acces
+    garanti du proprietaire avec lui.
+  - une categorie pleine (**50 salons**) fait echouer le deplacement en 50035 :
+    le compte est verifie avant, et le rang **n'est alors pas enregistre**. Une
+    ligne annoncant un rangement que Discord n'a jamais fait ferait deplacer le
+    salon plus tard par le rattrapage du demarrage, sans que personne ne l'ait
+    demande.
+  Retirer un rang depuis le dashboard ne deplace **pas** les salons qui le
+  portaient (`ON DELETE SET NULL`) : ils restent ou ils sont jusqu'au prochain
+  choix de leur proprietaire. `renderVoiceStatus` (`@anubis/shared`) compose le
+  sujet pour le bot et pour l'apercu du dashboard — meme raison que
+  `renderXpLevelUpMessage`.
+
 - **Concours** (`src/collectors/giveaway.ts`, `src/commands/giveaway/giveaway.ts`) :
   participation par reaction, meme patron `discordSyncedAt` que les sanctions.
   Le **statut** dit ce qui reste a faire quand `discordSyncedAt` est `null` :

@@ -4,6 +4,7 @@ import type { VoiceHub } from "@anubis/shared/prisma";
 const prismaMock = {
 	voiceHub: {
 		findFirst: jest.fn().mockResolvedValue(null),
+		findUnique: jest.fn().mockResolvedValue(null),
 		findMany: jest.fn().mockResolvedValue([]),
 		update: jest.fn().mockResolvedValue(undefined),
 		updateMany: jest.fn().mockResolvedValue(undefined),
@@ -11,9 +12,19 @@ const prismaMock = {
 	temporaryVoiceChannel: {
 		create: jest.fn(),
 		findFirst: jest.fn().mockResolvedValue(null),
+		findUnique: jest.fn().mockResolvedValue(null),
 		findMany: jest.fn().mockResolvedValue([]),
 		update: jest.fn().mockResolvedValue(undefined),
 		updateMany: jest.fn().mockResolvedValue(undefined),
+	},
+	voiceHubRank: {
+		findFirst: jest.fn().mockResolvedValue(null),
+		findUnique: jest.fn().mockResolvedValue(null),
+		findMany: jest.fn().mockResolvedValue([]),
+	},
+	voiceHubPlatform: {
+		findFirst: jest.fn().mockResolvedValue(null),
+		findMany: jest.fn().mockResolvedValue([]),
 	},
 };
 
@@ -26,6 +37,7 @@ jest.mock("./voiceLog", () => ({
 	salonCree: jest.fn().mockResolvedValue(undefined),
 	salonSupprime: jest.fn().mockResolvedValue(undefined),
 	proprieteTransferee: jest.fn().mockResolvedValue(undefined),
+	salonPersonnalise: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock("./referentiel", () => ({
 	__esModule: true,
@@ -46,17 +58,44 @@ const supprimerSalon = jest.fn().mockResolvedValue(undefined);
 const editerAcces = jest.fn().mockResolvedValue(undefined);
 const supprimerAcces = jest.fn().mockResolvedValue(undefined);
 const creerSalon = jest.fn();
+const deplacerSalon = jest.fn().mockResolvedValue(undefined);
+const definirLimite = jest.fn().mockResolvedValue(undefined);
+const poserSujet = jest.fn().mockResolvedValue(undefined);
+/** Categorie renvoyee par `guild.channels.fetch` dans les tests de rangement. */
+const chercherSalon = jest.fn().mockResolvedValue(null);
 
 const BOT_ID = "bot-1";
 
-function salonFactice() {
+function salonFactice(overrides: Record<string, unknown> = {}) {
 	return {
 		id: CHANNEL_ID,
-		guild: { id: GUILD_ID, members: { me: { id: BOT_ID } }, roles: { everyone: { id: GUILD_ID } } },
+		guild: {
+			id: GUILD_ID,
+			members: { me: { id: BOT_ID } },
+			roles: { everyone: { id: GUILD_ID } },
+			channels: { fetch: chercherSalon },
+		},
+		client: { rest: { put: poserSujet }, user: { id: BOT_ID } },
+		parentId: null,
+		userLimit: 0,
 		isVoiceBased: () => true,
 		send: jest.fn().mockResolvedValue(undefined),
 		delete: supprimerSalon,
+		setParent: deplacerSalon,
+		setUserLimit: definirLimite,
 		permissionOverwrites: { edit: editerAcces, delete: supprimerAcces },
+		...overrides,
+	};
+}
+
+/** Categorie Discord factice, avec le nombre de salons qu'elle contient. */
+function categorieFactice(id: string, salons = 0) {
+	return {
+		id,
+		name: `Categorie ${id}`,
+		// 4 = ChannelType.GuildCategory
+		type: 4,
+		children: { cache: { size: salons } },
 	};
 }
 
@@ -84,8 +123,43 @@ function ligneTemporaire(overrides: Record<string, unknown> = {}) {
 		index: 1,
 		ownerId: OWNER_ID,
 		locked: false,
+		rankId: null,
+		platformId: null,
+		topic: null,
 		createdAt: new Date(Date.now() - 600_000),
 		closedAt: null,
+		// `reconcilierSalons` les charge par `include` : les omettre ici
+		// testerait une forme de ligne que Prisma ne renvoie jamais.
+		hub: hubFactice(),
+		rank: null,
+		platform: null,
+		...overrides,
+	};
+}
+
+function hubFactice(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "hub-uuid",
+		guildId: GUILD_ID,
+		channelId: "salon-hub-1",
+		name: "Partie Rapide (5v5)",
+		namePattern: "{name} #{index}",
+		statusPattern: "{rang} {plateforme} · {sujet}",
+		userLimit: 0,
+		position: 0,
+		enabled: true,
+		...overrides,
+	};
+}
+
+function rangFactice(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "rank-or",
+		hubId: "hub-uuid",
+		label: "Or",
+		emoji: null,
+		categoryId: "categorie-or",
+		position: 0,
 		...overrides,
 	};
 }
@@ -101,6 +175,10 @@ beforeEach(() => {
 	occupantsDuSalon.mockResolvedValue([]);
 	prismaMock.temporaryVoiceChannel.findFirst.mockResolvedValue(null);
 	prismaMock.temporaryVoiceChannel.findMany.mockResolvedValue([]);
+	prismaMock.voiceHub.findUnique.mockResolvedValue(hubFactice());
+	prismaMock.voiceHubRank.findFirst.mockResolvedValue(null);
+	prismaMock.voiceHubPlatform.findFirst.mockResolvedValue(null);
+	chercherSalon.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -269,6 +347,128 @@ describe("reconcilierSalons", () => {
 
 		expect(prismaMock.temporaryVoiceChannel.update).not.toHaveBeenCalled();
 		expect(supprimerSalon).not.toHaveBeenCalled();
+	});
+});
+
+describe("appliquerPersonnalisation", () => {
+	it("range le salon dans la categorie du rang choisi", async () => {
+		const salon = salonFactice();
+		prismaMock.voiceHubRank.findFirst.mockResolvedValue(rangFactice());
+		chercherSalon.mockResolvedValue(categorieFactice("categorie-or"));
+
+		const resultat = await voiceHubs.appliquerPersonnalisation(
+			salon as never,
+			ligneTemporaire() as never,
+			{ rankId: "rank-or", platformId: null, topic: "duo", userLimit: null },
+		);
+
+		expect(deplacerSalon).toHaveBeenCalledWith(
+			"categorie-or",
+			expect.objectContaining({ lockPermissions: false }),
+		);
+		expect(resultat.avertissement).toBeNull();
+	});
+
+	// Les permissions du salon portent le verrou du panneau et l'acces garanti
+	// du proprietaire : les synchroniser sur la categorie d'arrivee les
+	// effacerait, et un salon verrouille se rouvrirait a chaque changement de
+	// rang.
+	it("ne synchronise jamais les permissions sur la categorie d'arrivee", async () => {
+		const salon = salonFactice();
+		prismaMock.voiceHubRank.findFirst.mockResolvedValue(rangFactice());
+		chercherSalon.mockResolvedValue(categorieFactice("categorie-or"));
+
+		await voiceHubs.appliquerPersonnalisation(
+			salon as never,
+			ligneTemporaire() as never,
+			{ rankId: "rank-or", platformId: null, topic: null, userLimit: null },
+		);
+
+		const [, options] = deplacerSalon.mock.calls[0] as [string, { lockPermissions: boolean }];
+		expect(options.lockPermissions).toBe(false);
+	});
+
+	it("refuse le rang quand la categorie est pleine et garde le precedent", async () => {
+		const salon = salonFactice();
+		prismaMock.voiceHubRank.findFirst.mockResolvedValue(rangFactice());
+		chercherSalon.mockResolvedValue(
+			categorieFactice("categorie-or", voiceHubs.MAX_CHANNELS_PER_CATEGORY),
+		);
+
+		const resultat = await voiceHubs.appliquerPersonnalisation(
+			salon as never,
+			ligneTemporaire() as never,
+			{ rankId: "rank-or", platformId: null, topic: null, userLimit: null },
+		);
+
+		expect(deplacerSalon).not.toHaveBeenCalled();
+		expect(resultat.avertissement).toContain("pleine");
+		// Le rang n'est pas enregistre : sinon la base annoncerait un
+		// rangement que Discord n'a jamais fait.
+		expect(prismaMock.temporaryVoiceChannel.update).toHaveBeenCalledWith(
+			expect.objectContaining({ data: expect.objectContaining({ rankId: null }) }),
+		);
+	});
+
+	it("renvoie le salon dans la categorie de son hub quand le rang est retire", async () => {
+		const salon = salonFactice({ parentId: "categorie-or" });
+		chercherSalon.mockImplementation(async (id: string) =>
+			id === "salon-hub-1"
+				? { id, parentId: "categorie-hub" }
+				: categorieFactice(id),
+		);
+
+		await voiceHubs.appliquerPersonnalisation(
+			salon as never,
+			ligneTemporaire({ rankId: "rank-or" }) as never,
+			{ rankId: null, platformId: null, topic: null, userLimit: null },
+		);
+
+		expect(deplacerSalon).toHaveBeenCalledWith(
+			"categorie-hub",
+			expect.objectContaining({ lockPermissions: false }),
+		);
+	});
+
+	// Le nom porte le gabarit du hub et rien d'autre : Discord ne laisse le
+	// changer que deux fois par dix minutes, c'est le sujet qui porte le rang.
+	it("ne renomme jamais le salon", async () => {
+		const renommer = jest.fn();
+		const salon = salonFactice({ setName: renommer });
+		prismaMock.voiceHubRank.findFirst.mockResolvedValue(rangFactice());
+		chercherSalon.mockResolvedValue(categorieFactice("categorie-or"));
+
+		await voiceHubs.appliquerPersonnalisation(
+			salon as never,
+			ligneTemporaire() as never,
+			{ rankId: "rank-or", platformId: null, topic: "duo", userLimit: null },
+		);
+
+		expect(renommer).not.toHaveBeenCalled();
+		expect(poserSujet).toHaveBeenCalledWith(
+			`/channels/${CHANNEL_ID}/voice-status`,
+			expect.objectContaining({ body: { status: "Or · duo" } }),
+		);
+	});
+
+	// L'identifiant vient du client : un rang d'un autre salon de creation ne
+	// doit pas pouvoir deplacer le salon vers une categorie qu'il ne propose
+	// pas.
+	it("ignore un rang qui n'appartient pas au salon de creation", async () => {
+		const salon = salonFactice();
+		prismaMock.voiceHubRank.findFirst.mockResolvedValue(null);
+		chercherSalon.mockImplementation(async (id: string) =>
+			id === "salon-hub-1" ? { id, parentId: null } : categorieFactice(id),
+		);
+
+		const resultat = await voiceHubs.appliquerPersonnalisation(
+			salon as never,
+			ligneTemporaire() as never,
+			{ rankId: "rank-etranger", platformId: null, topic: null, userLimit: null },
+		);
+
+		expect(resultat.rank).toBeNull();
+		expect(deplacerSalon).not.toHaveBeenCalled();
 	});
 });
 

@@ -157,20 +157,46 @@ export async function membreExpulse(
 	);
 }
 
-export async function salonRenomme(
+/**
+ * Personnalisation d'un salon depuis son panneau.
+ *
+ * Remplace l'ancienne entree de renommage : le nom d'un salon temporaire ne
+ * bouge plus, c'est son sujet qui porte le rang, la plateforme et ce que
+ * cherche son proprietaire.
+ */
+export async function salonPersonnalise(
 	guild: Guild,
 	salon: VoiceBasedChannel,
 	auteurId: string,
-	ancienNom: string,
+	choix: {
+		rank: { label: string } | null;
+		platform: { label: string } | null;
+		sujet: string;
+		avertissement: string | null;
+	},
 ): Promise<void> {
-	await envoyer(
-		guild,
-		base("✏️ Salon renommé", colors.info).addFields(
-			{ name: "Avant", value: ancienNom, inline: true },
-			{ name: "Après", value: salon.name, inline: true },
-			{ name: "Par", value: membre(auteurId) },
-		),
+	const embed = base("✏️ Salon personnalisé", colors.info).addFields(
+		{ name: "Salon", value: `${salon} | \`${salon.id}\`` },
+		{ name: "Rang", value: choix.rank?.label ?? "—", inline: true },
+		{ name: "Plateforme", value: choix.platform?.label ?? "—", inline: true },
+		{ name: "Par", value: membre(auteurId), inline: true },
 	);
+
+	if (choix.sujet) {
+		embed.addFields({ name: "Sujet", value: choix.sujet.slice(0, 1024) });
+	}
+
+	// Un rangement refuse merite d'etre visible du staff : c'est le signe
+	// d'une categorie pleine ou d'un identifiant devenu faux dans le
+	// dashboard, et le proprietaire n'a aucun moyen d'y remedier lui-meme.
+	if (choix.avertissement) {
+		embed.setColor(colors.warning).addFields({
+			name: "Rangement non appliqué",
+			value: choix.avertissement.slice(0, 1024),
+		});
+	}
+
+	await envoyer(guild, embed);
 }
 
 /**
