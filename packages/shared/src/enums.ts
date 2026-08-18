@@ -163,6 +163,15 @@ export const EmbedMessageStatus = {
 export type EmbedMessageStatus =
 	(typeof EmbedMessageStatus)[keyof typeof EmbedMessageStatus];
 
+export const XpAnnouncementMode = {
+	CURRENT_CHANNEL: "CURRENT_CHANNEL",
+	DEDICATED_CHANNEL: "DEDICATED_CHANNEL",
+	DIRECT_MESSAGE: "DIRECT_MESSAGE",
+	DISABLED: "DISABLED",
+} as const;
+export type XpAnnouncementMode =
+	(typeof XpAnnouncementMode)[keyof typeof XpAnnouncementMode];
+
 /** Libelles francais, pour ne pas les repeter dans chaque composant. */
 export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
 	TIMEOUT: "Exclusion temporaire",
@@ -265,6 +274,27 @@ export const EMBED_MESSAGE_STATUS_LABELS: Record<EmbedMessageStatus, string> = {
 	QUEUED: "En attente d'envoi",
 	SENT: "Envoyé",
 	FAILED: "Échec",
+};
+
+export const XP_ANNOUNCEMENT_MODE_LABELS: Record<XpAnnouncementMode, string> = {
+	CURRENT_CHANNEL: "Dans le salon où le niveau est atteint",
+	DEDICATED_CHANNEL: "Dans un salon dédié",
+	DIRECT_MESSAGE: "En message privé",
+	DISABLED: "Aucune annonce",
+};
+
+export const XP_ANNOUNCEMENT_MODE_DESCRIPTIONS: Record<
+	XpAnnouncementMode,
+	string
+> = {
+	CURRENT_CHANNEL:
+		"Le membre est félicité là où il écrivait : il lit déjà le salon, l'annonce ne le déplace pas.",
+	DEDICATED_CHANNEL:
+		"Toutes les montées de niveau sont regroupées dans un même salon, sans déranger les conversations.",
+	DIRECT_MESSAGE:
+		"Personne d'autre que l'intéressé ne voit l'annonce. Un membre qui a fermé ses messages privés ne reçoit rien.",
+	DISABLED:
+		"Aucun message n'est envoyé. Les rôles de palier continuent d'être attribués.",
 };
 
 export const WIKI_CATEGORY_LABELS: Record<WikiCategory, string> = {

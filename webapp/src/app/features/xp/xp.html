@@ -38,6 +38,84 @@
 		</div>
 	}
 
+	<mat-card appearance="outlined" [formGroup]="configForm">
+		<mat-card-header>
+			<mat-card-title>Annonce des montées de niveau</mat-card-title>
+			<mat-card-subtitle>
+				Le réglage vaut pour tout le serveur. Il ne change rien aux rôles de palier,
+				qui continuent d'être attribués quel que soit le mode choisi.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<div class="row">
+				<mat-form-field class="grow">
+					<mat-label>Où prévenir le membre</mat-label>
+					<mat-select formControlName="mode">
+						@for (mode of modes; track mode) {
+							<mat-option [value]="mode">{{ modeLabels[mode] }}</mat-option>
+						}
+					</mat-select>
+					<mat-hint>{{ modeDescriptions[configForm.controls.mode.value] }}</mat-hint>
+				</mat-form-field>
+
+				@if (needsChannel()) {
+					<mat-form-field class="grow">
+						<mat-label>Identifiant du salon d'annonce</mat-label>
+						<input matInput formControlName="channelId" required />
+						<mat-hint>Clic droit sur le salon → Copier l'identifiant</mat-hint>
+						@if (configForm.controls.channelId.hasError('pattern')) {
+							<mat-error>Identifiant de salon attendu (17 à 20 chiffres).</mat-error>
+						}
+					</mat-form-field>
+				}
+			</div>
+
+			<mat-slide-toggle formControlName="pingMember">
+				Mentionner le membre (il reçoit une notification)
+			</mat-slide-toggle>
+
+			<mat-form-field class="grow">
+				<mat-label>Message</mat-label>
+				<textarea
+					matInput
+					rows="3"
+					formControlName="message"
+					[maxlength]="maxMessageLength"
+					placeholder="Laisser vide pour le texte par défaut"
+				></textarea>
+				<mat-hint>
+					{{ configForm.controls.message.value.length }} / {{ maxMessageLength }} — vide,
+					c'est le texte par défaut du mode choisi.
+				</mat-hint>
+			</mat-form-field>
+
+			<ul class="placeholders">
+				@for (placeholder of placeholders; track placeholder.token) {
+					<li><code>{{ placeholder.token }}</code> — {{ placeholder.label }}</li>
+				}
+			</ul>
+
+			<!-- Rendu par la fonction que le bot utilise lui-meme : deux rendus
+			     separes finiraient par diverger, et l'apercu mentirait. -->
+			<div class="preview">
+				<span class="preview-label">Aperçu — le gras et les émojis sont rendus par Discord</span>
+				<p>{{ configPreview() }}</p>
+			</div>
+
+			<div class="actions" *appHasPermission="Permission.XP_MANAGE">
+				<button
+					matButton="filled"
+					type="button"
+					[disabled]="savingConfig()"
+					(click)="saveConfig()"
+				>
+					Enregistrer l'annonce
+				</button>
+			</div>
+		</mat-card-content>
+	</mat-card>
+
 	<mat-card appearance="outlined">
 		<mat-card-header>
 			<mat-card-title>Paliers de récompense</mat-card-title>

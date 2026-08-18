@@ -5,6 +5,7 @@ import activite from "../collectors/activite";
 import * as automod from "../collectors/automod";
 import * as referentiel from "../collectors/referentiel";
 import * as tickets from "../collectors/tickets";
+import * as xpAnnounce from "../collectors/xpAnnounce";
 import * as xpRewards from "../collectors/xpRewards";
 import { readInt } from "../env";
 
@@ -63,35 +64,38 @@ const event: BotEvent<typeof Events.MessageCreate> = {
 		);
 
 		// Le passage de palier est le seul retour que le membre recoit du
-		// systeme d'XP sans avoir a taper une commande. Il est envoye dans le
-		// salon ou le niveau a ete atteint, et sans mention forcee : le membre
-		// est deja en train d'y lire.
+		// systeme d'XP sans avoir a taper une commande. Ou et comment il le
+		// recoit est un reglage du serveur (`xp_config`), lu par
+		// `xpAnnounce.announceLevelUp`.
 		if (after.level > before.level) {
+			// `message.member` est renseigne par la passerelle sur un message de
+			// serveur, mais pas garanti : le repli evite qu'une montee de niveau
+			// passe sous silence, roles compris.
+			const member =
+				message.member ??
+				(await message.guild.members.fetch(message.author.id).catch(() => null));
+			if (!member) return;
+
 			// Les roles de palier sont poses avant l'annonce, pour pouvoir la
 			// completer : « tu passes niveau 10 » et le role qui va avec se lisent
 			// mieux ensemble qu'en deux messages a quelques secondes d'ecart.
-			const earned = message.member
-				? await xpRewards
-						.applyForMember(message.member, after.level)
-						.catch((err) => {
-							console.error("[XP] Attribution des paliers échouée :", err);
-							return [] as string[];
-						})
-				: [];
+			const earned = await xpRewards
+				.applyForMember(member, after.level)
+				.catch((err) => {
+					console.error("[XP] Attribution des paliers échouée :", err);
+					return [] as string[];
+				});
 
-			const reward = earned.length
-				? ` Tu débloques ${earned.map((roleId) => `<@&${roleId}>`).join(", ")} !`
-				: "";
-
-			await message.channel
-				.send({
-					content: `🎉 Bravo <@${message.author.id}>, tu passes **niveau ${after.level}** !${reward}`,
-					// Les roles sont mentionnes pour etre lisibles, jamais notifies :
-					// une montee de niveau ne doit pas sonner chez tous les porteurs du
-					// role.
-					allowedMentions: { users: [message.author.id] },
+			await xpAnnounce
+				.announceLevelUp({
+					member,
+					level: after.level,
+					earnedRoleIds: earned,
+					origin: message.channel,
 				})
-				.catch(() => undefined);
+				.catch((err) => {
+					console.error("[XP] Annonce de montée de niveau échouée :", err);
+				});
 		}
 	},
 };

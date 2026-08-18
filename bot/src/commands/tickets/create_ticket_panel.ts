@@ -59,7 +59,7 @@ const command: Command = {
 
 		const select = new StringSelectMenuBuilder()
 			.setCustomId("ticket:open")
-			.setPlaceholder("Choisis la raison de ton ticket")
+			.setPlaceholder("Tu as besoin de parler à l'équipe de modération ?")
 			.addOptions(
 				Object.values(TicketCategory).map((category) => ({
 					label: TICKET_CATEGORY_LABELS[category],
@@ -71,7 +71,10 @@ const command: Command = {
 			.setColor(colors.info)
 			.setTitle("Support")
 			.setDescription(
-				"Sélectionne une raison ci-dessous pour ouvrir un ticket privé avec l'équipe.",
+				`Bienvenue sur le support du serveur ! Si jamais tu as besoin d'ouvrir un ticket (que ce soit
+				pour un bug, un membre à signaler ou une simple remarque), tu peux le faire via le petit
+				formulaire en dessous. Choisis simplement une catégorie et un ticket sera ouvert directement
+				avec l'équipe de modération. Elle fera de son mieux pour t'aider et te guider !`,
 			);
 
 		await channel.send({
@@ -82,7 +85,7 @@ const command: Command = {
 		});
 
 		await interaction.editReply({
-			content: `Panneau de tickets poste dans ${channel}.`,
+			content: `Panneau de tickets posté dans ${channel}.`,
 		});
 	},
 };

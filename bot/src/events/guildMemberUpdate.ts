@@ -12,6 +12,7 @@ import * as referentiel from "../collectors/referentiel";
 import * as moderation from "../collectors/moderation";
 import { chercherAction, garantirAuteur } from "../collectors/discordAudit";
 import * as guildConfig from "../collectors/guildConfig";
+import * as shadowbanRole from "../collectors/shadowbanRole";
 
 const event: BotEvent<typeof Events.GuildMemberUpdate> = {
 	name: Events.GuildMemberUpdate,
@@ -165,6 +166,12 @@ async function suivreExclusionTemporaire(
  * est un role applicatif : Discord n'a pas d'evenement dedie. On le repere
  * en comparant l'etat courant des roles a l'etat precedent, deja calcule par
  * `synchroniserRoles` pour l'historique (`ajoutes`/`retires`).
+ *
+ * La mise de cote des autres roles est rejouee ici, sans quoi le shadowban pose
+ * a la main serait la seule facon d'en obtenir un qui ne restreint rien : les
+ * roles conserves peuvent porter des autorisations explicites qui annulent les
+ * refus. Le retrait manuel du role rend les roles de la meme facon —
+ * `/unshadowban` ne peut pas etre le seul chemin de retour.
  */
 async function suivreShadowbanManuel(
 	nouveau: GuildMember,
@@ -219,6 +226,19 @@ async function suivreShadowbanManuel(
 					` (auteur : ${action?.executorTag ?? "inconnu"}).`,
 			);
 		}
+
+		// Le role est deja pose : `applyShadowban` se contente donc de mettre de
+		// cote les autres. Un echec ne remet pas le shadowban en cause, il est
+		// deja effectif — d'ou la trace en console plutot qu'une remontee.
+		await shadowbanRole
+			.applyShadowban(nouveau, action?.reason ?? "Shadowban posé depuis Discord.")
+			.catch((err) => {
+				console.error(
+					`[Shadowban] Mise de côté des rôles de ${nouveau.id} échouée :`,
+					err,
+				);
+			});
+
 		return;
 	}
 
@@ -236,6 +256,17 @@ async function suivreShadowbanManuel(
 				` (auteur : ${action?.executorTag ?? "inconnu"}).`,
 		);
 	}
+
+	// Les roles sont rendus meme si aucune sanction active n'a ete trouvee en
+	// base : ce qui a ete pris doit revenir, que le journal ait suivi ou non.
+	await shadowbanRole
+		.liftShadowban(nouveau, action?.reason ?? "Shadowban retiré depuis Discord.")
+		.catch((err) => {
+			console.error(
+				`[Shadowban] Restitution des rôles de ${nouveau.id} échouée :`,
+				err,
+			);
+		});
 }
 
 export = event;

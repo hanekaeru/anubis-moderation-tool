@@ -39,6 +39,62 @@ mat-card-content {
 	font-size: 0.82rem;
 }
 
+/* --- Annonce des montees de niveau ----------------------------------------- */
+
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+
+	mat-form-field.grow {
+		flex: 1;
+		min-width: 260px;
+	}
+}
+
+mat-card-content > mat-form-field.grow {
+	width: 100%;
+	margin-top: 12px;
+}
+
+.placeholders {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.8rem;
+
+	code {
+		padding: 1px 5px;
+		border-radius: 4px;
+		background: var(--mat-sys-surface-variant);
+		color: var(--mat-sys-on-surface);
+	}
+}
+
+.preview {
+	margin-top: 14px;
+	padding: 12px 14px;
+	border: 1px solid var(--mat-sys-outline-variant);
+	border-radius: 12px;
+
+	p {
+		margin: 4px 0 0;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+}
+
+.preview-label {
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.78rem;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
 /* --- Paliers --------------------------------------------------------------- */
 
 .reward-list {
