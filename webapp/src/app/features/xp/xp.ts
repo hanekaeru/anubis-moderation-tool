@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -9,11 +10,21 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, type PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
+	defaultXpLevelUpMessage,
+	MAX_XP_LEVEL_UP_MESSAGE_LENGTH,
 	MAX_XP_REWARD_LEVEL,
 	Permission,
+	renderXpLevelUpMessage,
+	XP_ANNOUNCEMENT_MODE_DESCRIPTIONS,
+	XP_ANNOUNCEMENT_MODE_LABELS,
+	XP_LEVEL_UP_PLACEHOLDERS,
+	XpAnnouncementMode,
 	xpRequiredForLevel,
+	type XpConfigDto,
 	type XpLeaderboardRowDto,
 	type XpOverviewDto,
 	type XpRewardRoleDto,
@@ -48,6 +59,8 @@ const SNOWFLAKE = /^\d{17,20}$/;
 		MatInputModule,
 		MatPaginatorModule,
 		MatProgressBarModule,
+		MatSelectModule,
+		MatSlideToggleModule,
 		MatTooltipModule,
 		ReactiveFormsModule,
 	],
@@ -63,6 +76,11 @@ export class XpPage {
 
 	readonly Permission = Permission;
 	readonly maxLevel = MAX_XP_REWARD_LEVEL;
+	readonly maxMessageLength = MAX_XP_LEVEL_UP_MESSAGE_LENGTH;
+	readonly placeholders = XP_LEVEL_UP_PLACEHOLDERS;
+	readonly modeLabels = XP_ANNOUNCEMENT_MODE_LABELS;
+	readonly modeDescriptions = XP_ANNOUNCEMENT_MODE_DESCRIPTIONS;
+	readonly modes = Object.values(XpAnnouncementMode);
 
 	readonly loading = signal(true);
 	readonly saving = signal(false);
@@ -73,6 +91,7 @@ export class XpPage {
 	readonly pageSize = signal(25);
 	readonly search = signal('');
 	readonly editingRewardId = signal<string | null>(null);
+	readonly savingConfig = signal(false);
 
 	readonly rewards = computed(() => this.overview()?.rewards ?? []);
 
@@ -87,9 +106,103 @@ export class XpPage {
 
 	readonly searchForm = this.formBuilder.nonNullable.group({ term: [''] });
 
+	/**
+	 * Annonce des montees de niveau.
+	 *
+	 * `message` reste vide tant que le serveur garde le texte par defaut : un
+	 * champ pre-rempli avec ce defaut le figerait a la premiere sauvegarde, et
+	 * changer de mode ne changerait plus le texte.
+	 */
+	readonly configForm = this.formBuilder.nonNullable.group({
+		mode: [XpAnnouncementMode.CURRENT_CHANNEL as XpAnnouncementMode],
+		channelId: [''],
+		message: ['', [Validators.maxLength(MAX_XP_LEVEL_UP_MESSAGE_LENGTH)]],
+		pingMember: [true],
+	});
+
+	/**
+	 * Etat du formulaire en signal.
+	 *
+	 * `valueChanges` vit hors du graphe de signaux : sans cette passerelle,
+	 * l'apercu ne se redessinerait jamais en `OnPush`. Meme montage que la page
+	 * Messages.
+	 */
+	private readonly configValue = toSignal(this.configForm.valueChanges, {
+		initialValue: this.configForm.getRawValue(),
+	});
+
+	/**
+	 * Apercu du message, rendu par la fonction que le bot utilise lui-meme.
+	 *
+	 * La mention est remplacee par un pseudo lisible : `<@123…>` ne veut rien
+	 * dire hors de Discord, et un apercu illisible ne previent de rien.
+	 */
+	readonly configPreview = computed(() => {
+		this.configValue();
+		const raw = this.configForm.getRawValue();
+
+		return renderXpLevelUpMessage(raw.message.trim() || defaultXpLevelUpMessage(raw.mode), {
+			member: raw.pingMember ? '@Membre' : 'Membre',
+			level: 10,
+			guildName: 'Nom du serveur',
+			roleMentions: ['@Habitué'],
+		});
+	});
+
+	/** Le salon n'est demande — et exigé — que par le mode « salon dédié ». */
+	readonly needsChannel = computed(() => {
+		this.configValue();
+		return this.configForm.getRawValue().mode === XpAnnouncementMode.DEDICATED_CHANNEL;
+	});
+
 	constructor() {
 		this.loadOverview();
 		this.loadPage();
+	}
+
+	saveConfig(): void {
+		const raw = this.configForm.getRawValue();
+
+		if (this.configForm.invalid) {
+			this.configForm.markAllAsTouched();
+			return;
+		}
+
+		// L'API refuse le mode sans salon ; le dire ici evite un aller-retour
+		// pour une erreur que le formulaire connait deja.
+		if (raw.mode === XpAnnouncementMode.DEDICATED_CHANNEL && !SNOWFLAKE.test(raw.channelId)) {
+			this.configForm.controls.channelId.setErrors({ pattern: true });
+			this.configForm.controls.channelId.markAsTouched();
+			return;
+		}
+
+		this.savingConfig.set(true);
+
+		this.xpApi
+			.updateConfig({
+				mode: raw.mode,
+				channelId: SNOWFLAKE.test(raw.channelId) ? raw.channelId : null,
+				// Vider le champ, c'est revenir au texte par defaut du mode.
+				message: raw.message.trim() || null,
+				pingMember: raw.pingMember,
+			})
+			.subscribe({
+				next: (config) => {
+					this.savingConfig.set(false);
+					this.applyConfig(config);
+					this.notifications.success('Annonce des montées de niveau mise à jour.');
+				},
+				error: () => this.savingConfig.set(false),
+			});
+	}
+
+	private applyConfig(config: XpConfigDto): void {
+		this.configForm.setValue({
+			mode: config.mode,
+			channelId: config.channelId ?? '',
+			message: config.message ?? '',
+			pingMember: config.pingMember,
+		});
 	}
 
 	/** XP totale exigee par un palier : la meme formule que le bot, partagée. */
@@ -191,7 +304,13 @@ export class XpPage {
 
 	private loadOverview(): void {
 		this.xpApi.overview().subscribe({
-			next: (overview) => this.overview.set(overview),
+			next: (overview) => {
+				this.overview.set(overview);
+				// Le formulaire n'est reinitialise que par le chargement et par une
+				// sauvegarde : le rafraichir a chaque relecture ecraserait une
+				// saisie en cours.
+				if (!this.savingConfig()) this.applyConfig(overview.config);
+			},
 		});
 	}
 

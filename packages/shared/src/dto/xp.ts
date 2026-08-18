@@ -1,3 +1,4 @@
+import { XpAnnouncementMode } from "../enums";
 import { IsoDateString, PaginationQuery, Snowflake } from "./common";
 import { MemberRef } from "./moderation";
 
@@ -41,6 +42,8 @@ export interface XpOverviewDto {
 	/** Niveau le plus eleve atteint sur le serveur. */
 	highestLevel: number;
 	rewards: XpRewardRoleDto[];
+	/** Annonce des montees de niveau, pour que la page charge en un appel. */
+	config: XpConfigDto;
 }
 
 export interface XpRewardRoleDto {
@@ -68,6 +71,102 @@ export interface UpdateXpRewardRoleRequest {
 	roleId?: Snowflake;
 	level?: number;
 	replacePrevious?: boolean;
+}
+
+
+/**
+ * Annonce des montees de niveau.
+ *
+ * Le reglage vaut pour tout le serveur. Il n'a pas de `discordSyncedAt` : il ne
+ * decrit rien a rejouer sur Discord, seulement la facon de rediger la prochaine
+ * annonce — le bot le relit a chaque montee de niveau (avec un cache court).
+ */
+export interface XpConfigDto {
+	guildId: Snowflake;
+	mode: XpAnnouncementMode;
+	/** Salon d'annonce, utilise par `DEDICATED_CHANNEL` seul. */
+	channelId: Snowflake | null;
+	/** Gabarit personnalise, ou `null` pour le texte par defaut du mode. */
+	message: string | null;
+	/** Mentionner le membre (donc le notifier) plutot que citer son nom. */
+	pingMember: boolean;
+	updatedAt: IsoDateString;
+}
+
+export interface UpdateXpConfigRequest {
+	mode?: XpAnnouncementMode;
+	channelId?: Snowflake | null;
+	message?: string | null;
+	pingMember?: boolean;
+}
+
+/**
+ * Gabarit par defaut d'une annonce publique.
+ *
+ * Il reproduit mot pour mot le message envoye avant que ce reglage n'existe :
+ * un serveur qui n'ouvre jamais la page ne doit voir aucun changement.
+ */
+export const DEFAULT_XP_LEVEL_UP_MESSAGE =
+	"🎉 Bravo {membre}, tu passes **niveau {niveau}** !{recompenses}";
+
+/** En message prive, le salon ne dit plus de quel serveur il s'agit. */
+export const DEFAULT_XP_LEVEL_UP_DIRECT_MESSAGE =
+	"🎉 Bravo, tu passes **niveau {niveau}** sur **{serveur}** !{recompenses}";
+
+/** Un message plus long que cela serait de toute facon refuse par Discord. */
+export const MAX_XP_LEVEL_UP_MESSAGE_LENGTH = 1000;
+
+export function defaultXpLevelUpMessage(mode: XpAnnouncementMode): string {
+	return mode === XpAnnouncementMode.DIRECT_MESSAGE
+		? DEFAULT_XP_LEVEL_UP_DIRECT_MESSAGE
+		: DEFAULT_XP_LEVEL_UP_MESSAGE;
+}
+
+/** Substitutions reconnues, listees telles quelles sous le champ du dashboard. */
+export const XP_LEVEL_UP_PLACEHOLDERS = [
+	{ token: "{membre}", label: "Le membre (mention ou nom, selon le réglage)" },
+	{ token: "{niveau}", label: "Le niveau atteint" },
+	{ token: "{serveur}", label: "Le nom du serveur" },
+	{
+		token: "{recompenses}",
+		label: "Phrase annonçant les rôles débloqués, vide s'il n'y en a aucun",
+	},
+] as const;
+
+export interface XpLevelUpMessageContext {
+	/** Ce qui remplace `{membre}` : `<@id>` si la mention est active, un nom sinon. */
+	member: string;
+	level: number;
+	guildName: string;
+	/** Mentions des roles fraichement obtenus, dans l'ordre des paliers. */
+	roleMentions: string[];
+}
+
+/**
+ * Rend le gabarit d'annonce.
+ *
+ * Partage entre le bot (qui envoie) et le dashboard (qui previsualise) : deux
+ * rendus separes finiraient par diverger, et l'apercu mentirait sur ce que
+ * lira le serveur.
+ *
+ * `{recompenses}` porte la **phrase entiere**, pas la seule liste de roles.
+ * C'est ce qui permet de la faire disparaitre proprement quand la montee de
+ * niveau ne debloque rien : un gabarit du genre « Nouveau rôle : {roles} »
+ * laisserait une etiquette orpheline la plupart du temps.
+ */
+export function renderXpLevelUpMessage(
+	template: string,
+	context: XpLevelUpMessageContext,
+): string {
+	const rewards = context.roleMentions.length
+		? ` Tu débloques ${context.roleMentions.join(", ")} !`
+		: "";
+
+	return template
+		.replaceAll("{membre}", context.member)
+		.replaceAll("{niveau}", String(context.level))
+		.replaceAll("{serveur}", context.guildName)
+		.replaceAll("{recompenses}", rewards);
 }
 
 /**

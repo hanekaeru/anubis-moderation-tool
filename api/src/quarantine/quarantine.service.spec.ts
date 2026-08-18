@@ -5,7 +5,8 @@ import type { AuthenticatedUser } from "../common/types";
 import type { PrismaService } from "../prisma/prisma.service";
 import { QuarantineService } from "./quarantine.service";
 
-const GUILD_ID = "1534867404755177634";
+// const GUILD_ID = "1534867404755177634";
+const GUILD_ID = "1534550360180396132";
 const USER_ID = "136122497891303425";
 
 const ACTOR = {

@@ -10,7 +10,9 @@ import type { AuthenticatedUser } from "../common/types";
 import type { PrismaService } from "../prisma/prisma.service";
 import { ModerationAttachmentsService } from "./moderation-attachments.service";
 
-const GUILD_ID = "1534867404755177634";
+// const GUILD_ID = "1534867404755177634";
+const GUILD_ID = "1534550360180396132";
+
 const ACTOR = { id: "app-1" } as AuthenticatedUser;
 
 function fichier(overrides: Partial<Express.Multer.File> = {}) {

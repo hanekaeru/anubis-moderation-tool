@@ -13,23 +13,23 @@ const LOGS_CATEGORY_NAME = "🗂️ • Banque de données";
 const LOG_CHANNELS: { key: LogChannelKey; channelName: string, topic: string }[] = [
 	{
 		key: LogChannelKey.MODERATION,
-		channelName: "・🛡️-logs-modération",
+		channelName: "🛡️・logs-modération",
 		topic: "Ce channel permet de répertorier toutes les actions effectuées par la modération (sanctions, avertissement, ...)."
 	}, {
 		key: LogChannelKey.MEMBERS,
-		channelName: "・👤-logs-membres",
+		channelName: "👤・logs-membres",
 		topic: "Ce channel permet de répertorier toutes les actions effectuées par les membres (changement de nom, changement d'avatar, ...)."
 	}, {
 		key: LogChannelKey.MESSAGES,
-		channelName: "・💬-logs-messages",
+		channelName: "💬・logs-messages",
 		topic: "Ce channel permet de répertorier toutes les actions effectuées sur un message (suppression, modification)."
 	}, {
 		key: LogChannelKey.SERVER,
-		channelName: "・⚙️-logs-serveur",
+		channelName: "⚙️・logs-serveur",
 		topic: "Ce channel permet de répertorier tout les départs et toutes les arrivées du serveur."
 	}, {
 		key: LogChannelKey.VOICE,
-		channelName: "・🔊-logs-vocaux",
+		channelName: "🔊・logs-vocaux",
 		topic: "Ce channel permet de répertorier la vie des salons vocaux temporaires (création, arrivées, départs, propriétaire, signalements)."
 	},
 ];

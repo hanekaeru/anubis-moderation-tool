@@ -14,6 +14,7 @@ import {
 import {
 	Permission,
 	type Paginated,
+	type XpConfigDto,
 	type XpLeaderboardRowDto,
 	type XpOverviewDto,
 	type XpRewardRoleDto,
@@ -23,6 +24,7 @@ import { RequirePermissions } from "../common/decorators/require-permissions.dec
 import type { AuthenticatedUser } from "../common/types";
 import {
 	CreateXpRewardRoleDto,
+	UpdateXpConfigDto,
 	UpdateXpRewardRoleDto,
 	XpLeaderboardQueryDto,
 } from "./dto/xp.dto";
@@ -56,10 +58,26 @@ export class XpController {
 		return this.xp.listRewards();
 	}
 
+	/** Meme raison que `recompenses` : declaree avant `membres/:userId`. */
+	@Get("configuration")
+	@RequirePermissions(Permission.XP_READ)
+	getConfig(): Promise<XpConfigDto> {
+		return this.xp.getConfig();
+	}
+
 	@Get("membres/:userId")
 	@RequirePermissions(Permission.XP_READ)
 	memberProgress(@Param("userId") userId: string): Promise<XpLeaderboardRowDto> {
 		return this.xp.memberProgress(userId);
+	}
+
+	@Patch("configuration")
+	@RequirePermissions(Permission.XP_MANAGE)
+	updateConfig(
+		@Body() dto: UpdateXpConfigDto,
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<XpConfigDto> {
+		return this.xp.updateConfig(dto, actor);
 	}
 
 	@Post("recompenses")

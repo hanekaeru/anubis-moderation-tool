@@ -69,8 +69,9 @@ const command: Command = {
 			return;
 		}
 
+		let rendus: string[];
 		try {
-			await shadowbanRole.liftShadowban(target, reason);
+			rendus = await shadowbanRole.liftShadowban(target, reason);
 		} catch (err) {
 			console.error("[Shadowban] Levée du rôle échouée :", err);
 			await repondreEchec(
@@ -100,10 +101,12 @@ const command: Command = {
 		const note = revoked
 			? ""
 			: "\n(aucune restriction active trouvée en base, le rôle a quand même été retiré)";
+		const roles = rendus.length ? `\nRôles rendus : ${rendus.length}` : "";
+
 		await repondreSucces(
 			interaction,
 			responseEmbed,
-			`La restriction de <@${target.user.id}> a été levée.${note}`,
+			`La restriction de <@${target.user.id}> a été levée.${roles}${note}`,
 		);
 	},
 };

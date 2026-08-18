@@ -4,7 +4,9 @@ import { Observable } from 'rxjs';
 import type {
 	CreateXpRewardRoleRequest,
 	Paginated,
+	UpdateXpConfigRequest,
 	UpdateXpRewardRoleRequest,
+	XpConfigDto,
 	XpLeaderboardQuery,
 	XpLeaderboardRowDto,
 	XpOverviewDto,
@@ -28,6 +30,14 @@ export class XpApi {
 
 	memberProgress(userId: string): Observable<XpLeaderboardRowDto> {
 		return this.http.get<XpLeaderboardRowDto>(`/api/experience/membres/${userId}`);
+	}
+
+	getConfig(): Observable<XpConfigDto> {
+		return this.http.get<XpConfigDto>('/api/experience/configuration');
+	}
+
+	updateConfig(request: UpdateXpConfigRequest): Observable<XpConfigDto> {
+		return this.http.patch<XpConfigDto>('/api/experience/configuration', request);
 	}
 
 	listRewards(): Observable<XpRewardRoleDto[]> {

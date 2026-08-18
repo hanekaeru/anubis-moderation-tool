@@ -1,10 +1,17 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma } from "@anubis/shared/prisma";
+import {
+	BadRequestException,
+	ConflictException,
+	Injectable,
+	NotFoundException,
+} from "@nestjs/common";
+import type { Prisma, XpConfig } from "@anubis/shared/prisma";
 import {
 	levelFromXp,
 	progressFromXp,
 	xpRequiredForLevel,
+	XpAnnouncementMode,
 	type Paginated,
+	type XpConfigDto,
 	type XpLeaderboardRowDto,
 	type XpOverviewDto,
 	type XpRewardRoleDto,
@@ -17,9 +24,24 @@ import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
 import type {
 	CreateXpRewardRoleDto,
+	UpdateXpConfigDto,
 	UpdateXpRewardRoleDto,
 	XpLeaderboardQueryDto,
 } from "./dto/xp.dto";
+
+/**
+ * Reglage d'un serveur qui n'a jamais ouvert la page.
+ *
+ * Ces valeurs reproduisent le comportement d'avant le reglage — annonce dans
+ * le salon courant, texte par defaut, membre mentionne. Le bot lit les memes :
+ * l'absence de ligne ne doit jamais signifier « pas d'annonce ».
+ */
+const CONFIG_DEFAULTS = {
+	mode: XpAnnouncementMode.CURRENT_CHANNEL,
+	channelId: null as string | null,
+	message: null as string | null,
+	pingMember: true,
+};
 
 /**
  * Experience des membres et paliers de recompense.
@@ -157,12 +179,112 @@ export class XpService {
 			}),
 		]);
 
+		const [rewards, config] = await Promise.all([
+			this.listRewards(),
+			this.getConfig(),
+		]);
+
 		return {
 			rankedMemberCount: count,
 			totalXp: Number(aggregate._sum.xp ?? 0n),
 			highestLevel: levelFromXp(Number(top?.xp ?? 0n)),
-			rewards: await this.listRewards(),
+			rewards,
+			config,
 		};
+	}
+
+	private toConfigDto(guildId: string, row: XpConfig | null): XpConfigDto {
+		if (!row) {
+			return {
+				guildId,
+				...CONFIG_DEFAULTS,
+				// Aucune ligne : rien n'a jamais ete regle, et une date d'origine
+				// le dit mieux que « maintenant ». Meme convention que la
+				// quarantaine.
+				updatedAt: new Date(0).toISOString(),
+			};
+		}
+
+		return {
+			guildId: row.guildId,
+			mode: row.mode,
+			channelId: row.channelId,
+			message: row.message,
+			pingMember: row.pingMember,
+			updatedAt: row.updatedAt.toISOString(),
+		};
+	}
+
+	/** Annonce des montees de niveau, telle que le bot la lira. */
+	async getConfig(): Promise<XpConfigDto> {
+		const guildId = this.guild.guildId;
+
+		const row = await this.prisma.xpConfig.findUnique({ where: { guildId } });
+		return this.toConfigDto(guildId, row);
+	}
+
+	/**
+	 * Enregistre l'annonce des montees de niveau.
+	 *
+	 * Le salon dedie est exige a l'enregistrement, pas au moment d'annoncer :
+	 * accepter `DEDICATED_CHANNEL` sans salon laisserait un reglage qui a l'air
+	 * pose et ne produit rien, et personne n'irait le chercher la.
+	 */
+	async updateConfig(
+		dto: UpdateXpConfigDto,
+		actor: AuthenticatedUser,
+	): Promise<XpConfigDto> {
+		const guildId = this.guild.guildId;
+
+		const existing = await this.prisma.xpConfig.findUnique({
+			where: { guildId },
+		});
+
+		const mode = dto.mode ?? existing?.mode ?? CONFIG_DEFAULTS.mode;
+		const channelId =
+			dto.channelId !== undefined
+				? dto.channelId
+				: (existing?.channelId ?? CONFIG_DEFAULTS.channelId);
+
+		if (mode === XpAnnouncementMode.DEDICATED_CHANNEL && !channelId) {
+			throw new BadRequestException(
+				"Un salon d'annonce est nécessaire pour ce mode.",
+			);
+		}
+
+		const saved = await this.prisma.xpConfig.upsert({
+			where: { guildId },
+			update: {
+				...(dto.mode !== undefined ? { mode: dto.mode } : {}),
+				...(dto.channelId !== undefined ? { channelId: dto.channelId } : {}),
+				...(dto.message !== undefined ? { message: dto.message } : {}),
+				...(dto.pingMember !== undefined ? { pingMember: dto.pingMember } : {}),
+			},
+			create: {
+				guildId,
+				mode,
+				channelId,
+				message: dto.message ?? CONFIG_DEFAULTS.message,
+				pingMember: dto.pingMember ?? CONFIG_DEFAULTS.pingMember,
+			},
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "xp.config.update",
+			entityType: "xp_config",
+			entityId: guildId,
+			before: existing
+				? {
+						mode: existing.mode,
+						channelId: existing.channelId,
+						pingMember: existing.pingMember,
+					}
+				: undefined,
+			after: { ...dto },
+		});
+
+		return this.toConfigDto(guildId, saved);
 	}
 
 	/**

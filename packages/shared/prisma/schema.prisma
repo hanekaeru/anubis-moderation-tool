@@ -153,6 +153,18 @@ enum EmbedMessageStatus {
   FAILED
 }
 
+/// Facon dont un membre est prevenu de sa montee de niveau.
+enum XpAnnouncementMode {
+  /// Dans le salon ou le niveau vient d'etre atteint (comportement historique).
+  CURRENT_CHANNEL
+  /// Dans un salon dedie, quel que soit l'endroit ou le niveau a ete atteint.
+  DEDICATED_CHANNEL
+  /// En message prive au membre.
+  DIRECT_MESSAGE
+  /// Aucune annonce : les roles de palier restent poses, en silence.
+  DISABLED
+}
+
 // ---------------------------------------------------------------------------
 // Referentiel Discord
 // ---------------------------------------------------------------------------
@@ -186,12 +198,14 @@ model Guild {
   accountFlags           AccountFlag[]
   quarantineConfig       QuarantineConfig?
   quarantineStatuses     QuarantineStatus[]
+  shadowbanRoleBackups   ShadowbanRoleBackup[]
   voiceHubs              VoiceHub[]
   temporaryVoiceChannels TemporaryVoiceChannel[]
   wikiArticles           WikiArticle[]
   giveaways              Giveaway[]
   embedMessages          EmbedMessage[]
   xpRewardRoles          XpRewardRole[]
+  xpConfig               XpConfig?
   moderationPoints       ModerationPointsConfig?
   staffReminders         StaffReminder[]
 
@@ -231,6 +245,7 @@ model DiscordUser {
   automodIncidents    AutomodIncident[]
   accountFlags        AccountFlag[]
   quarantineStatuses  QuarantineStatus[]
+  shadowbanRoleBackups ShadowbanRoleBackup[]
   ownedVoiceChannels  TemporaryVoiceChannel[]
   appUser             AppUser?
   attachmentsUploaded ModerationAttachment[]  @relation("AttachmentDiscordUploader")
@@ -768,6 +783,35 @@ model AccountFlag {
   @@map("account_flags")
 }
 
+/// Roles mis de cote le temps d'un shadowban.
+///
+/// Le shadowban retire **tous** les roles que le bot peut retirer, pour qu'un
+/// role porteur d'une autorisation explicite (`SendMessages` accorde salon par
+/// salon) ne vienne pas annuler les refus poses sur le role de shadowban : les
+/// permissions de plusieurs roles s'additionnent, et une seule autorisation
+/// suffit a rendre la restriction inoperante.
+///
+/// La ligne est **effacee a la levee**, une fois les roles rendus : son
+/// existence signifie « il reste quelque chose a restituer », et rien d'autre.
+/// L'historique du passage, lui, vit dans `member_role_events`.
+///
+/// Ne sont jamais sauvegardes les roles que le bot ne peut de toute facon pas
+/// toucher — roles geres par une integration (bot, boost), roles places
+/// au-dessus du sien, et `@everyone`. Ils restent portes pendant le shadowban.
+model ShadowbanRoleBackup {
+  guildId String   @map("guild_id") @db.VarChar(20)
+  userId  String   @map("user_id") @db.VarChar(20)
+  roleIds String[] @map("role_ids")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId])
+  @@map("shadowban_role_backups")
+}
+
 /// Reglage de quarantaine a l'arrivee, une ligne par serveur.
 model QuarantineConfig {
   guildId     String   @id @map("guild_id") @db.VarChar(20)
@@ -986,6 +1030,38 @@ model UserLevel {
 
   @@id([userId, guildId])
   @@map("user_levels")
+}
+
+/// Annonce des montees de niveau, une ligne par serveur.
+///
+/// Le reglage porte sur le **serveur**, pas sur le membre : un choix par
+/// personne supposerait une preference stockee cote Discord, que le bot n'a
+/// aucun moyen de recueillir sans une commande dediee.
+///
+/// La ligne peut ne pas exister — c'est le cas de tout serveur qui n'a jamais
+/// ouvert la page. L'API et le bot lisent alors les memes valeurs par defaut,
+/// qui reproduisent exactement le comportement d'avant ce reglage.
+model XpConfig {
+  guildId String             @id @map("guild_id") @db.VarChar(20)
+  mode    XpAnnouncementMode @default(CURRENT_CHANNEL)
+
+  /// Salon d'annonce, obligatoire pour `DEDICATED_CHANNEL` et ignore ailleurs.
+  channelId String? @map("channel_id") @db.VarChar(20)
+
+  /// Gabarit du message. `null` = le texte par defaut, qui vit dans
+  /// `@anubis/shared` pour que le bot et l'apercu du dashboard rendent la meme
+  /// chose. Les substitutions reconnues sont {membre}, {niveau} et {roles}.
+  message String? @db.Text
+
+  /// Mentionner le membre dans l'annonce publique. Decoche, son nom est
+  /// affiche sans notification — utile a un salon d'annonces tres frequente.
+  pingMember Boolean @default(true) @map("ping_member")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("xp_config")
 }
 
 /// Role attribue automatiquement des qu'un membre atteint un niveau.

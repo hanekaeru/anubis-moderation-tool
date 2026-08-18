@@ -260,6 +260,34 @@ le dev avec rechargement).
   (`suivreShadowbanManuel`), sur le meme principe que le timeout : comparaison
   de l'etat des roles avant/apres, filtre sur les entrees d'audit
   `MemberRoleUpdate` qui touchent precisement le role de shadowban.
+- **Le shadowban met les autres roles de cote** (`shadowban_role_backups`,
+  `src/collectors/shadowbanRole.ts`). Ce n'est pas un confort : les permissions
+  de plusieurs roles s'**additionnent**, et un seul role portant une
+  autorisation explicite (`SendMessages` accorde salon par salon, comme en ont
+  souvent les roles de confiance) annule les refus poses sur celui de
+  shadowban — la restriction ne restreignait alors rien. Quatre points a
+  garder :
+  - **trois familles de roles ne sont jamais retirees** — geres par une
+    integration (bot, boost), places au-dessus du plus haut role du bot, et
+    `@everyone`. Discord refuserait la modification, et comme
+    `member.roles.set` est un appel unique, un seul de ces roles dans le lot
+    ferait echouer le shadowban entier au lieu de l'appliquer.
+  - `roles.set` plutot qu'un `add` suivi de N `remove` : le membre ne traverse
+    ainsi aucun etat ou il aurait perdu ses roles sans porter encore la
+    restriction.
+  - la sauvegarde s'ecrit **avant** de toucher a Discord et ne s'efface
+    qu'**apres** que Discord a accepte la levee. Dans les deux cas l'erreur
+    penche du meme cote : une ligne en trop se rejoue sans dommage, des roles
+    retires sans trace sont perdus pour de bon.
+  - le chemin manuel (role pose ou retire a la main dans le client) rejoue la
+    mise de cote et la restitution depuis `suivreShadowbanManuel`. Sans cela ce
+    serait le seul moyen d'obtenir un shadowban qui ne restreint rien, et
+    `/unshadowban` le seul chemin de retour pour les roles.
+  L'existence d'une ligne signifie « il reste quelque chose a restituer », rien
+  d'autre : l'historique du passage vit dans `member_role_events`. Un membre
+  parti puis revenu pendant son shadowban retrouvera donc a la levee les roles
+  qu'il avait avant — Discord ne les lui a pas rendus a son retour, la
+  sauvegarde si.
 - **La synchronisation webapp -> Discord (`sanctionSync.ts`) doit couvrir tous
   les types, y compris les permanents et les instantanes** — trois pieges
   distincts, chacun a fait qu'une sanction posee depuis la webapp restait
@@ -382,6 +410,29 @@ le dev avec rechargement).
   c'est lui qui decrit le rang courant du membre. Les roles places au-dessus du
   bot dans la hierarchie sont ecartes avant l'appel (`comparePositionTo`), parce
   que l'erreur de Discord ne dit pas lequel des roles du lot a echoue.
+- **Annonce des montees de niveau** (`src/collectors/xpAnnounce.ts`,
+  `xp_config`) : reglage **par serveur**, pas par membre — une preference
+  individuelle supposerait un stockage cote Discord que le bot n'a aucun moyen
+  de recueillir. Quatre modes (salon courant, salon dedie, message prive,
+  aucune annonce), plus la mention du membre et un gabarit de texte. Trois
+  points a garder :
+  - **l'absence de ligne ne vaut pas « pas d'annonce »**. Les defauts de la
+    table reproduisent exactement le comportement d'avant le reglage, et la
+    migration ne pre-remplit rien : un serveur qui n'ouvre jamais la page ne
+    doit voir aucun changement. Le bot, l'API et le dashboard partagent donc
+    les memes valeurs de repli.
+  - le rendu du gabarit vit dans `@anubis/shared`
+    (`renderXpLevelUpMessage`) : le bot envoie et le dashboard previsualise par
+    la meme fonction, sans quoi l'apercu finirait par mentir. `{recompenses}`
+    porte la **phrase entiere**, pas la seule liste de roles — c'est ce qui la
+    fait disparaitre proprement quand la montee ne debloque rien.
+  - `DEDICATED_CHANNEL` exige son salon **a l'enregistrement** (l'API refuse la
+    requete). Un salon devenu introuvable ensuite ne bascule donc **pas** sur
+    le salon courant : le staff avait justement demande que les annonces n'y
+    aillent pas. Une erreur en console, et rien d'autre.
+  Le reglage n'a pas de `discordSyncedAt` : il ne decrit rien a rejouer sur
+  Discord, seulement la facon de rediger la prochaine annonce. Le bot le relit
+  a chaque montee de niveau, avec le meme cache de 30s que l'automod.
 - **Automod** (`src/collectors/automod.ts`) : regles mises en cache par
   serveur (TTL 30s) pour eviter une requete DB a chaque message. Une seule
   regle se declenche par message. Le contenu et les pieces jointes du

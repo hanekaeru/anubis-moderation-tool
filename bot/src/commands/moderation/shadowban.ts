@@ -126,8 +126,9 @@ const command: Command = {
 		await referentiel.upsertUser(interaction.user);
 		await referentiel.upsertUser(target.user);
 
+		let misDeCote: string[];
 		try {
-			await shadowbanRole.applyShadowban(target, reason);
+			misDeCote = await shadowbanRole.applyShadowban(target, reason);
 		} catch (err) {
 			console.error("[Shadowban] Attribution du rôle échouée :", err);
 			await repondreEchec(
@@ -152,10 +153,16 @@ const command: Command = {
 			durationSeconds,
 		});
 
+		// Des roles qui disparaissent sans un mot passeraient pour un bug : le
+		// moderateur doit lire ici qu'ils sont mis de cote, et rendus a la levee.
+		const roles = misDeCote.length
+			? `\nRôles retirés : ${misDeCote.length} (rendus à la levée)`
+			: "";
+
 		await repondreSucces(
 			interaction,
 			responseEmbed,
-			`<@${target.user.id}> est shadowban. \nDurée : ${formatDuration(amount, unit)}\nMotif : ${reason}`,
+			`<@${target.user.id}> est shadowban. \nDurée : ${formatDuration(amount, unit)}\nMotif : ${reason}${roles}`,
 		);
 	},
 };

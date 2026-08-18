@@ -26,11 +26,11 @@ const command: Command = {
 		.setDescription(
 			"MOD - (Re)poste le message de règlement de la quarantaine dans le salon configuré.",
 		)
-		.setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+		.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 	async execute(interaction) {
 		if (!interaction.inCachedGuild()) return;
 
-		if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
+		if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
 			await interaction.reply({
 				content: "Tu n'as pas la permission de gérer la quarantaine.",
 				flags: MessageFlags.Ephemeral,
@@ -87,7 +87,7 @@ const command: Command = {
 		});
 
 		await interaction.editReply({
-			content: `Message de quarantaine poste dans ${channel}.`,
+			content: `Message de quarantaine posté dans ${channel}.`,
 		});
 	},
 };

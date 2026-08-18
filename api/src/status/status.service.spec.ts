@@ -2,7 +2,8 @@ import type { GuildContextService } from "../common/guild-context.service";
 import type { PrismaService } from "../prisma/prisma.service";
 import { StatusService } from "./status.service";
 
-const GUILD_ID = "1534867404755177634";
+// const GUILD_ID = "1534867404755177634";
+const GUILD_ID = "1534550360180396132";
 
 interface Options {
 	heartbeat?: {
