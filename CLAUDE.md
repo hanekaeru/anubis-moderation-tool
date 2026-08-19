@@ -610,6 +610,26 @@ le dev avec rechargement).
   le libelle d'un bouton, ou **activer la verification Battle.net** (qui ajoute
   un second bouton) ne touche pas au message deja poste — il faut rejouer la
   commande, qui est prevue pour et remplace le precedent.
+- **Annonce de verification Battle.net** (`src/tasks/battlenetNotice.ts`) :
+  journal de moderation **et** message prive au membre, declenches par
+  `BattlenetAccount.discordSyncedAt`. Trois points a garder :
+  - le declencheur est la ligne du **lien**, pas le statut de quarantaine. Ce
+    dernier repasse a `discordSyncedAt: null` pour d'autres raisons (une levee
+    manuelle), et l'annonce serait alors renvoyee a chaque fois. Une ligne
+    `battlenet_accounts` n'est creee qu'une fois par compte Blizzard, et le
+    bloc `update` de l'upsert ne touche pas a la date — une reverification
+    rafraichit le BattleTag sans reannoncer.
+  - le journal ne porte **pas le BattleTag**. Il est reserve a
+    `battlenet:read` (administrateurs) dans le dashboard, or le salon de logs
+    est lu par toute l'equipe : l'y ecrire contournerait la permission. Ce qui
+    releve du travail courant, c'est que l'etape a ete franchie.
+  - le message prive dit ce qui **reste a faire** : il annonce un acces ouvert
+    seulement si `quarantineStage` vaut `CLEARED`. Le promettre a quelqu'un qui
+    n'a pas encore accepte le reglement l'enverrait chercher des salons qu'il ne
+    voit pas.
+  Les deux envois passent par un `Promise.allSettled` : des messages prives
+  fermes ne doivent pas priver le staff de sa trace, ni l'inverse. La date est
+  posee **meme quand les deux echouent**, meme raison que `warningNotice`.
 - **Alertes de compte signale** (`src/tasks/accountFlagAlerts.ts`) :
   `accountSurveillance` alerte a l'arrivee et pose `discordSyncedAt` dans le
   meme appel — il n'a rien a rattraper. La tache ne ramasse donc que ce qui

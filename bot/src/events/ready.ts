@@ -7,6 +7,7 @@ import {
 import * as giveaway from "../collectors/giveaway";
 import * as quarantine from "../collectors/quarantine";
 import { checkPendingAccountFlagAlerts } from "../tasks/accountFlagAlerts";
+import { checkPendingBattlenetNotices } from "../tasks/battlenetNotice";
 import { lienVerificationBattlenet } from "../utils/verificationLink";
 import * as raid from "../collectors/raid";
 import * as referentiel from "../collectors/referentiel";
@@ -148,6 +149,9 @@ const event: BotEvent<typeof Events.ClientReady> = {
 			});
 			checkPendingAccountFlagAlerts(client).catch((err) => {
 				console.error("[Signalements] Alerte au staff échouée :", err);
+			});
+			checkPendingBattlenetNotices(client).catch((err) => {
+				console.error("[Quarantaine] Annonce de vérification échouée :", err);
 			});
 			giveaway.publishPending(client).catch((err) => {
 				console.error("[Giveaway] Publication des concours échouée :", err);
