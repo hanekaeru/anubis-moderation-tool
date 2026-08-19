@@ -37,6 +37,12 @@ function baseConfig(): AppConfig {
 			lockoutMinutes: 15,
 			twoFactorEnabled: true,
 		},
+		battlenet: {
+			clientId: "",
+			clientSecret: "",
+			redirectUri: "",
+			available: false,
+		},
 	};
 }
 

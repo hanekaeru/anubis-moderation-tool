@@ -28,6 +28,7 @@ import { SessionsModule } from "./sessions/sessions.module";
 import { StatsModule } from "./stats/stats.module";
 import { StatusModule } from "./status/status.module";
 import { TicketsModule } from "./tickets/tickets.module";
+import { VerificationModule } from "./verification/verification.module";
 import { VoiceModule } from "./voice/voice.module";
 import { WikiModule } from "./wiki/wiki.module";
 import { XpModule } from "./xp/xp.module";
@@ -63,6 +64,7 @@ import { XpModule } from "./xp/xp.module";
 		AccountFlagsModule,
 		AccountModule,
 		StatusModule,
+		VerificationModule,
 		VoiceModule,
 		WikiModule,
 		GiveawayModule,

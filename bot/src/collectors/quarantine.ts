@@ -1,20 +1,45 @@
 import type { Client, Guild, GuildMember, Role } from "discord.js";
+import { QuarantineStage, quarantineStage } from "@anubis/shared";
 import prisma from "../prisma";
 
 /**
- * Quarantaine a l'arrivee.
+ * Quarantaine a l'arrivee, en une ou deux etapes.
  *
- * Un role de quarantaine est attribue a chaque nouveau membre et retire quand
- * il accepte le reglement, en cliquant sur le bouton pose par
- * `/quarantaine-message`. Aucune expulsion automatique : la quarantaine dure
- * jusqu'a l'acceptation, ou jusqu'a une levee manuelle depuis la webapp.
+ * Un role de quarantaine est attribue a chaque nouveau membre. Il en sort quand
+ * **toutes** les etapes exigees sont franchies : l'acceptation du reglement
+ * (bouton pose par `/quarantaine-message`) et, si `battlenetRequired` est a
+ * `true`, la verification d'un compte Battle.net. Aucune expulsion automatique :
+ * la quarantaine dure jusque-la, ou jusqu'a une levee manuelle depuis la webapp.
  *
- * Meme patron `discordSyncedAt` que l'anti-raid : une levee decidee par le bot
- * lui-meme (le clic) est marquee synchronisee immediatement, une levee venue de
- * la webapp reste a `null` jusqu'au prochain passage de `checkPendingReleases`.
+ * Chaque etape porte son propre jeu de roles, ce qui rend l'etat intermediaire
+ * visible dans la liste des membres — sans quoi personne ne distinguerait « a
+ * accepte, attend de se verifier » de « vient d'arriver ».
+ *
+ * Meme patron `discordSyncedAt` que l'anti-raid : ce que le bot applique
+ * lui-meme (le clic sur un bouton) est marque synchronise dans la foulee, ce qui
+ * vient de l'API (verification Battle.net, levee depuis la webapp) reste a
+ * `null` jusqu'au prochain passage de `synchroniserQuarantaines`.
  */
 
 export type ResultatAcceptation = "acceptee" | "deja-acceptee" | "hors-service";
+
+/** Ce dont l'application des roles a besoin, et rien de plus. */
+type ReglageEtapes = {
+	roleId: string | null;
+	battlenetRequired: boolean;
+	releaseAddRoleIds: string[];
+	releaseRemoveRoleIds: string[];
+	acceptAddRoleIds: string[];
+	acceptRemoveRoleIds: string[];
+	verifyAddRoleIds: string[];
+	verifyRemoveRoleIds: string[];
+};
+
+/** Roles a poser et a retirer en un seul `roles.set`. */
+export type LotDeRoles = {
+	addRoleIds: string[];
+	removeRoleIds: string[];
+};
 
 async function configActive(guildId: string) {
 	const config = await prisma.quarantineConfig.findUnique({
@@ -31,9 +56,13 @@ export async function quarantineNewMember(member: GuildMember): Promise<void> {
 
 	await member.roles.add(config.roleId, "Quarantaine à l'arrivée.");
 
-	// Un membre deja connu qui revient repart en quarantaine : ses roles
-	// Discord ont disparu avec son depart, l'acceptation precedente ne vaut
-	// plus rien.
+	// Un membre deja connu qui revient repart en quarantaine : ses roles Discord
+	// ont disparu avec son depart, l'acceptation precedente ne vaut plus rien.
+	//
+	// `battlenetVerifiedAt` est remis a `null` pour la meme raison — mais le lien
+	// Battle.net lui-meme (`battlenet_accounts`) survit : il n'y a aucune raison
+	// de faire rescanner un compte deja prouve, et l'unicite doit continuer de
+	// tenir pendant l'absence.
 	await prisma.quarantineStatus.upsert({
 		where: {
 			guildId_userId: { guildId: member.guild.id, userId: member.id },
@@ -41,6 +70,7 @@ export async function quarantineNewMember(member: GuildMember): Promise<void> {
 		update: {
 			quarantinedAt: new Date(),
 			acceptedAt: null,
+			battlenetVerifiedAt: null,
 			releasedById: null,
 			discordSyncedAt: new Date(),
 		},
@@ -53,12 +83,44 @@ export async function quarantineNewMember(member: GuildMember): Promise<void> {
 	});
 }
 
-/** Ce que la levee a besoin de savoir du reglage, et rien de plus. */
-type ReglageLevee = {
-	roleId: string | null;
-	releaseAddRoleIds: string[];
-	releaseRemoveRoleIds: string[];
-};
+/**
+ * Jeu de roles correspondant a l'etape atteinte.
+ *
+ * Le role de quarantaine ne part qu'a `CLEARED` : c'est lui qui ferme le
+ * serveur, le retirer plus tot reviendrait a n'avoir aucune seconde etape.
+ */
+export function lotPourEtape(
+	config: ReglageEtapes,
+	stage: QuarantineStage,
+): LotDeRoles {
+	switch (stage) {
+		case QuarantineStage.CLEARED:
+			return {
+				addRoleIds: config.releaseAddRoleIds,
+				removeRoleIds: [
+					...config.releaseRemoveRoleIds,
+					// Les roles intermediaires n'ont plus lieu d'etre : ils decrivaient
+					// une etape en cours. Les laisser ferait cohabiter « en attente de
+					// verification » et l'acces complet sur la meme fiche.
+					...config.acceptAddRoleIds,
+					...config.verifyAddRoleIds,
+					...(config.roleId ? [config.roleId] : []),
+				],
+			};
+		case QuarantineStage.ACCEPTED_ONLY:
+			return {
+				addRoleIds: config.acceptAddRoleIds,
+				removeRoleIds: config.acceptRemoveRoleIds,
+			};
+		case QuarantineStage.VERIFIED_ONLY:
+			return {
+				addRoleIds: config.verifyAddRoleIds,
+				removeRoleIds: config.verifyRemoveRoleIds,
+			};
+		case QuarantineStage.PENDING:
+			return { addRoleIds: [], removeRoleIds: [] };
+	}
+}
 
 /**
  * Un role n'est modifiable que s'il n'est ni gere par une integration (role de
@@ -74,29 +136,26 @@ function gerable(role: Role | null | undefined, botHighest: Role | null): boolea
 }
 
 /**
- * Applique la levee : role de quarantaine retire, roles configures poses et
- * retires, en **un seul** `roles.set`.
+ * Applique un lot de roles en **un seul** `roles.set`.
  *
- * Un `remove` suivi d'un `add` ferait traverser au membre un etat ou il a
- * quitte la quarantaine sans avoir encore le role qui ouvre le serveur — un
- * arrivant y verrait un serveur vide pendant le temps d'un aller-retour reseau,
- * et un echec entre les deux appels l'y laisserait pour de bon.
+ * Un `remove` suivi d'un `add` ferait traverser au membre un etat ou il a quitte
+ * la quarantaine sans avoir encore le role qui ouvre le serveur — un arrivant y
+ * verrait un serveur vide pendant le temps d'un aller-retour reseau, et un echec
+ * entre les deux appels l'y laisserait pour de bon.
  *
  * Un role que le bot ne peut pas modifier est **ignore, pas fatal** : la levee
  * doit aboutir meme si un role de la liste a depuis ete deplace au-dessus du
  * bot. Le journal le signale, car un role configure qui ne s'applique jamais
  * passerait autrement pour un bug du bouton.
  */
-export async function appliquerRolesDeLevee(
+export async function appliquerRoles(
 	member: GuildMember,
-	config: ReglageLevee,
+	lot: LotDeRoles,
 	raison: string,
 ): Promise<void> {
 	const botHighest = member.guild.members.me?.roles.highest ?? null;
 
-	const aRetirer = new Set<string>(config.releaseRemoveRoleIds);
-	if (config.roleId) aRetirer.add(config.roleId);
-
+	const aRetirer = new Set<string>(lot.removeRoleIds);
 	const final = new Set<string>();
 
 	for (const role of member.roles.cache.values()) {
@@ -118,7 +177,7 @@ export async function appliquerRolesDeLevee(
 		final.add(role.id);
 	}
 
-	for (const roleId of config.releaseAddRoleIds) {
+	for (const roleId of lot.addRoleIds) {
 		if (aRetirer.has(roleId)) continue;
 
 		const role =
@@ -139,9 +198,33 @@ export async function appliquerRolesDeLevee(
 }
 
 /**
+ * Applique a un membre les roles de l'etape ou il se trouve.
+ *
+ * Point d'entree unique des deux chemins (bouton et rattrapage) : c'est ce qui
+ * garantit qu'une verification faite depuis le navigateur aboutit exactement au
+ * meme etat qu'un clic sur Discord.
+ */
+async function appliquerEtape(
+	member: GuildMember,
+	config: ReglageEtapes,
+	statut: {
+		acceptedAt: Date | null;
+		battlenetVerifiedAt: Date | null;
+		releasedById: string | null;
+	},
+	raison: string,
+): Promise<QuarantineStage> {
+	const stage = quarantineStage(statut, config.battlenetRequired);
+	await appliquerRoles(member, lotPourEtape(config, stage), raison);
+	return stage;
+}
+
+/**
  * Acceptation du reglement par le membre lui-meme (bouton).
  *
- * Le role est retire ici, donc `discordSyncedAt` est pose dans la foulee.
+ * Les roles sont poses ici, donc `discordSyncedAt` l'est dans la foulee — y
+ * compris quand l'etape suivante manque encore : le bot a applique tout ce qui
+ * lui incombait, il n'y a rien a rattraper avant la verification.
  */
 export async function accepterReglement(
 	member: GuildMember,
@@ -155,15 +238,33 @@ export async function accepterReglement(
 		},
 	});
 
-	// Sans role de quarantaine ni statut ouvert, il n'y a rien a lever : le
-	// membre a deja accepte, ou n'a jamais ete mis en quarantaine.
-	if (!member.roles.cache.has(config.roleId) && statut?.acceptedAt) {
-		return "deja-acceptee";
+	if (statut?.acceptedAt) {
+		const etat = quarantineStage(statut, config.battlenetRequired);
+
+		// Un second clic ne refait rien — sauf si le role de quarantaine est
+		// toujours la alors que toutes les etapes sont franchies. C'est le signe
+		// d'un `roles.set` qui a echoue plus tot, et ce clic le repare : sans ce
+		// rattrapage, le membre resterait bloque avec le seul bouton qui aurait pu
+		// le liberer lui repondant qu'il a deja accepte.
+		const aReparer =
+			etat === QuarantineStage.CLEARED && member.roles.cache.has(config.roleId);
+
+		if (!aReparer) return "deja-acceptee";
 	}
 
-	await appliquerRolesDeLevee(member, config, "Règlement accepté.");
-
 	const maintenant = new Date();
+
+	await appliquerEtape(
+		member,
+		config,
+		{
+			acceptedAt: maintenant,
+			battlenetVerifiedAt: statut?.battlenetVerifiedAt ?? null,
+			releasedById: statut?.releasedById ?? null,
+		},
+		"Règlement accepté.",
+	);
+
 	await prisma.quarantineStatus.upsert({
 		where: {
 			guildId_userId: { guildId: member.guild.id, userId: member.id },
@@ -181,14 +282,22 @@ export async function accepterReglement(
 }
 
 /**
- * Levees demandees depuis la webapp, pas encore rejouees cote Discord.
+ * Etapes franchies ailleurs que sur Discord, pas encore rejouees cote roles :
+ * verification Battle.net faite dans le navigateur, levee prononcee depuis la
+ * webapp.
+ *
+ * Le filtre porte sur le seul `discordSyncedAt: null`, sans condition sur
+ * `acceptedAt` : avec deux etapes, une verification faite avant l'acceptation
+ * doit elle aussi remonter, or elle laisse `acceptedAt` a `null`. Aucune ligne
+ * en attente n'echappe ainsi au rattrapage — l'arrivee et le clic sur un bouton
+ * posent tous deux la date eux-memes.
  *
  * Le membre peut avoir quitte le serveur entre-temps : l'entree est alors
  * marquee synchronisee malgre tout, sinon elle reviendrait a chaque passage.
  */
-export async function checkPendingReleases(client: Client): Promise<void> {
+export async function synchroniserQuarantaines(client: Client): Promise<void> {
 	const pending = await prisma.quarantineStatus.findMany({
-		where: { acceptedAt: { not: null }, discordSyncedAt: null },
+		where: { discordSyncedAt: null },
 	});
 
 	for (const statut of pending) {
@@ -196,7 +305,7 @@ export async function checkPendingReleases(client: Client): Promise<void> {
 		if (!guild) continue;
 
 		try {
-			await retirerRole(guild, statut.userId);
+			await rejouerEtape(guild, statut);
 
 			await prisma.quarantineStatus.update({
 				where: {
@@ -209,25 +318,36 @@ export async function checkPendingReleases(client: Client): Promise<void> {
 			});
 		} catch (err) {
 			console.error(
-				`[Quarantaine] Levée de ${statut.userId} échouée :`,
+				`[Quarantaine] Mise à jour des rôles de ${statut.userId} échouée :`,
 				err,
 			);
 		}
 	}
 }
 
-async function retirerRole(guild: Guild, userId: string): Promise<void> {
+async function rejouerEtape(
+	guild: Guild,
+	statut: {
+		userId: string;
+		acceptedAt: Date | null;
+		battlenetVerifiedAt: Date | null;
+		releasedById: string | null;
+	},
+): Promise<void> {
 	const config = await prisma.quarantineConfig.findUnique({
 		where: { guildId: guild.id },
 	});
 	if (!config?.roleId) return;
 
-	const member = await guild.members.fetch(userId).catch(() => null);
+	const member = await guild.members.fetch(statut.userId).catch(() => null);
 	if (!member) return;
 
-	await appliquerRolesDeLevee(
+	await appliquerEtape(
 		member,
 		config,
-		"Quarantaine levée depuis le dashboard.",
+		statut,
+		statut.releasedById
+			? "Quarantaine levée depuis le dashboard."
+			: "Étape de quarantaine franchie.",
 	);
 }

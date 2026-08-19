@@ -85,3 +85,15 @@ code {
 	color: var(--mat-sys-on-surface-variant);
 	font: var(--mat-sys-body-small);
 }
+
+/* Sous-titre d'une etape, sous `.section-title`. Marges nulles pour la meme
+   raison : la gouttiere de `mat-card-content` fait tout l'espacement. */
+.step-title {
+	margin: 4px 0 0;
+	color: var(--mat-sys-on-surface-variant);
+	font: var(--mat-sys-label-large);
+}
+
+.muted {
+	color: var(--mat-sys-on-surface-variant);
+}

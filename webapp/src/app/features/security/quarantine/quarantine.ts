@@ -11,6 +11,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import {
+	DEFAULT_QUARANTINE_BATTLENET_BUTTON_LABEL,
 	DEFAULT_QUARANTINE_BUTTON_LABEL,
 	MAX_QUARANTINE_RELEASE_ROLES,
 	Permission,
@@ -52,7 +53,7 @@ export class QuarantinePage {
 
 	readonly Permission = Permission;
 	readonly maxReleaseRoles = MAX_QUARANTINE_RELEASE_ROLES;
-	readonly columns = ['member', 'quarantinedAt', 'status', 'actions'];
+	readonly columns = ['member', 'quarantinedAt', 'status', 'battlenet', 'actions'];
 
 	readonly loading = signal(true);
 	readonly saving = signal(false);
@@ -60,15 +61,34 @@ export class QuarantinePage {
 	readonly members = signal<QuarantineStatusDto[]>([]);
 
 	/** Etat enregistre, pas celui du formulaire : c'est lui qui decrit ce que fait le bot. */
-	private readonly saved = signal<{ enabled: boolean; roleId: string | null }>({
+	private readonly saved = signal<{
+		enabled: boolean;
+		roleId: string | null;
+		battlenetRequired: boolean;
+		battlenetAvailable: boolean;
+	}>({
 		enabled: false,
 		roleId: null,
+		battlenetRequired: false,
+		battlenetAvailable: false,
 	});
 
 	readonly enabled = computed(() => this.saved().enabled);
+	readonly battlenetRequired = computed(() => this.saved().battlenetRequired);
 
 	/** Le role est ce qui bloque reellement : active sans lui, la quarantaine ne fait rien. */
 	readonly misconfigured = computed(() => this.saved().enabled && !this.saved().roleId);
+
+	/**
+	 * Verification exigee alors que l'API n'a pas de client Blizzard.
+	 *
+	 * C'est la panne la plus couteuse du dispositif : les arrivants acceptent le
+	 * reglement puis restent bloques sur une etape qui ne peut pas aboutir, sans
+	 * que rien ne le signale nulle part ailleurs.
+	 */
+	readonly battlenetUnavailable = computed(
+		() => this.saved().battlenetRequired && !this.saved().battlenetAvailable,
+	);
 
 	readonly form = this.formBuilder.nonNullable.group({
 		enabled: [false],
@@ -81,6 +101,16 @@ export class QuarantinePage {
 		],
 		releaseAddRoleIds: [''],
 		releaseRemoveRoleIds: [''],
+		acceptAddRoleIds: [''],
+		acceptRemoveRoleIds: [''],
+		verifyAddRoleIds: [''],
+		verifyRemoveRoleIds: [''],
+		battlenetRequired: [false],
+		battlenetButtonLabel: [
+			DEFAULT_QUARANTINE_BATTLENET_BUTTON_LABEL,
+			[Validators.required, Validators.maxLength(80)],
+		],
+		battlenetMessage: [''],
 	});
 
 	constructor() {
@@ -105,12 +135,28 @@ export class QuarantinePage {
 				buttonLabel: raw.buttonLabel,
 				releaseAddRoleIds: this.splitIds(raw.releaseAddRoleIds),
 				releaseRemoveRoleIds: this.splitIds(raw.releaseRemoveRoleIds),
+				acceptAddRoleIds: this.splitIds(raw.acceptAddRoleIds),
+				acceptRemoveRoleIds: this.splitIds(raw.acceptRemoveRoleIds),
+				verifyAddRoleIds: this.splitIds(raw.verifyAddRoleIds),
+				verifyRemoveRoleIds: this.splitIds(raw.verifyRemoveRoleIds),
+				battlenetRequired: raw.battlenetRequired,
+				battlenetButtonLabel: raw.battlenetButtonLabel,
+				battlenetMessage: raw.battlenetMessage.trim()
+					? raw.battlenetMessage.trim()
+					: null,
 			})
 			.subscribe({
 				next: (config) => {
 					this.saving.set(false);
-					this.saved.set({ enabled: config.enabled, roleId: config.roleId });
-					this.notifications.success('Réglages de quarantaine mis à jour.');
+					this.saved.set({
+						enabled: config.enabled,
+						roleId: config.roleId,
+						battlenetRequired: config.battlenetRequired,
+						battlenetAvailable: config.battlenetAvailable,
+					});
+					this.notifications.success(
+						'Réglages de quarantaine mis à jour. Rejoue /quarantaine-message pour republier le panneau.',
+					);
 				},
 				error: () => this.saving.set(false),
 			});
@@ -127,6 +173,14 @@ export class QuarantinePage {
 			},
 			error: () => this.releasingId.set(null),
 		});
+	}
+
+	/** Ce que la colonne « Battle.net » affiche pour une ligne donnee. */
+	etatBattlenet(member: QuarantineStatusDto): string {
+		if (!member.battlenetVerifiedAt) return 'Non vérifié';
+		// `battletag` est `null` sans la permission : l'etape reste lisible, pas
+		// l'identite Blizzard.
+		return member.battletag ?? 'Vérifié';
 	}
 
 	/**
@@ -160,8 +214,20 @@ export class QuarantinePage {
 					buttonLabel: config.buttonLabel,
 					releaseAddRoleIds: config.releaseAddRoleIds.join(', '),
 					releaseRemoveRoleIds: config.releaseRemoveRoleIds.join(', '),
+					acceptAddRoleIds: config.acceptAddRoleIds.join(', '),
+					acceptRemoveRoleIds: config.acceptRemoveRoleIds.join(', '),
+					verifyAddRoleIds: config.verifyAddRoleIds.join(', '),
+					verifyRemoveRoleIds: config.verifyRemoveRoleIds.join(', '),
+					battlenetRequired: config.battlenetRequired,
+					battlenetButtonLabel: config.battlenetButtonLabel,
+					battlenetMessage: config.battlenetMessage ?? '',
 				});
-				this.saved.set({ enabled: config.enabled, roleId: config.roleId });
+				this.saved.set({
+					enabled: config.enabled,
+					roleId: config.roleId,
+					battlenetRequired: config.battlenetRequired,
+					battlenetAvailable: config.battlenetAvailable,
+				});
 				this.loading.set(false);
 			},
 			error: () => this.loading.set(false),

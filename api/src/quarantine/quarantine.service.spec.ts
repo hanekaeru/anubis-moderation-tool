@@ -1,7 +1,9 @@
 import { NotFoundException } from "@nestjs/common";
+import type { ConfigService } from "@nestjs/config";
 import type { AuditService } from "../audit/audit.service";
 import type { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
+import type { AppConfig } from "../config/configuration";
 import type { PrismaService } from "../prisma/prisma.service";
 import { QuarantineService } from "./quarantine.service";
 
@@ -12,6 +14,13 @@ const USER_ID = "136122497891303425";
 const ACTOR = {
 	id: "00000000-0000-0000-0000-000000000001",
 	displayName: "Moderatrice",
+	permissions: [],
+} as unknown as AuthenticatedUser;
+
+/** Meme compte, mais autorise a lire les BattleTags. */
+const ACTOR_BATTLENET = {
+	...ACTOR,
+	permissions: ["battlenet:read"],
 } as unknown as AuthenticatedUser;
 
 function statusRow(overrides: Record<string, unknown> = {}) {
@@ -20,8 +29,15 @@ function statusRow(overrides: Record<string, unknown> = {}) {
 		userId: USER_ID,
 		quarantinedAt: new Date("2026-08-15T10:00:00.000Z"),
 		acceptedAt: null,
+		battlenetVerifiedAt: null,
+		releasedById: null,
 		discordSyncedAt: new Date("2026-08-15T10:00:00.000Z"),
-		user: { username: "hane", globalName: "Hane", avatarUrl: null },
+		user: {
+			username: "hane",
+			globalName: "Hane",
+			avatarUrl: null,
+			battlenetAccount: null,
+		},
 		releasedBy: null,
 		...overrides,
 	};
@@ -44,7 +60,15 @@ function makeService(prismaOverrides: Record<string, unknown> = {}) {
 	const guild = { guildId: GUILD_ID } as unknown as GuildContextService;
 	const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
 
-	return { service: new QuarantineService(prisma, guild, audit), prisma, audit };
+	const config = {
+		get: jest.fn().mockReturnValue({ battlenet: { available: true } }),
+	} as unknown as ConfigService<{ app: AppConfig }, true>;
+
+	return {
+		service: new QuarantineService(prisma, guild, audit, config),
+		prisma,
+		audit,
+	};
 }
 
 describe("QuarantineService.getConfig", () => {
@@ -190,24 +214,117 @@ describe("QuarantineService.release", () => {
 });
 
 describe("QuarantineService.listActive", () => {
-	it("ne remonte que les membres n'ayant pas accepte, le plus ancien d'abord", async () => {
+	function serviceAvecLignes(
+		rows: Record<string, unknown>[],
+		battlenetRequired = false,
+	) {
 		const prisma = {
+			quarantineConfig: {
+				findUnique: jest.fn().mockResolvedValue({ battlenetRequired }),
+				upsert: jest.fn(),
+			},
 			quarantineStatus: {
-				findMany: jest.fn().mockResolvedValue([statusRow()]),
+				findMany: jest.fn().mockResolvedValue(rows),
 				findUnique: jest.fn(),
 				update: jest.fn(),
 			},
 		};
-		const { service } = makeService(prisma);
+		return { ...makeService(prisma), prismaMock: prisma };
+	}
 
-		const rows = await service.listActive();
+	it("remonte les membres bloques, le plus ancien d'abord", async () => {
+		const { service, prismaMock } = serviceAvecLignes([statusRow()]);
 
-		expect(prisma.quarantineStatus.findMany).toHaveBeenCalledWith(
-			expect.objectContaining({
-				where: { guildId: GUILD_ID, acceptedAt: null },
-				orderBy: { quarantinedAt: "asc" },
-			}),
+		const rows = await service.listActive(ACTOR);
+
+		expect(prismaMock.quarantineStatus.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({ orderBy: { quarantinedAt: "asc" } }),
 		);
-		expect(rows[0]).toMatchObject({ userId: USER_ID, active: true, username: "hane" });
+		expect(rows[0]).toMatchObject({
+			userId: USER_ID,
+			active: true,
+			username: "hane",
+		});
+	});
+
+	// Le coeur du dispositif a deux etapes : accepter le reglement ne suffit
+	// plus. Un membre qui disparaitrait de la liste a cette etape n'aurait plus
+	// personne pour remarquer qu'il attend depuis trois jours.
+	it("garde en liste un membre ayant accepte mais pas encore verifie", async () => {
+		const { service } = serviceAvecLignes(
+			[
+				statusRow({
+					acceptedAt: new Date("2026-08-15T11:00:00.000Z"),
+					discordSyncedAt: new Date("2026-08-15T11:00:05.000Z"),
+				}),
+			],
+			true,
+		);
+
+		const rows = await service.listActive(ACTOR);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]!.active).toBe(true);
+		expect(rows[0]!.acceptedAt).not.toBeNull();
+	});
+
+	// Le meme etat, verification non exigee : l'acceptation libere, comme avant
+	// l'existence du reglage.
+	it("retire de la liste un membre ayant accepte quand rien d'autre n'est exige", async () => {
+		const { service } = serviceAvecLignes(
+			[
+				statusRow({
+					acceptedAt: new Date("2026-08-15T11:00:00.000Z"),
+					discordSyncedAt: new Date("2026-08-15T11:00:05.000Z"),
+				}),
+			],
+			false,
+		);
+
+		expect(await service.listActive(ACTOR)).toHaveLength(0);
+	});
+
+	it("libere quand les deux etapes sont franchies", async () => {
+		const { service } = serviceAvecLignes(
+			[
+				statusRow({
+					acceptedAt: new Date("2026-08-15T11:00:00.000Z"),
+					battlenetVerifiedAt: new Date("2026-08-15T11:05:00.000Z"),
+					discordSyncedAt: null,
+				}),
+			],
+			true,
+		);
+
+		const rows = await service.listActive(ACTOR);
+
+		expect(rows[0]).toMatchObject({ active: false, pendingSync: true });
+	});
+
+	describe("BattleTag", () => {
+		const avecCompte = [
+			statusRow({
+				user: {
+					username: "hane",
+					globalName: "Hane",
+					avatarUrl: null,
+					battlenetAccount: { battletag: "Hane#2185" },
+				},
+			}),
+		];
+
+		it("est masque sans la permission, meme pour un membre verifie", async () => {
+			const { service } = serviceAvecLignes(avecCompte);
+			const rows = await service.listActive(ACTOR);
+
+			expect(rows[0]!.battletag).toBeNull();
+		});
+
+		it("est rendu a un compte porteur de battlenet:read", async () => {
+			const { service } = serviceAvecLignes(avecCompte);
+			const rows = await service.listActive(ACTOR_BATTLENET);
+
+			expect(rows[0]!.battletag).toBe("Hane#2185");
+		});
 	});
 });

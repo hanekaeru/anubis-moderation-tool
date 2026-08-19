@@ -151,11 +151,12 @@ export interface TicketEmbedState {
 }
 
 export function openEmbed(state: TicketEmbedState): EmbedBuilder {
+
 	const embed = new EmbedBuilder()
 		.setColor(priorityColor(state.priority))
 		.setTitle(`Ticket #${state.number} — ${state.subject}`)
 		.setDescription(
-			`Bienvenue <@${state.openerId}>, l'équipe va prendre en charge ta demande.`,
+			`Bienvenue <@${state.openerId}>, l'équipe de va prendre en charge ta demande.`,
 		)
 		.addFields({
 			name: "Gravité",

@@ -129,6 +129,8 @@ enum AccountFlagType {
   STAFF_IMPERSONATION
   QUICK_REJOIN
   JOINED_AFTER_BAN
+  /// Compte Blizzard deja lie a un autre membre : tentative de multicompte.
+  BATTLENET_DUPLICATE
 }
 
 enum GiveawayStatus {
@@ -201,6 +203,8 @@ model Guild {
   accountFlags           AccountFlag[]
   quarantineConfig       QuarantineConfig?
   quarantineStatuses     QuarantineStatus[]
+  battlenetAccounts      BattlenetAccount[]
+  battlenetStates        BattlenetVerificationState[]
   shadowbanRoleBackups   ShadowbanRoleBackup[]
   voiceHubs              VoiceHub[]
   temporaryVoiceChannels TemporaryVoiceChannel[]
@@ -250,6 +254,8 @@ model DiscordUser {
   automodIncidents        AutomodIncident[]
   accountFlags            AccountFlag[]
   quarantineStatuses      QuarantineStatus[]
+  battlenetAccount        BattlenetAccount?
+  battlenetStates         BattlenetVerificationState[]
   shadowbanRoleBackups    ShadowbanRoleBackup[]
   ownedVoiceChannels      TemporaryVoiceChannel[]
   appUser                 AppUser?
@@ -854,6 +860,13 @@ model AccountFlag {
   createdAt    DateTime        @default(now()) @map("created_at")
   reviewedAt   DateTime?       @map("reviewed_at")
   reviewedById String?         @map("reviewed_by_id") @db.Uuid
+  /// Alerte au staff deja envoyee sur Discord.
+  ///
+  /// Meme patron que `Sanction.discordSyncedAt`. Un signalement pose par le bot
+  /// a l'arrivee est alerte dans la foulee et marque tout de suite ; un
+  /// signalement pose par l'API (verification Battle.net refusee, par exemple)
+  /// reste a `null` jusqu'au prochain passage de la tache d'alerte.
+  discordSyncedAt DateTime?       @map("discord_synced_at")
 
   guild      Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
   user       DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -909,6 +922,22 @@ model QuarantineConfig {
   releaseAddRoleIds    String[] @default([]) @map("release_add_role_ids")
   /// Roles retires au membre a la levee de la quarantaine.
   releaseRemoveRoleIds String[] @default([]) @map("release_remove_role_ids")
+  /// Roles appliques a la seule acceptation du reglement, quand la
+  /// verification Battle.net est exigee et pas encore faite. Sert a rendre
+  /// l'etape intermediaire visible dans la liste des membres.
+  acceptAddRoleIds     String[] @default([]) @map("accept_add_role_ids")
+  acceptRemoveRoleIds  String[] @default([]) @map("accept_remove_role_ids")
+  /// Roles appliques a la seule verification Battle.net, quand le reglement
+  /// n'a pas encore ete accepte.
+  verifyAddRoleIds     String[] @default([]) @map("verify_add_role_ids")
+  verifyRemoveRoleIds  String[] @default([]) @map("verify_remove_role_ids")
+  /// Seconde etape : le membre doit lier un compte Battle.net verifie avant
+  /// que la levee complete ne soit prononcee. A `false`, l'acceptation du
+  /// reglement suffit — le comportement d'avant ce reglage.
+  battlenetRequired    Boolean  @default(false) @map("battlenet_required")
+  battlenetButtonLabel String   @default("Verifier mon compte Battle.net") @map("battlenet_button_label")
+  /// Texte du bloc de verification, sous le reglement. `null` = texte par defaut.
+  battlenetMessage     String?  @map("battlenet_message") @db.Text
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -955,6 +984,10 @@ model QuarantineStatus {
   /// Pose depuis la webapp lors d'une levee manuelle : `null` en attendant
   /// que le bot retire le role au prochain passage de synchronisation.
   releasedById    String?   @map("released_by_id") @db.Uuid
+  /// Verification Battle.net reussie. `null` tant qu'elle manque — la levee
+  /// complete n'a lieu que lorsque `acceptedAt` et celle-ci sont toutes deux
+  /// posees, ou que `QuarantineConfig.battlenetRequired` est a `false`.
+  battlenetVerifiedAt DateTime? @map("battlenet_verified_at")
   /// Pose immediatement quand le retrait du role est fait par le bot
   /// lui-meme (clic sur le bouton) — meme patron que
   /// `RaidIncident.discordSyncedAt` pour une levee demandee depuis la webapp.
@@ -966,6 +999,64 @@ model QuarantineStatus {
 
   @@id([guildId, userId])
   @@map("quarantine_status")
+}
+
+/// Compte Battle.net verifie, lie a un compte Discord.
+///
+/// La cle est le `sub` rendu par `/userinfo` de Blizzard, **jamais le
+/// BattleTag** : un BattleTag se change depuis le compte Blizzard, `sub` non.
+/// C'est donc lui qui porte l'unicite, et `battletag` n'est qu'une copie
+/// d'affichage prise au moment de la verification — elle peut avoir vieilli.
+///
+/// `userId` est unique de son cote : un compte Discord ne porte qu'un seul
+/// compte Blizzard. Les deux unicites ensemble sont ce qui fait la valeur du
+/// dispositif — sans elles, la verification ne prouverait que la capacite a
+/// creer un compte Blizzard, ce qui est gratuit et prend deux minutes.
+model BattlenetAccount {
+  battlenetId String   @id @map("battlenet_id")
+  userId      String   @unique @map("user_id") @db.VarChar(20)
+  battletag   String
+  /// Serveur depuis lequel la verification a ete faite, pour le journal.
+  guildId     String   @map("guild_id") @db.VarChar(20)
+  verifiedAt  DateTime @default(now()) @map("verified_at")
+
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("battlenet_accounts")
+}
+
+/// Demande de verification Battle.net en cours, le temps de l'aller-retour
+/// chez Blizzard.
+///
+/// Porte le `state` du protocole OAuth. Deux proprietes ne sont pas
+/// negociables :
+///
+/// - il est **tire cote serveur et consomme une seule fois**. Le callback est
+///   une route publique : un `state` devinable — a plus forte raison derive de
+///   l'identifiant Discord — laisserait n'importe qui appeler le callback et
+///   se verifier sans jamais passer par Blizzard. Meme raisonnement que le
+///   jeton de defi de la double authentification.
+/// - il vit **en base et non en memoire** : le bot qui le pose et l'API qui le
+///   consomme sont deux conteneurs distincts.
+///
+/// Les lignes expirees ne sont pas purgees par une tache dediee : la
+/// verification les ecarte deja, et le volume reste negligeable.
+model BattlenetVerificationState {
+  state      String    @id
+  guildId    String    @map("guild_id") @db.VarChar(20)
+  userId     String    @map("user_id") @db.VarChar(20)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  expiresAt  DateTime  @map("expires_at")
+  /// Pose au premier passage dans le callback. Un `state` deja consomme est
+  /// refuse, meme non expire : c'est ce qui empeche de rejouer un retour.
+  consumedAt DateTime? @map("consumed_at")
+
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("battlenet_verification_states")
 }
 
 // ---------------------------------------------------------------------------

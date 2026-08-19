@@ -37,6 +37,12 @@ services:
             # Laisse a "true" en production. A "false", le second facteur n'est
             # plus demande, y compris aux comptes qui l'ont active.
             TWO_FACTOR_ENABLED: ${TWO_FACTOR_ENABLED:-true}
+            # Verification Battle.net (facultative). Les trois ensemble, ou
+            # aucune : sans elles la fonctionnalite se declare indisponible
+            # plutot que d'envoyer les arrivants sur une erreur Blizzard.
+            BATTLENET_CLIENT_ID: ${BATTLENET_CLIENT_ID:-}
+            BATTLENET_CLIENT_SECRET: ${BATTLENET_CLIENT_SECRET:-}
+            BATTLENET_REDIRECT_URI: https://${APP_DOMAIN}/api/verification/battlenet/callback
 
     webapp:
         build:
@@ -56,3 +62,6 @@ services:
             BOT_TOKEN: ${BOT_TOKEN}
             CLIENT_ID: ${CLIENT_ID}
             GUILD_HOST_ID: ${GUILD_HOST_ID}
+            # URL exterieure de l'API : le bot y compose le lien de
+            # verification que le membre clique, il ne l'appelle jamais.
+            PUBLIC_API_URL: https://${APP_DOMAIN}/api

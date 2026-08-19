@@ -25,6 +25,7 @@ function baseConfig(twoFactorEnabled: boolean): AppConfig {
 		corsOrigins: [],
 		cookieSecure: false,
 		security: { maxFailedLogins: 5, lockoutMinutes: 15, twoFactorEnabled },
+		battlenet: { clientId: "", clientSecret: "", redirectUri: "", available: false },
 	};
 }
 

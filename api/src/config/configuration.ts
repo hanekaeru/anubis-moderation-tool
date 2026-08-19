@@ -46,6 +46,25 @@ export interface AppConfig {
 		 */
 		twoFactorEnabled: boolean;
 	};
+	/**
+	 * Client OAuth Battle.net, pour la verification de compte a l'arrivee.
+	 *
+	 * Le trio vit dans l'environnement et **jamais en base** : c'est un secret
+	 * de deploiement, au meme titre que les secrets JWT. Un serveur qui n'a pas
+	 * de client Blizzard laisse les trois vides — `available` passe alors a
+	 * `false`, les routes de verification repondent 503 et le dashboard le dit,
+	 * plutot que d'envoyer les arrivants sur une page d'erreur Blizzard.
+	 */
+	battlenet: {
+		clientId: string;
+		clientSecret: string;
+		/**
+		 * Doit correspondre **au caractere pres** a l'URI declaree sur le portail
+		 * developpeur Blizzard, sans quoi l'echange du code est refuse.
+		 */
+		redirectUri: string;
+		available: boolean;
+	};
 }
 
 class MissingConfigError extends Error {
@@ -119,6 +138,10 @@ export function loadConfiguration(): AppConfig {
 		}
 	}
 
+	const battlenetClientId = env.BATTLENET_CLIENT_ID?.trim() ?? "";
+	const battlenetClientSecret = env.BATTLENET_CLIENT_SECRET?.trim() ?? "";
+	const battlenetRedirectUri = env.BATTLENET_REDIRECT_URI?.trim() ?? "";
+
 	return {
 		nodeEnv,
 		isProduction,
@@ -148,6 +171,16 @@ export function loadConfiguration(): AppConfig {
 			// Par defaut active : un deploiement qui ne dit rien doit etre le plus
 			// sur des deux, et c'est la desactivation qui demande un geste explicite.
 			twoFactorEnabled: toBool(env.TWO_FACTOR_ENABLED, true),
+		},
+		battlenet: {
+			clientId: battlenetClientId,
+			clientSecret: battlenetClientSecret,
+			redirectUri: battlenetRedirectUri,
+			// Les trois ou rien : un client a moitie renseigne echouerait chez
+			// Blizzard, au pire moment — devant un arrivant qui vient de cliquer.
+			available: Boolean(
+				battlenetClientId && battlenetClientSecret && battlenetRedirectUri,
+			),
 		},
 	};
 }

@@ -1,4 +1,5 @@
-import { appliquerRolesDeLevee } from "./quarantine";
+import { QuarantineStage } from "@anubis/shared";
+import { appliquerRoles, lotPourEtape } from "./quarantine";
 
 const GUILD_ID = "1534550360180396132";
 const QUARANTINE_ROLE_ID = "900";
@@ -39,13 +40,13 @@ function member(
 		roles: { cache: new Map(porte.map((entry) => [entry.id, entry])), set },
 	};
 
-	return { membre: faux as unknown as Parameters<typeof appliquerRolesDeLevee>[0], set };
+	return { membre: faux as unknown as Parameters<typeof appliquerRoles>[0], set };
 }
 
-const REGLAGE = {
-	roleId: QUARANTINE_ROLE_ID,
-	releaseAddRoleIds: [] as string[],
-	releaseRemoveRoleIds: [] as string[],
+/** Lot d'une levee complete sans aucun role configure. */
+const LEVEE_NUE = {
+	addRoleIds: [] as string[],
+	removeRoleIds: [QUARANTINE_ROLE_ID],
 };
 
 /** Roles transmis a Discord par l'unique `roles.set`, tries pour la comparaison. */
@@ -62,7 +63,7 @@ afterEach(() => {
 	jest.restoreAllMocks();
 });
 
-describe("appliquerRolesDeLevee", () => {
+describe("appliquerRoles", () => {
 	// Le role de quarantaine part meme sans aucune liste configuree : c'est le
 	// comportement d'avant le reglage, il ne doit pas avoir bouge.
 	it("retire le role de quarantaine et garde le reste", async () => {
@@ -72,7 +73,7 @@ describe("appliquerRolesDeLevee", () => {
 			role("1", 10),
 		]);
 
-		await appliquerRolesDeLevee(membre, REGLAGE, "test");
+		await appliquerRoles(membre, LEVEE_NUE, "test");
 
 		expect(rolesTransmis(set)).toEqual(["1"]);
 	});
@@ -83,13 +84,9 @@ describe("appliquerRolesDeLevee", () => {
 			[role("1", 10)],
 		);
 
-		await appliquerRolesDeLevee(
+		await appliquerRoles(
 			membre,
-			{
-				roleId: QUARANTINE_ROLE_ID,
-				releaseAddRoleIds: ["1"],
-				releaseRemoveRoleIds: ["2"],
-			},
+			{ addRoleIds: ["1"], removeRoleIds: [QUARANTINE_ROLE_ID, "2"] },
 			"test",
 		);
 
@@ -110,13 +107,9 @@ describe("appliquerRolesDeLevee", () => {
 			],
 		);
 
-		await appliquerRolesDeLevee(
+		await appliquerRoles(
 			membre,
-			{
-				roleId: QUARANTINE_ROLE_ID,
-				releaseAddRoleIds: ["1", "2", "3"],
-				releaseRemoveRoleIds: [],
-			},
+			{ addRoleIds: ["1", "2", "3"], removeRoleIds: [QUARANTINE_ROLE_ID] },
 			"test",
 		);
 
@@ -133,13 +126,9 @@ describe("appliquerRolesDeLevee", () => {
 			role("2", 10),
 		]);
 
-		await appliquerRolesDeLevee(
+		await appliquerRoles(
 			membre,
-			{
-				roleId: QUARANTINE_ROLE_ID,
-				releaseAddRoleIds: [],
-				releaseRemoveRoleIds: ["1", "2"],
-			},
+			{ addRoleIds: [], removeRoleIds: [QUARANTINE_ROLE_ID, "1", "2"] },
 			"test",
 		);
 
@@ -151,7 +140,7 @@ describe("appliquerRolesDeLevee", () => {
 	it("ne transmet jamais @everyone", async () => {
 		const { membre, set } = member([role(GUILD_ID, 0), role("1", 10)]);
 
-		await appliquerRolesDeLevee(membre, REGLAGE, "test");
+		await appliquerRoles(membre, LEVEE_NUE, "test");
 
 		expect(rolesTransmis(set)).not.toContain(GUILD_ID);
 	});
@@ -164,13 +153,9 @@ describe("appliquerRolesDeLevee", () => {
 			role("1", 10),
 		]);
 
-		await appliquerRolesDeLevee(
+		await appliquerRoles(
 			membre,
-			{
-				roleId: QUARANTINE_ROLE_ID,
-				releaseAddRoleIds: ["1"],
-				releaseRemoveRoleIds: ["1"],
-			},
+			{ addRoleIds: ["1"], removeRoleIds: [QUARANTINE_ROLE_ID, "1"] },
 			"test",
 		);
 
@@ -182,16 +167,71 @@ describe("appliquerRolesDeLevee", () => {
 	it("ignore un role a ajouter devenu introuvable", async () => {
 		const { membre, set } = member([role(GUILD_ID, 0), role(QUARANTINE_ROLE_ID, 5)]);
 
-		await appliquerRolesDeLevee(
+		await appliquerRoles(
 			membre,
-			{
-				roleId: QUARANTINE_ROLE_ID,
-				releaseAddRoleIds: ["404"],
-				releaseRemoveRoleIds: [],
-			},
+			{ addRoleIds: ["404"], removeRoleIds: [QUARANTINE_ROLE_ID] },
 			"test",
 		);
 
 		expect(rolesTransmis(set)).toEqual([]);
+	});
+});
+
+describe("lotPourEtape", () => {
+	const CONFIG = {
+		roleId: QUARANTINE_ROLE_ID,
+		battlenetRequired: true,
+		releaseAddRoleIds: ["membre"],
+		releaseRemoveRoleIds: ["arrivant"],
+		acceptAddRoleIds: ["a-verifier"],
+		acceptRemoveRoleIds: [],
+		verifyAddRoleIds: ["verifie"],
+		verifyRemoveRoleIds: [],
+	};
+
+	// Le role de quarantaine est ce qui ferme le serveur : le retirer avant la
+	// derniere etape reviendrait a n'avoir aucune seconde etape.
+	it("ne retire le role de quarantaine qu'a la levee complete", () => {
+		expect(
+			lotPourEtape(CONFIG, QuarantineStage.ACCEPTED_ONLY).removeRoleIds,
+		).not.toContain(QUARANTINE_ROLE_ID);
+
+		expect(
+			lotPourEtape(CONFIG, QuarantineStage.VERIFIED_ONLY).removeRoleIds,
+		).not.toContain(QUARANTINE_ROLE_ID);
+
+		expect(
+			lotPourEtape(CONFIG, QuarantineStage.CLEARED).removeRoleIds,
+		).toContain(QUARANTINE_ROLE_ID);
+	});
+
+	it("donne a chaque etape son propre jeu de roles", () => {
+		expect(lotPourEtape(CONFIG, QuarantineStage.ACCEPTED_ONLY).addRoleIds).toEqual(
+			["a-verifier"],
+		);
+		expect(lotPourEtape(CONFIG, QuarantineStage.VERIFIED_ONLY).addRoleIds).toEqual(
+			["verifie"],
+		);
+		expect(lotPourEtape(CONFIG, QuarantineStage.CLEARED).addRoleIds).toEqual([
+			"membre",
+		]);
+	});
+
+	// Les roles intermediaires decrivent une etape en cours : les laisser ferait
+	// cohabiter « en attente de vérification » et l'acces complet sur la meme
+	// fiche.
+	it("nettoie les roles intermediaires a la levee complete", () => {
+		const { removeRoleIds } = lotPourEtape(CONFIG, QuarantineStage.CLEARED);
+
+		expect(removeRoleIds).toEqual(
+			expect.arrayContaining(["a-verifier", "verifie", "arrivant"]),
+		);
+	});
+
+	it("ne touche a rien tant qu'aucune etape n'est franchie", () => {
+		expect(lotPourEtape(CONFIG, QuarantineStage.PENDING)).toEqual({
+			addRoleIds: [],
+			removeRoleIds: [],
+		});
 	});
 });

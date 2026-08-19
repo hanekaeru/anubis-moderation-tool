@@ -11,7 +11,9 @@ import {
 import { handleLeaderboardButton } from "../handlers/leaderboardInteractions";
 import {
 	QUARANTINE_ACCEPT_ID,
+	QUARANTINE_BATTLENET_ID,
 	handleQuarantineAccept,
+	handleQuarantineBattlenet,
 } from "../handlers/quarantineInteractions";
 import {
 	TICKET_OPEN_BUTTON,
@@ -109,6 +111,11 @@ const ROUTES: readonly Route[] = [
 		(i) => i.isButton() && i.customId === QUARANTINE_ACCEPT_ID,
 		handleQuarantineAccept,
 		"[Quarantaine] Acceptation du règlement échouée :",
+	),
+	route(
+		(i) => i.isButton() && i.customId === QUARANTINE_BATTLENET_ID,
+		handleQuarantineBattlenet,
+		"[Quarantaine] Vérification Battle.net échouée :",
 	),
 	route(
 		(i) => i.isButton() && i.customId.startsWith("ticket:"),

@@ -34,8 +34,15 @@ const event: BotEvent<typeof Events.MessageDelete> = {
 			? `<@${suppression.executorId}>`
 			: `<@${message.author.id}> (auto-suppression probable)`;
 
+		// `channelId` est toujours livre par Discord, meme sur un message partiel :
+		// c'est la seule information de contexte qui survit a l'absence de cache.
+		// Un message poste dans un fil mentionne le fil, pas le salon parent —
+		// c'est bien la que la moderation doit aller regarder.
 		editedMessageEmbed
-			.setDescription(`Auteur : <@${message.author.id}> | \`${message.author.username}\` | \`${message.author.id}\``)
+			.setDescription(
+				`Auteur : <@${message.author.id}> | \`${message.author.username}\` | \`${message.author.id}\`\n` +
+					`Salon : <#${message.channelId}>`,
+			)
 			.addFields(
 				{ name: "Contenu du message", value: message.content?.slice(0, 1000) || "(vide ou pièces jointes)" },
 				{ name: "Supprimé par", value: supprimePar },
