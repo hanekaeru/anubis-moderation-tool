@@ -1023,6 +1023,15 @@ model BattlenetAccount {
   /// Serveur depuis lequel la verification a ete faite, pour le journal.
   guildId     String   @map("guild_id") @db.VarChar(20)
   verifiedAt  DateTime @default(now()) @map("verified_at")
+  /// Annonce de la verification deja faite sur Discord (journal de moderation
+  /// et message prive au membre).
+  ///
+  /// Meme patron que `Warning.discordSyncedAt` : l'API ecrit le lien sans
+  /// pouvoir toucher a Discord, le bot ramasse et marque. La ligne n'etant
+  /// creee qu'une fois par compte Blizzard, l'annonce ne part qu'une fois —
+  /// une reverification par la meme personne met a jour le BattleTag sans
+  /// reveiller cette date.
+  discordSyncedAt DateTime? @map("discord_synced_at")
 
   user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
   guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
