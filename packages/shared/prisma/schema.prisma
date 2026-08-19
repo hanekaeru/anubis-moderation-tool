@@ -496,6 +496,10 @@ model Sanction {
 
   @@index([guildId, userId, createdAt])
   @@index([guildId, status, expiresAt])
+  /// Declare ici en plus de la migration qui le cree : sans cette ligne, tout
+  /// `prisma migrate dev` voit une derive entre l'historique (qui pose l'index)
+  /// et le schema (qui l'ignore), et propose de reinitialiser la base.
+  @@index([automodIncidentId])
   @@map("sanctions")
 }
 

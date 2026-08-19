@@ -82,3 +82,16 @@ ALTER TABLE "account_flags"
   ADD COLUMN "discord_synced_at" TIMESTAMP(3);
 
 UPDATE "account_flags" SET "discord_synced_at" = "created_at";
+
+-- Repare une derive entre l'historique et les bases deja en service.
+--
+-- La migration 20260817180000 cree cet index, mais `schema.prisma` ne le
+-- declarait pas : toute base alignee sur le schema (un `prisma db push`, par
+-- exemple) l'a donc perdu, et `prisma migrate dev` refusait ensuite de tourner
+-- en proposant de reinitialiser la base. Le schema le declare desormais ; cette
+-- ligne remet l'index la ou il manque.
+--
+-- `IF NOT EXISTS` est indispensable : une base construite en rejouant les
+-- migrations le possede deja, et l'instruction doit y etre sans effet.
+CREATE INDEX IF NOT EXISTS "sanctions_automod_incident_id_idx"
+  ON "sanctions"("automod_incident_id");
