@@ -36,7 +36,6 @@ CREATE TABLE "battlenet_accounts" (
     "battletag" TEXT NOT NULL,
     "guild_id" VARCHAR(20) NOT NULL,
     "verified_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "discord_synced_at" TIMESTAMP(3),
 
     CONSTRAINT "battlenet_accounts_pkey" PRIMARY KEY ("battlenet_id")
 );
