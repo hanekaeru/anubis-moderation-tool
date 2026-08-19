@@ -41,8 +41,14 @@ const event: BotEvent<typeof Events.MessageUpdate> = {
 		// On enregistre l'activité au niveau base
 		activite.enregistrerEdition(message);
 
+		// Le salon vient de `channelId`, toujours livre meme sur un message
+		// partiel. Un message poste dans un fil mentionne le fil, pas le salon
+		// parent — c'est bien la que la moderation doit aller regarder.
 		editedMessageEmbed
-			.setDescription(`Auteur : <@${message.author.id}> | \`${message.author.username}\` | \`${message.author.id}\``)
+			.setDescription(
+				`Auteur : <@${message.author.id}> | \`${message.author.username}\` | \`${message.author.id}\`\n` +
+					`Salon : <#${message.channelId}>`,
+			)
 			.addFields(
 				{ name: "Message avant modification", value: ancien?.content?.slice(0, 1000) || "(vide ou non mis en cache)" },
 				{ name: "Message après modification", value: message.content?.slice(0, 1000) || "(vide ou pièces jointes)" },

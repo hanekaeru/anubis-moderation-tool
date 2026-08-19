@@ -179,12 +179,18 @@ export async function evaluateNewMember(member: GuildMember): Promise<void> {
 
 	if (!flags.length) return;
 
+	// `discordSyncedAt` pose tout de suite : l'alerte part juste en dessous, dans
+	// le meme appel. Le laisser a `null` ferait repasser la tache de rattrapage
+	// derriere et alerterait une seconde fois pour le meme signalement.
+	const maintenant = new Date();
+
 	await prisma.accountFlag.createMany({
 		data: flags.map((flag) => ({
 			guildId: member.guild.id,
 			userId: member.id,
 			type: flag.type,
 			details: flag.details as Prisma.InputJsonValue,
+			discordSyncedAt: maintenant,
 		})),
 	});
 

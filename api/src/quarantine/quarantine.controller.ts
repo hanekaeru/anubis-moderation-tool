@@ -32,8 +32,10 @@ export class QuarantineController {
 
 	@Get("status")
 	@RequirePermissions(Permission.QUARANTINE_READ)
-	listActive(): Promise<QuarantineStatusDto[]> {
-		return this.quarantine.listActive();
+	listActive(
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<QuarantineStatusDto[]> {
+		return this.quarantine.listActive(actor);
 	}
 
 	@Post("status/:userId/release")

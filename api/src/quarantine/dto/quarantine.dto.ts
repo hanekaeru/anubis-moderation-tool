@@ -56,4 +56,47 @@ export class UpdateQuarantineConfigDto {
 	@ArrayMaxSize(MAX_QUARANTINE_RELEASE_ROLES)
 	@Matches(SNOWFLAKE, { each: true })
 	releaseRemoveRoleIds?: string[];
+
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(MAX_QUARANTINE_RELEASE_ROLES)
+	@Matches(SNOWFLAKE, { each: true })
+	acceptAddRoleIds?: string[];
+
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(MAX_QUARANTINE_RELEASE_ROLES)
+	@Matches(SNOWFLAKE, { each: true })
+	acceptRemoveRoleIds?: string[];
+
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(MAX_QUARANTINE_RELEASE_ROLES)
+	@Matches(SNOWFLAKE, { each: true })
+	verifyAddRoleIds?: string[];
+
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(MAX_QUARANTINE_RELEASE_ROLES)
+	@Matches(SNOWFLAKE, { each: true })
+	verifyRemoveRoleIds?: string[];
+
+	// L'API accepte le reglage meme sans client Blizzard configure : le
+	// dashboard signale l'indisponibilite, mais preparer les roles avant de
+	// renseigner les variables d'environnement est un ordre de travail legitime.
+	@IsOptional()
+	@IsBoolean()
+	battlenetRequired?: boolean;
+
+	@IsOptional()
+	@IsString()
+	@MinLength(1)
+	@MaxLength(80)
+	battlenetButtonLabel?: string;
+
+	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
+	@IsString()
+	@MaxLength(4000)
+	battlenetMessage?: string | null;
 }

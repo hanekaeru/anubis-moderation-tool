@@ -43,6 +43,15 @@ export const Permission = {
 	QUARANTINE_READ: "quarantine:read",
 	QUARANTINE_RESPOND: "quarantine:respond",
 	QUARANTINE_CONFIGURE: "quarantine:configure",
+	/**
+	 * Lire le BattleTag lie a un membre verifie.
+	 *
+	 * Separee de `QUARANTINE_READ` a dessein : savoir qu'un membre a passe la
+	 * verification releve de la moderation courante, lire son identite Blizzard
+	 * non. Le BattleTag est une donnee personnelle qui suit la personne bien
+	 * au-dela du serveur.
+	 */
+	BATTLENET_READ: "battlenet:read",
 	VOICE_READ: "voice:read",
 	VOICE_MANAGE: "voice:manage",
 	PERMISSIONS_MANAGE: "permissions:manage",
@@ -120,6 +129,10 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	Permission.AUTOMOD_WRITE,
 	Permission.RAID_CONFIGURE,
 	Permission.QUARANTINE_CONFIGURE,
+	// Le BattleTag identifie la personne hors du serveur : le lire n'aide pas a
+	// moderer, il aide a la retrouver ailleurs. Un moderateur voit deja qu'un
+	// membre est verifie, ce qui suffit a son travail.
+	Permission.BATTLENET_READ,
 	// Le bareme de points decide de ce qui fait passer un membre pour
 	// problematique : le deplacer requalifie tout le serveur d'un seul reglage.
 	// C'est de la doctrine, pas de la moderation courante.

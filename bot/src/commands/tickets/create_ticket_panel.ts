@@ -74,10 +74,7 @@ const command: Command = {
 			.setColor(colors.info)
 			.setTitle("Support")
 			.setDescription(
-				`Bienvenue sur le support du serveur ! Si jamais tu as besoin d'ouvrir un ticket (que ce soit
-				pour un bug, un membre à signaler ou une simple remarque), tu peux le faire via le bouton
-				ci-dessous. Choisis un sujet et une gravité, et un ticket sera ouvert directement avec
-				l'équipe de modération. Elle fera de son mieux pour t'aider et te guider !`,
+				"Bienvenue sur le support du serveur ! Si jamais tu as besoin d'ouvrir un ticket (que ce soit pour un bug, un membre à signaler ou une simple remarque), tu peux le faire via le bouton ci-dessous. Choisis un sujet et une gravité, et un ticket sera ouvert directement avec l'équipe de modération. Elle fera de son mieux pour t'aider et te guider !",
 			);
 
 		await channel.send({

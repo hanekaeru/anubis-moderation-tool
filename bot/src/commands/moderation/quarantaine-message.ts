@@ -7,10 +7,16 @@ import {
 	PermissionFlagsBits,
 	SlashCommandBuilder,
 } from "discord.js";
-import { DEFAULT_QUARANTINE_MESSAGE } from "@anubis/shared";
+import {
+	DEFAULT_QUARANTINE_BATTLENET_MESSAGE,
+	DEFAULT_QUARANTINE_MESSAGE,
+} from "@anubis/shared";
 import prisma from "../../prisma";
 import type { Command } from "../../types";
-import { QUARANTINE_ACCEPT_ID } from "../../handlers/quarantineInteractions";
+import {
+	QUARANTINE_ACCEPT_ID,
+	QUARANTINE_BATTLENET_ID,
+} from "../../handlers/quarantineInteractions";
 import * as colors from "../../utils/constantes";
 
 /**
@@ -76,14 +82,34 @@ const command: Command = {
 			.setTitle("Règlement du serveur")
 			.setDescription(config.message ?? DEFAULT_QUARANTINE_MESSAGE);
 
-		const button = new ButtonBuilder()
-			.setCustomId(QUARANTINE_ACCEPT_ID)
-			.setLabel(config.buttonLabel)
-			.setStyle(ButtonStyle.Success);
+		const boutons = [
+			new ButtonBuilder()
+				.setCustomId(QUARANTINE_ACCEPT_ID)
+				.setLabel(config.buttonLabel)
+				.setStyle(ButtonStyle.Success),
+		];
+
+		// Le second bouton n'apparait que si la verification est exigee : un bouton
+		// qui repond « ce n'est pas demande ici » ne rend service a personne.
+		if (config.battlenetRequired) {
+			embed.addFields({
+				name: "Vérification du compte",
+				value: config.battlenetMessage ?? DEFAULT_QUARANTINE_BATTLENET_MESSAGE,
+			});
+
+			boutons.push(
+				new ButtonBuilder()
+					.setCustomId(QUARANTINE_BATTLENET_ID)
+					.setLabel(config.battlenetButtonLabel)
+					.setStyle(ButtonStyle.Primary),
+			);
+		}
 
 		await channel.send({
 			embeds: [embed],
-			components: [new ActionRowBuilder<ButtonBuilder>().addComponents(button)],
+			components: [
+				new ActionRowBuilder<ButtonBuilder>().addComponents(boutons),
+			],
 		});
 
 		await interaction.editReply({

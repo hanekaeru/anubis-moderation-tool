@@ -6,6 +6,7 @@ import {
 } from "../collectors/heartbeat";
 import * as giveaway from "../collectors/giveaway";
 import * as quarantine from "../collectors/quarantine";
+import { checkPendingAccountFlagAlerts } from "../tasks/accountFlagAlerts";
 import * as raid from "../collectors/raid";
 import * as referentiel from "../collectors/referentiel";
 import * as tickets from "../collectors/tickets";
@@ -130,8 +131,11 @@ const event: BotEvent<typeof Events.ClientReady> = {
 			raid.applyPendingResolutions(client).catch((err) => {
 				console.error("[Raid] Levée des confinements échouée :", err);
 			});
-			quarantine.checkPendingReleases(client).catch((err) => {
-				console.error("[Quarantaine] Levée des quarantaines échouée :", err);
+			quarantine.synchroniserQuarantaines(client).catch((err) => {
+				console.error("[Quarantaine] Mise à jour des rôles échouée :", err);
+			});
+			checkPendingAccountFlagAlerts(client).catch((err) => {
+				console.error("[Signalements] Alerte au staff échouée :", err);
 			});
 			giveaway.publishPending(client).catch((err) => {
 				console.error("[Giveaway] Publication des concours échouée :", err);

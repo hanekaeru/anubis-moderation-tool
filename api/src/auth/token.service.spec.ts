@@ -26,6 +26,12 @@ function baseConfig(overrides: Partial<AppConfig["jwt"]> = {}): AppConfig {
 		lockoutMinutes: 15,
 		twoFactorEnabled: true,
 	},
+		battlenet: {
+			clientId: "",
+			clientSecret: "",
+			redirectUri: "",
+			available: false,
+		},
 	};
 }
 

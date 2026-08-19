@@ -141,6 +141,7 @@ export const AccountFlagType = {
 	STAFF_IMPERSONATION: "STAFF_IMPERSONATION",
 	QUICK_REJOIN: "QUICK_REJOIN",
 	JOINED_AFTER_BAN: "JOINED_AFTER_BAN",
+	BATTLENET_DUPLICATE: "BATTLENET_DUPLICATE",
 } as const;
 export type AccountFlagType =
 	(typeof AccountFlagType)[keyof typeof AccountFlagType];
@@ -267,6 +268,7 @@ export const ACCOUNT_FLAG_TYPE_LABELS: Record<AccountFlagType, string> = {
 	STAFF_IMPERSONATION: "Pseudo imitant un membre du staff",
 	QUICK_REJOIN: "Retour rapide après un départ",
 	JOINED_AFTER_BAN: "Arrivée juste après un bannissement",
+	BATTLENET_DUPLICATE: "Compte Battle.net déjà lié à un autre membre",
 };
 
 export const GIVEAWAY_STATUS_LABELS: Record<GiveawayStatus, string> = {

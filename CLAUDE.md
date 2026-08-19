@@ -539,14 +539,86 @@ le dev avec rechargement).
   - les listes sont **remplacees en bloc** par l'API, jamais fusionnees :
     envoyer `[]` est le seul moyen de vider un reglage, et une absorption
     partielle laisserait un role retire du dashboard continuer d'etre pose.
+- **Verification Battle.net** (`api/src/verification/`,
+  `src/handlers/quarantineInteractions.ts`) : seconde etape facultative de la
+  quarantaine (`QuarantineConfig.battlenetRequired`). Le membre clique un
+  bouton, l'API le renvoie chez Blizzard en OAuth2, le retour ecrit un
+  `BattlenetAccount` et pose `QuarantineStatus.battlenetVerifiedAt`. Ce qui
+  compte, dans l'ordre :
+  - **le `state` est ce qui protege la route**, pas l'authentification : le
+    callback est `@Public()` par necessite, le membre n'a evidemment pas de
+    compte dashboard. Il est donc tire au hasard cryptographique cote bot,
+    **jamais derive de l'identifiant Discord**, et consomme une seule fois
+    (`updateMany` filtre sur `consumedAt: null`, lu a son `count`) **avant**
+    l'echange du code. La consequence assumee : un echec reseau chez Blizzard
+    oblige a recliquer. C'est le bon sens de l'erreur — un `state` rejouable
+    laisserait relire un retour intercepte.
+  - il vit **en base et non en memoire** : le bot le pose, l'API le consomme,
+    et ce sont deux conteneurs distincts.
+  - **l'unicite fait tout le travail**. Se connecter a Battle.net ne prouve
+    rien en soi : un compte Blizzard est gratuit et se cree en deux minutes. Ce
+    qui casse les multicomptes, c'est le refus d'un `sub` deja lie a un autre
+    membre — d'ou la double unicite (`battlenet_id` en cle primaire, `user_id`
+    unique) et le signalement `BATTLENET_DUPLICATE` au staff.
+  - la cle est le **`sub` d'OAuth, jamais le BattleTag** : un BattleTag se
+    change depuis le compte Blizzard, `sub` non. `battletag` n'est qu'une copie
+    d'affichage, derriere la permission `battlenet:read` (admin) — savoir qu'un
+    membre est verifie releve de la moderation courante, lire son identite
+    Blizzard non.
+  - **aucun jeton Blizzard n'est conserve** : un seul appel a `/userinfo` juste
+    apres l'echange, puis on jette. Rien a rafraichir, rien a faire fuiter.
+  - **aucun scope n'est demande** : sans scope, `/userinfo` rend deja `sub` et
+    `battletag`. Demander `wow.profile` afficherait un ecran de consentement
+    plus intimidant pour une donnee inutilisee. **Overwatch n'a aucune API
+    officielle Blizzard** — l'enrichissement passerait forcement par un
+    scraper tiers, sur le BattleTag deja verifie, et hors de ce chemin.
+  Le trio `BATTLENET_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` vit dans
+  l'environnement de l'API, et `PUBLIC_API_URL` dans celui du bot (l'URL
+  **exterieure** : le bot compose un lien, il n'appelle jamais l'API).
+  Les trois manquants, la fonctionnalite se declare indisponible — et le
+  dashboard le signale en rouge si `battlenetRequired` est malgre tout a
+  `true`, parce que c'est la panne la plus couteuse : les arrivants acceptent
+  le reglement puis restent bloques sur une etape qui ne peut pas aboutir.
+- **La quarantaine a deux etapes, et chacune porte ses roles.**
+  `quarantineStage` (`@anubis/shared`) est l'arbitre partage entre le bot (qui
+  applique), l'API (qui expose) et le dashboard (qui affiche) : les trois
+  doivent s'accorder sur ce que « libere » veut dire, sinon un membre
+  apparaitrait bloque dans la liste alors que le bot lui a tout ouvert. Quatre
+  points a garder :
+  - **le role de quarantaine ne part qu'a `CLEARED`**. Le retirer des
+    l'acceptation reviendrait a n'avoir aucune seconde etape.
+  - `battlenetRequired` a `false` rend **exactement** le comportement d'avant :
+    l'acceptation libere, et une verification faite quand elle etait encore
+    exigee ne libere personne toute seule.
+  - une **levee manuelle** (`releasedById`) passe outre toutes les etapes. Le
+    bouton existe pour les cas ou la verification ne peut pas aboutir ; l'y
+    soumettre le viderait de son sens.
+  - la levee complete **retire les roles intermediaires** en plus de poser les
+    siens : les laisser ferait cohabiter « en attente de verification » et
+    l'acces complet sur la meme fiche.
+  Le rattrapage (`synchroniserQuarantaines`) filtre sur le seul
+  `discordSyncedAt: null`, sans condition sur `acceptedAt` : une verification
+  faite avant l'acceptation laisse `acceptedAt` a `null` et doit remonter
+  malgre tout. Rien n'y echappe — l'arrivee et les clics posent la date
+  eux-memes.
 - **Ce qui n'est PAS rattrape automatiquement.** Le patron `discordSyncedAt`
   couvre sanctions, avertissements (message prive), tickets, anti-raid,
-  quarantine (levees), concours et messages composes. Il reste **un** reglage
-  du dashboard sans effet automatique sur Discord, a savoir avant de chercher
-  un bug : le **message de reglement de quarantaine** n'est publie que par
-  `/quarantaine-message`. Modifier le texte ou le libelle du bouton depuis le
-  dashboard ne touche pas au message deja poste — il faut rejouer la commande,
-  qui est prevue pour et remplace le precedent.
+  quarantine (etapes et levees), signalements de compte, concours et messages
+  composes. Il reste **un** reglage du dashboard sans effet automatique sur
+  Discord, a savoir avant de chercher un bug : le **message de reglement de
+  quarantaine** n'est publie que par `/quarantaine-message`. Modifier le texte,
+  le libelle d'un bouton, ou **activer la verification Battle.net** (qui ajoute
+  un second bouton) ne touche pas au message deja poste — il faut rejouer la
+  commande, qui est prevue pour et remplace le precedent.
+- **Alertes de compte signale** (`src/tasks/accountFlagAlerts.ts`) :
+  `accountSurveillance` alerte a l'arrivee et pose `discordSyncedAt` dans le
+  meme appel — il n'a rien a rattraper. La tache ne ramasse donc que ce qui
+  vient de l'API, qui n'a aucun acces a Discord : aujourd'hui une verification
+  Battle.net refusee pour compte deja lie. La date est posee **meme quand
+  l'envoi echoue**, meme raison que `warningNotice`, et la migration
+  **retro-remplit les lignes existantes** avec leur `created_at` — sans quoi le
+  premier passage aurait re-alerte tous les comptes signales depuis la mise en
+  service.
 - **Notification d'avertissement** (`src/tasks/warningNotice.ts`) : `/warn`
   previent le membre lui-meme et pose `discordSyncedAt` dans la foulee ;
   `POST /warnings` laisse `null` et la tache envoie le message prive. La date

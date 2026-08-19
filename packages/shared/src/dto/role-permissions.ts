@@ -40,6 +40,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	"quarantine:read": "Consulter la quarantaine",
 	"quarantine:respond": "Débloquer un membre en quarantaine",
 	"quarantine:configure": "Régler la quarantaine",
+	"battlenet:read": "Voir le BattleTag des membres vérifiés",
 	"voice:read": "Consulter les vocaux en direct",
 	"voice:manage": "Gérer les salons de création vocaux",
 	"permissions:manage": "Modifier les permissions des rôles",
@@ -95,6 +96,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
 			Permission.QUARANTINE_READ,
 			Permission.QUARANTINE_RESPOND,
 			Permission.QUARANTINE_CONFIGURE,
+			Permission.BATTLENET_READ,
 		],
 	},
 	{
