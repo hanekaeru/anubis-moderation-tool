@@ -7,6 +7,7 @@ import {
 import * as giveaway from "../collectors/giveaway";
 import * as quarantine from "../collectors/quarantine";
 import { checkPendingAccountFlagAlerts } from "../tasks/accountFlagAlerts";
+import { lienVerificationBattlenet } from "../utils/verificationLink";
 import * as raid from "../collectors/raid";
 import * as referentiel from "../collectors/referentiel";
 import * as tickets from "../collectors/tickets";
@@ -48,6 +49,17 @@ const event: BotEvent<typeof Events.ClientReady> = {
 	async execute(client) {
 		console.log(`Ready! Logged in as ${client.user.tag}`);
 		console.log(`Deployed on ${process.env.NODE_ENV} env...`);
+
+		// Une base publique absente ou absurde ne se voit autrement qu'au premier
+		// clic d'un arrivant, sous la forme d'un refus de Discord. Elle se signale
+		// donc au demarrage, comme l'avertissement `TWO_FACTOR_ENABLED` de l'API.
+		if (!lienVerificationBattlenet(process.env.PUBLIC_API_URL, "verification")) {
+			console.warn(
+				"[Quarantaine] PUBLIC_API_URL absente ou invalide " +
+					`(${JSON.stringify(process.env.PUBLIC_API_URL)}) : le bouton de ` +
+					"vérification Battle.net répondra que la fonctionnalité n'est pas configurée.",
+			);
+		}
 
 		// Necessaire avant toute sanction posee par l'automod (moderatorId
 		// pointe vers ce compte) : sans upsert prealable, la creation echouerait

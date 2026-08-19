@@ -8,6 +8,7 @@ import {
 } from "discord.js";
 import { BATTLENET_STATE_TTL_MINUTES } from "@anubis/shared";
 import * as referentiel from "../collectors/referentiel";
+import { lienVerificationBattlenet } from "../utils/verificationLink";
 import * as quarantine from "../collectors/quarantine";
 import prisma from "../prisma";
 
@@ -23,8 +24,12 @@ export const QUARANTINE_BATTLENET_ID = "quarantine:battlenet";
  * Le bot n'appelle jamais l'API — il ne fait que composer un lien a cliquer. La
  * variable est donc l'URL exterieure (celle servie par le proxy), pas l'adresse
  * interne du conteneur.
+ *
+ * Elle n'est **pas** validee ici mais a chaque composition : une base absurde
+ * (`https://${APP_DOMAIN}/api` non substituee) doit produire un message clair
+ * dans le journal, pas un `DiscordAPIError[50035]` muet sur la valeur en cause.
  */
-const PUBLIC_API_URL = process.env.PUBLIC_API_URL?.replace(/\/+$/, "") ?? "";
+const PUBLIC_API_URL = process.env.PUBLIC_API_URL;
 
 /**
  * Clic sur « J'accepte le reglement ».
@@ -88,17 +93,6 @@ export async function handleQuarantineBattlenet(
 
 	await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-	if (!PUBLIC_API_URL) {
-		console.error(
-			"[Quarantaine] PUBLIC_API_URL absente : le lien de vérification Battle.net ne peut pas être composé.",
-		);
-		await interaction.editReply({
-			content:
-				"La vérification n'est pas configurée sur ce serveur. Préviens l'équipe de modération.",
-		});
-		return;
-	}
-
 	const config = await prisma.quarantineConfig.findUnique({
 		where: { guildId: interaction.guildId },
 	});
@@ -129,6 +123,23 @@ export async function handleQuarantineBattlenet(
 	}
 
 	const state = randomBytes(32).toString("hex");
+	const lien = lienVerificationBattlenet(PUBLIC_API_URL, state);
+
+	// Compose **avant** d'ecrire la demande : une base inutilisable ne doit pas
+	// laisser derriere elle une ligne de `battlenet_verification_states` que
+	// personne n'ira jamais consommer.
+	if (!lien) {
+		console.error(
+			"[Quarantaine] PUBLIC_API_URL inutilisable, lien de vérification non composé. " +
+				`Valeur reçue : ${JSON.stringify(PUBLIC_API_URL)}. ` +
+				"Attendu : l'URL publique de l'API, par exemple https://mon-domaine.fr/api",
+		);
+		await interaction.editReply({
+			content:
+				"La vérification n'est pas configurée sur ce serveur. Préviens l'équipe de modération.",
+		});
+		return;
+	}
 
 	// Les demandes precedentes du meme membre sont marquees consommees : deux
 	// liens valides en parallele n'apportent rien et allongent d'autant la
@@ -153,8 +164,6 @@ export async function handleQuarantineBattlenet(
 			},
 		}),
 	]);
-
-	const lien = `${PUBLIC_API_URL}/verification/battlenet/start?state=${state}`;
 
 	await interaction.editReply({
 		content:
