@@ -393,6 +393,34 @@ le dev avec rechargement).
   L'auteur d'une prise vit dans deux colonnes exclusives, `claimedById`
   (dashboard) et `claimedByDiscordId` (Discord) — meme couple et meme mapper
   `toActorRef` que `Sanction.revokedById`.
+- **Qui le bot interpelle** (`src/utils/mentions.ts`, cles de `config_guild`) :
+  les roles du serveur sont declares une fois sous `MOD_ROLE`, `ADMIN_ROLE`,
+  `STAFF_ROLE`, `SUPPORT_ROLE` (`GuildRoleKey`, partage) ; `ALERT_MENTION_ROLE`
+  designe lequel est interpelle quand le staff doit venir — ouverture d'un
+  ticket, signalement depuis un salon vocal — et `LOG_MENTION_MEMBERS` decide
+  si les journaux mentionnent les membres. **Un seul reglage pour les deux
+  appels** : c'est la meme equipe qu'on derange, et en separer deux inviterait
+  a n'en configurer qu'un. Rien de
+  tout cela n'est en base typee : les cles vivent dans `config_guild`, comme les
+  salons de logs, ce qui evite une migration a chaque role que le serveur
+  voudra nommer. Quatre points a garder :
+  - **la mention vit dans le contenu du message, jamais dans l'embed**. Discord
+    n'envoie aucune notification pour une mention posee dans un embed : elle
+    n'y surligne qu'un nom. C'est pourquoi la mention de role d'ouverture de
+    ticket est un `content`, et pourquoi le reglage des journaux ne change
+    visuellement que du surlignage.
+  - **le role mentionne recoit l'acces au salon du ticket**, en plus de ceux
+    qui portent `ModerateMembers`. Appeler une equipe dans un salon qu'elle ne
+    voit pas serait pire que ne pas l'appeler.
+  - `LOG_MENTION_MEMBERS` est **le seul reglage du depot dont le defaut ne
+    reproduit pas le comportement anterieur** : absent, il vaut « ne pas
+    mentionner ». Un salon vocal anime produit une entree par arrivee et par
+    depart, et l'identifiant reste ecrit dans les deux cas — c'est lui qui
+    permet de retrouver un compte renomme, et il survit au depart du membre.
+  - l'API **refuse** de mentionner une cle de role dont l'identifiant n'est pas
+    renseigne (meme exigence que le salon dedie des annonces d'XP), mais le bot
+    revalide : la table se modifie aussi a la main depuis la page
+    Configurations. Cache de 30s, comme l'automod.
 - **Un ticket ferme disparait de la liste de salons de son ouvreur** :
   `setOpenerAccess` retire `ViewChannel` avec `SendMessages`, la ou l'ancien
   `setOpenerCanWrite` ne coupait que l'ecriture. Le laisser lire jusqu'a la
@@ -693,6 +721,28 @@ le dev avec rechargement).
     sa plateforme atteindrait le plafond du premier coup, et le troisieme essai
     resterait bloque dix minutes sans erreur lisible. C'est aussi pourquoi la
     modale ne propose plus le nom du tout.
+  - **le sujet porte une composition d'equipe, plus un texte libre.** Le
+    proprietaire declare trois nombres — les places deja prises en tank, DPS et
+    support — et le sujet rend « 🛡️ 1/2 · ⚔️ 2/2 · 💉 0/2 ». Le « sur combien »
+    vient du **salon de creation** (`tankSlots`, `dpsSlots`, `supportSlots`,
+    plus un emoji par role) : il ne depend pas du salon mais du mode de jeu, un
+    5v5 ne portant qu'un tank. Quatre points a garder :
+    - **Discord plafonne une modale a cinq champs.** Rang, plateforme et les
+      trois roles l'occupent entierement : c'est ce qui a fait sortir la limite
+      de places, qui se regle desormais par salon de creation. Un role regle a
+      0 place n'a pas de champ et disparait du sujet — « 0/0 » se lirait comme
+      une equipe complete.
+    - **tous les champs vides effacent la ligne des roles**, un seul rempli met
+      les autres a zero. C'est le seul chemin de retour vers un sujet sans
+      composition : sans lui le premier remplissage serait definitif.
+    - une place **au-dela du total est refusee**, jamais ramenee au plafond :
+      « 3 tanks sur 2 » est une faute de frappe, et la corriger en silence
+      afficherait un chiffre que personne n'a saisi.
+    - `voiceTeamSlots` et `renderVoiceStatus` (`@anubis/shared`) composent la
+      ligne pour le bot comme pour l'apercu du dashboard. Le jeton de gabarit
+      est `{roles}` ; `{sujet}`, l'ancien texte libre, est accepte et **rendu
+      vide** — la migration a reecrit les gabarits existants, mais le champ
+      reste modifiable a la main depuis le dashboard.
   - le sujet n'existe pas dans discord.js 14.27 : l'appel part en brut sur
     `PUT /channels/:id/voice-status`, et demande la permission
     `SetVoiceChannelStatus` — ajoutee a `permissionsManquantes`, sans quoi la
@@ -713,6 +763,24 @@ le dev avec rechargement).
   recree celle qui aurait ete supprimee a la main pendant l'arret. `renderVoiceStatus` (`@anubis/shared`) compose le
   sujet pour le bot et pour l'apercu du dashboard — meme raison que
   `renderXpLevelUpMessage`.
+
+  **Les categories de rangement se referment toutes seules**
+  (`nettoyerCategoriesVides`). Elles naissent a la demande et rien ne les
+  effacait : un serveur finissait avec autant de categories vides que de rangs
+  jamais rejoues. Trois points a garder :
+  - **seules les categories que le bot gere sont concernees**, c'est-a-dire
+    celles dont l'identifiant est retenu dans `VoiceHubRank.categoryId` ou
+    `VoiceHub.landingCategoryId`. Une categorie faite a la main ne lui
+    appartient pas, meme vide, meme homonyme — et `PARTIES_CATEGORY_NAME`, qui
+    porte les salons de creation, n'est jamais visee.
+  - l'identifiant retenu est **efface dans le meme mouvement**, sinon le bot
+    continuerait de viser une categorie disparue au lieu de laisser
+    `garantirCategorieNommee` la recreer au prochain salon.
+  - l'appel se fait aux seuls moments ou une categorie peut devenir vide :
+    depart du dernier occupant, suppression manuelle d'un salon temporaire,
+    purge, et rattrapage du demarrage. `oublierSalon` renvoie desormais un
+    booleen pour que `channelDelete` ne parcoure pas les categories a chaque
+    salon supprime sur le serveur.
 
 - **Concours** (`src/collectors/giveaway.ts`, `src/commands/giveaway/giveaway.ts`) :
   participation par reaction, meme patron `discordSyncedAt` que les sanctions.
@@ -769,7 +837,15 @@ le dev avec rechargement).
   les six formes possibles sont documentees dans
   `packages/shared/src/dto/automod.ts` (`AutomodRuleSettings`). Meme
   simplification pour les paliers d'XP (`features/xp/`) : `roleId` en texte
-  libre.
+  libre, et pour **Rôles & mentions** (`features/admin/mentions/`).
+- **Rôles & mentions** (`features/admin/mentions/`) : la page est gardee par
+  `LOGS_WRITE` **en lecture comme en ecriture**, y compris la route et l'entree
+  de barre laterale. C'est le seul endroit du dashboard ou un `GET` est ferme
+  par une permission d'ecriture : la page n'existe que pour changer qui le bot
+  interpelle, il n'y a rien a y consulter pour soi, et le proprietaire l'a
+  voulue reservee aux administrateurs. Son apercu passe par
+  `renderMemberReference` (`@anubis/shared`), la fonction qu'emploie le bot —
+  meme raison que `renderXpLevelUpMessage`.
 - **Messages** (`features/embeds/`) : l'apercu reproduit le rendu de Discord sur
   un **fond sombre fixe dans les deux themes** du dashboard — un apercu qui
   change de couleur avec le theme mentirait sur ce que verra le serveur. Le

@@ -1,8 +1,8 @@
-{
+﻿{
 	"name": "anubis",
 	"version": "1.0.0",
 	"private": true,
-	"description": "Anubis — bot Discord et dashboard de moderation",
+	"description": "Anubis â€” bot Discord et dashboard de moderation",
 	"license": "ISC",
 	"author": "hanekaeru",
 	"workspaces": [
@@ -20,14 +20,14 @@
 		"bot:start:prod": "npm run start:prod --prefix bot",
 		"bot:refresh": "npm run refresh --prefix bot",
 		"bot:delete": "npm run delete --prefix bot",
-		"//build": "`db:generate` en premier : le client Prisma est un artefact genere, absent du depot (.gitignore). Sur un clone neuf — CI comprise — l'API ne compile pas sans lui, `@anubis/shared/prisma` etant introuvable. `prisma generate` n'a besoin d'aucune base joignable, ni meme de DATABASE_URL.",
+		"//build": "`db:generate` en premier : le client Prisma est un artefact genere, absent du depot (.gitignore). Sur un clone neuf â€” CI comprise â€” l'API ne compile pas sans lui, `@anubis/shared/prisma` etant introuvable. `prisma generate` n'a besoin d'aucune base joignable, ni meme de DATABASE_URL.",
 		"build": "npm run db:generate && npm run build --workspace @anubis/shared && npm run build --workspace @anubis/api && npm run build --workspace @anubis/webapp",
 		"test": "npm run test --workspace @anubis/shared && npm run test --workspace @anubis/api",
 		"db:generate": "npm run generate --workspace @anubis/shared",
 		"db:migrate": "npm run migrate --workspace @anubis/shared",
 		"db:deploy": "npm run migrate:deploy --workspace @anubis/shared",
 		"db:studio": "npm run studio --workspace @anubis/shared",
-		"db:seed": "npm run seed --workspace @anubis/shared"
+		"db:seed": "npm run seed --workspace @anubis/shared --"
 	},
 	"devDependencies": {
 		"concurrently": "^9.1.2"

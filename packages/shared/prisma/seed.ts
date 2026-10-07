@@ -10,6 +10,10 @@
 import { randomBytes, randomInt } from "node:crypto";
 import * as argon2 from "argon2";
 import { PrismaClient, Prisma } from "../generated/client";
+// Le bareme vient du contrat partage, pas d'une copie : des points de
+// demonstration qui contredisent la page Bareme rendent le score
+// incomprehensible pour qui recoupe les deux ecrans.
+import { DEFAULT_MODERATION_POINTS } from "../src/dto/moderation";
 
 const prisma = new PrismaClient();
 
@@ -288,31 +292,53 @@ async function seedDemo(guildId: string): Promise<void> {
 			now.getTime() - randomInt(1, 60) * 86_400_000,
 		);
 
+		// Sans ce garde, chaque relance du seed empilait un avertissement, une
+		// sanction et une note de plus sur les memes membres — alors que
+		// l'en-tete de ce fichier promet un seed rejouable sans risque.
+		const dejaSanctionne = await prisma.warning.count({
+			where: { guildId, userId },
+		});
+		if (dejaSanctionne > 0) continue;
+
+		const severity = i % 3 === 0 ? "HIGH" : i % 2 === 0 ? "MEDIUM" : "LOW";
+
 		const warning = await prisma.warning.create({
 			data: {
 				guildId,
 				userId,
 				createdById: owner?.id ?? null,
 				reason: reasons[i % reasons.length]!,
-				severity: i % 3 === 0 ? "HIGH" : i % 2 === 0 ? "MEDIUM" : "LOW",
-				points: (i % 3) + 1,
+				severity,
+				points: DEFAULT_MODERATION_POINTS.warningPoints[severity],
 				createdAt,
 			},
 		});
 
 		if (i % 2 === 0) {
+			// Une sanction sur deux reste en cours : sans cela aucun membre de
+			// demonstration n'aurait de sanction active, et la fiche laisserait
+			// croire que les sanctions ne comptent jamais dans le score.
+			const expiree = i % 4 === 0;
+			const type = expiree ? "TIMEOUT" : "SHADOWBAN";
+
 			await prisma.sanction.create({
 				data: {
 					guildId,
 					userId,
 					createdById: owner?.id ?? null,
 					warningId: warning.id,
-					type: i % 4 === 0 ? "TIMEOUT" : "SHADOWBAN",
+					type,
 					reason: warning.reason,
-					durationSeconds: 3600,
+					points: DEFAULT_MODERATION_POINTS.sanctionPoints[type],
+					// Le shadowban est permanent : il reste actif, et une echeance
+					// passee serait de toute facon rattrapee par la tache qui
+					// expire les sanctions.
+					durationSeconds: expiree ? 3600 : null,
 					startsAt: createdAt,
-					expiresAt: new Date(createdAt.getTime() + 3_600_000),
-					status: "EXPIRED",
+					expiresAt: expiree
+						? new Date(createdAt.getTime() + 3_600_000)
+						: null,
+					status: expiree ? "EXPIRED" : "ACTIVE",
 					createdAt,
 				},
 			});
@@ -366,6 +392,46 @@ async function seedDemo(guildId: string): Promise<void> {
 		"Bug avec le systeme d XP",
 	];
 
+	/**
+	 * Echanges de chaque ticket.
+	 *
+	 * `messageCount` en est deduit plutot que tire au hasard : un compteur
+	 * annoncant « 14 messages » au-dessus d'une chronologie vide se lit comme
+	 * un bug de l'application, alors que c'est le jeu de demonstration qui
+	 * etait incomplet.
+	 */
+	const conversations: { membre: boolean; texte: string }[][] = [
+		[
+			{ membre: true, texte: "Bonjour, je n ai plus acces au salon prive depuis ce matin." },
+			{ membre: false, texte: "Bonjour, je regarde ca tout de suite." },
+			{ membre: false, texte: "C etait un role retire par erreur lors du menage d hier. C est remis." },
+			{ membre: true, texte: "Parfait, merci beaucoup !" },
+		],
+		[
+			{ membre: true, texte: "Un membre tient des propos deplaces dans le salon vocal." },
+			{ membre: false, texte: "Merci du signalement. Tu as un pseudo ou une capture ?" },
+			{ membre: true, texte: "Oui, je vous envoie ca en message prive." },
+			{ membre: false, texte: "Bien recu, on s en occupe." },
+			{ membre: false, texte: "La situation a ete traitee, merci d avoir prevenu." },
+		],
+		[
+			{ membre: true, texte: "Est-ce que je peux changer mon pseudo sur le serveur ?" },
+			{ membre: false, texte: "Oui, tant qu il reste lisible et sans mention du staff." },
+			{ membre: true, texte: "C est note, merci." },
+		],
+		[
+			{ membre: true, texte: "Une question sur la regle 4 : elle vaut aussi en vocal ?" },
+			{ membre: false, texte: "Oui, le reglement s applique partout, salons ecrits comme vocaux." },
+			{ membre: true, texte: "D accord, c est plus clair." },
+			{ membre: false, texte: "N hesite pas si tu as d autres questions." },
+		],
+		[
+			{ membre: true, texte: "Mon XP n a pas bouge depuis hier alors que j ai ecrit." },
+			{ membre: false, texte: "Il y a un delai entre deux gains, c est prevu pour eviter le spam." },
+			{ membre: true, texte: "Ah, je comprends mieux. Merci !" },
+		],
+	];
+
 	for (let i = 0; i < subjects.length; i++) {
 		const openedAt = new Date(
 			now.getTime() - randomInt(1, 40) * 86_400_000,
@@ -373,9 +439,17 @@ async function seedDemo(guildId: string): Promise<void> {
 		const closed = i % 2 === 0;
 		const openerId = `92000000000000${String(i + 3).padStart(4, "0")}`;
 
-		await prisma.ticket.upsert({
+		const echanges = conversations[i]!;
+		const premiereReponse = new Date(
+			openedAt.getTime() + randomInt(5, 240) * 60_000,
+		);
+		const closedAt = closed
+			? new Date(openedAt.getTime() + randomInt(1, 5) * 86_400_000)
+			: null;
+
+		const ticket = await prisma.ticket.upsert({
 			where: { guildId_number: { guildId, number: i + 1 } },
-			update: {},
+			update: { messageCount: echanges.length },
 			create: {
 				guildId,
 				number: i + 1,
@@ -383,24 +457,78 @@ async function seedDemo(guildId: string): Promise<void> {
 				assigneeId: "920000000000000000",
 				claimedById: owner?.id ?? null,
 				subject: subjects[i]!,
-				category: i % 2 === 0 ? "support" : "signalement",
+				category: i % 2 === 0 ? "SUPPORT" : "REPORT",
 				status: closed ? "CLOSED" : "OPEN",
 				priority: i === 1 ? "HIGH" : "NORMAL",
 				openedAt,
-				firstResponseAt: new Date(
-					openedAt.getTime() + randomInt(5, 240) * 60_000,
-				),
-				closedAt: closed
-					? new Date(
-							openedAt.getTime() + randomInt(1, 5) * 86_400_000,
-						)
-					: null,
+				firstResponseAt: premiereReponse,
+				closedAt,
 				closedById: closed ? (owner?.id ?? null) : null,
 				closeReason: closed ? "Demande traitee" : null,
 				rating: closed ? randomInt(3, 6) : null,
-				messageCount: randomInt(3, 25),
+				messageCount: echanges.length,
 			},
 		});
+
+		// Les evenements ne sont poses qu'une fois : le seed est rejouable, et
+		// un `createMany` sans garde empilerait la meme conversation a chaque
+		// passage.
+		const dejaPeuple = await prisma.ticketEvent.count({
+			where: { ticketId: ticket.id },
+		});
+		if (dejaPeuple > 0) continue;
+
+		const evenements: Prisma.TicketEventCreateManyInput[] = [
+			{
+				ticketId: ticket.id,
+				type: "OPENED",
+				actorId: openerId,
+				occurredAt: openedAt,
+			},
+		];
+
+		// Les messages s'etalent entre l'ouverture et la fermeture, pour que la
+		// chronologie se lise dans l'ordre.
+		const fin = closedAt ?? new Date(openedAt.getTime() + 6 * 3_600_000);
+		const pas = (fin.getTime() - openedAt.getTime()) / (echanges.length + 1);
+
+		echanges.forEach((echange, rang) => {
+			evenements.push({
+				ticketId: ticket.id,
+				type: "MESSAGE",
+				actorId: echange.membre ? openerId : "920000000000000000",
+				occurredAt: new Date(openedAt.getTime() + pas * (rang + 1)),
+				payload: { content: echange.texte, attachments: [] },
+			});
+		});
+
+		evenements.push({
+			ticketId: ticket.id,
+			type: "INTERNAL_NOTE",
+			appUserId: owner?.id ?? null,
+			occurredAt: new Date(fin.getTime() - pas / 2),
+			payload: { body: "Rien de particulier a signaler sur ce membre." },
+		});
+
+		if (closed && closedAt) {
+			evenements.push(
+				{
+					ticketId: ticket.id,
+					type: "STATUS_CHANGED",
+					appUserId: owner?.id ?? null,
+					occurredAt: closedAt,
+					payload: { from: "OPEN", to: "CLOSED" },
+				},
+				{
+					ticketId: ticket.id,
+					type: "CLOSED",
+					appUserId: owner?.id ?? null,
+					occurredAt: closedAt,
+				},
+			);
+		}
+
+		await prisma.ticketEvent.createMany({ data: evenements });
 	}
 
 	console.log("[+] Donnees de demonstration en place.");

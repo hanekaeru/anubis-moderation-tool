@@ -23,7 +23,14 @@ const event: BotEvent<typeof Events.ChannelDelete> = {
 		// n'est recree. Un hub, lui, garde son reglage et ne perd que son
 		// identifiant de salon — via `supprimerSalonsDeCreation`.
 		try {
-			await voiceHubs.oublierSalon(channel.id);
+			const etaitTemporaire = await voiceHubs.oublierSalon(channel.id);
+
+			// Un salon temporaire supprime a la main laisse peut-etre sa categorie
+			// de rangement vide. Les autres suppressions de salon n'en liberent
+			// aucune : inutile de les parcourir a chaque fois.
+			if (etaitTemporaire && !channel.isDMBased()) {
+				await voiceHubs.nettoyerCategoriesVides(channel.guild);
+			}
 		} catch (err) {
 			console.error("[Vocaux] Fermeture du salon temporaire échouée :", err);
 		}

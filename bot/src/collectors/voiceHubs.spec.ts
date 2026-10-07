@@ -15,13 +15,16 @@ const prismaMock = {
 		findUnique: jest.fn().mockResolvedValue(null),
 		findMany: jest.fn().mockResolvedValue([]),
 		update: jest.fn().mockResolvedValue(undefined),
-		updateMany: jest.fn().mockResolvedValue(undefined),
+		// `oublierSalon` se lit a son `count` pour dire si un salon temporaire
+		// vient d'etre clos : un mock sans resultat le ferait echouer.
+		updateMany: jest.fn().mockResolvedValue({ count: 0 }),
 	},
 	voiceHubRank: {
 		findFirst: jest.fn().mockResolvedValue(null),
 		findUnique: jest.fn().mockResolvedValue(null),
 		findMany: jest.fn().mockResolvedValue([]),
 		update: jest.fn().mockResolvedValue(undefined),
+		updateMany: jest.fn().mockResolvedValue({ count: 0 }),
 	},
 	voiceHubPlatform: {
 		findFirst: jest.fn().mockResolvedValue(null),
@@ -97,6 +100,9 @@ function salonFactice(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+/** `delete` des categories, partage pour pouvoir s'assurer de ses appels. */
+const supprimerCategorie = jest.fn().mockResolvedValue(undefined);
+
 /** Categorie Discord factice, avec le nombre de salons qu'elle contient. */
 function categorieFactice(id: string, salons = 0, nom = `Categorie ${id}`) {
 	return {
@@ -105,6 +111,7 @@ function categorieFactice(id: string, salons = 0, nom = `Categorie ${id}`) {
 		// 4 = ChannelType.GuildCategory
 		type: 4,
 		children: { cache: { size: salons } },
+		delete: supprimerCategorie,
 	};
 }
 
@@ -135,7 +142,9 @@ function ligneTemporaire(overrides: Record<string, unknown> = {}) {
 		locked: false,
 		rankId: null,
 		platformId: null,
-		topic: null,
+		tankTaken: null,
+		dpsTaken: null,
+		supportTaken: null,
 		createdAt: new Date(Date.now() - 600_000),
 		closedAt: null,
 		// `reconcilierSalons` les charge par `include` : les omettre ici
@@ -154,11 +163,17 @@ function hubFactice(overrides: Record<string, unknown> = {}) {
 		channelId: "salon-hub-1",
 		name: "Partie Rapide (5v5)",
 		namePattern: "{name} #{index}",
-		statusPattern: "{rang} {plateforme} · {sujet}",
+		statusPattern: "{rang} {plateforme} · {roles}",
 		placementMode: "RANK_CATEGORY",
 		landingCategoryName: "En attente",
 		landingCategoryId: "categorie-attente",
 		userLimit: 0,
+		tankSlots: 2,
+		dpsSlots: 2,
+		supportSlots: 2,
+		tankEmoji: null,
+		dpsEmoji: null,
+		supportEmoji: null,
 		position: 0,
 		enabled: true,
 		...overrides,
@@ -194,6 +209,9 @@ beforeEach(() => {
 	prismaMock.voiceHubRank.findFirst.mockResolvedValue(null);
 	prismaMock.voiceHubPlatform.findFirst.mockResolvedValue(null);
 	chercherDansCache.mockReturnValue(undefined);
+	// `clearAllMocks` efface les appels, pas les implementations : un test qui
+	// fait echouer la suppression la laisserait echouer pour les suivants.
+	supprimerCategorie.mockResolvedValue(undefined);
 	creerCategorie.mockImplementation(async ({ name }: { name: string }) =>
 		categorieFactice(`categorie-creee-${name}`, 0, name),
 	);
@@ -380,7 +398,7 @@ describe("appliquerPersonnalisation", () => {
 		const resultat = await voiceHubs.appliquerPersonnalisation(
 			salon as never,
 			ligneTemporaire() as never,
-			{ rankId: "rank-or", platformId: null, topic: "duo", userLimit: null },
+			{ rankId: "rank-or", platformId: null, tankTaken: 1, dpsTaken: 2, supportTaken: 0 },
 		);
 
 		expect(deplacerSalon).toHaveBeenCalledWith(
@@ -402,7 +420,7 @@ describe("appliquerPersonnalisation", () => {
 		await voiceHubs.appliquerPersonnalisation(
 			salon as never,
 			ligneTemporaire() as never,
-			{ rankId: "rank-or", platformId: null, topic: null, userLimit: null },
+			{ rankId: "rank-or", platformId: null, tankTaken: null, dpsTaken: null, supportTaken: null },
 		);
 
 		const [, options] = deplacerSalon.mock.calls[0] as [string, { lockPermissions: boolean }];
@@ -419,7 +437,7 @@ describe("appliquerPersonnalisation", () => {
 		const resultat = await voiceHubs.appliquerPersonnalisation(
 			salon as never,
 			ligneTemporaire() as never,
-			{ rankId: "rank-or", platformId: null, topic: null, userLimit: null },
+			{ rankId: "rank-or", platformId: null, tankTaken: null, dpsTaken: null, supportTaken: null },
 		);
 
 		expect(deplacerSalon).not.toHaveBeenCalled();
@@ -437,7 +455,7 @@ describe("appliquerPersonnalisation", () => {
 		await voiceHubs.appliquerPersonnalisation(
 			salon as never,
 			ligneTemporaire({ rankId: "rank-or" }) as never,
-			{ rankId: null, platformId: null, topic: null, userLimit: null },
+			{ rankId: null, platformId: null, tankTaken: null, dpsTaken: null, supportTaken: null },
 		);
 
 		expect(deplacerSalon).toHaveBeenCalledWith(
@@ -458,7 +476,7 @@ describe("appliquerPersonnalisation", () => {
 		await voiceHubs.appliquerPersonnalisation(
 			salon as never,
 			ligneTemporaire() as never,
-			{ rankId: "rank-or", platformId: null, topic: null, userLimit: null },
+			{ rankId: "rank-or", platformId: null, tankTaken: null, dpsTaken: null, supportTaken: null },
 		);
 
 		expect(creerCategorie).toHaveBeenCalledWith(
@@ -484,7 +502,7 @@ describe("appliquerPersonnalisation", () => {
 		await voiceHubs.appliquerPersonnalisation(
 			salon as never,
 			ligneTemporaire() as never,
-			{ rankId: "rank-or", platformId: null, topic: null, userLimit: null },
+			{ rankId: "rank-or", platformId: null, tankTaken: null, dpsTaken: null, supportTaken: null },
 		);
 
 		expect(creerCategorie).not.toHaveBeenCalled();
@@ -509,7 +527,7 @@ describe("appliquerPersonnalisation", () => {
 		const resultat = await voiceHubs.appliquerPersonnalisation(
 			salon as never,
 			ligneTemporaire() as never,
-			{ rankId: "rank-or", platformId: null, topic: "duo", userLimit: null },
+			{ rankId: "rank-or", platformId: null, tankTaken: 1, dpsTaken: 2, supportTaken: 0 },
 		);
 
 		expect(deplacerSalon).not.toHaveBeenCalled();
@@ -527,13 +545,15 @@ describe("appliquerPersonnalisation", () => {
 		await voiceHubs.appliquerPersonnalisation(
 			salon as never,
 			ligneTemporaire() as never,
-			{ rankId: "rank-or", platformId: null, topic: "duo", userLimit: null },
+			{ rankId: "rank-or", platformId: null, tankTaken: 1, dpsTaken: 2, supportTaken: 0 },
 		);
 
 		expect(renommer).not.toHaveBeenCalled();
 		expect(poserSujet).toHaveBeenCalledWith(
 			`/channels/${CHANNEL_ID}/voice-status`,
-			expect.objectContaining({ body: { status: "Or · duo" } }),
+			expect.objectContaining({
+				body: { status: "Or · 🛡️ 1/2 · ⚔️ 2/2 · 💉 0/2" },
+			}),
 		);
 	});
 
@@ -547,7 +567,7 @@ describe("appliquerPersonnalisation", () => {
 		const resultat = await voiceHubs.appliquerPersonnalisation(
 			salon as never,
 			ligneTemporaire() as never,
-			{ rankId: "rank-etranger", platformId: null, topic: null, userLimit: null },
+			{ rankId: "rank-etranger", platformId: null, tankTaken: null, dpsTaken: null, supportTaken: null },
 		);
 
 		expect(resultat.rank).toBeNull();
@@ -556,6 +576,79 @@ describe("appliquerPersonnalisation", () => {
 			expect.anything(),
 		);
 		expect(deplacerSalon).not.toHaveBeenCalledWith("categorie-or", expect.anything());
+	});
+});
+
+describe("nettoyerCategoriesVides", () => {
+	/**
+	 * `serveur()` repond toujours un salon vocal a `channels.fetch` : il faut
+	 * ici un serveur dont les categories se decident test par test.
+	 */
+	function serveurDeCategories(): Guild {
+		return {
+			id: GUILD_ID,
+			name: "Serveur",
+			channels: { fetch: chercherSalon },
+		} as unknown as Guild;
+	}
+
+	beforeEach(() => {
+		prismaMock.voiceHub.findMany.mockResolvedValue([
+			{ id: "hub-uuid", landingCategoryId: "categorie-attente" },
+		]);
+		prismaMock.voiceHubRank.findMany.mockResolvedValue([
+			{ id: "rank-or", categoryId: "categorie-or" },
+		]);
+	});
+
+	it("supprime une categorie geree devenue vide et oublie son identifiant", async () => {
+		chercherSalon.mockImplementation(async (id: string) =>
+			categorieFactice(id, id === "categorie-or" ? 0 : 3),
+		);
+
+		const supprimees = await voiceHubs.nettoyerCategoriesVides(serveurDeCategories());
+
+		expect(supprimees).toBe(1);
+		expect(supprimerCategorie).toHaveBeenCalledTimes(1);
+		expect(prismaMock.voiceHubRank.updateMany).toHaveBeenCalledWith({
+			where: { id: { in: ["rank-or"] } },
+			data: { categoryId: null },
+		});
+		// La categorie d'accueil, elle, contient encore des salons.
+		expect(prismaMock.voiceHub.updateMany).not.toHaveBeenCalled();
+	});
+
+	it("ne touche pas a une categorie encore occupee", async () => {
+		chercherSalon.mockImplementation(async (id: string) => categorieFactice(id, 1));
+
+		expect(await voiceHubs.nettoyerCategoriesVides(serveurDeCategories())).toBe(0);
+		expect(supprimerCategorie).not.toHaveBeenCalled();
+		expect(prismaMock.voiceHubRank.updateMany).not.toHaveBeenCalled();
+	});
+
+	it("oublie l'identifiant d'une categorie disparue, sans rien supprimer", async () => {
+		chercherSalon.mockResolvedValue(null);
+
+		expect(await voiceHubs.nettoyerCategoriesVides(serveurDeCategories())).toBe(0);
+		expect(supprimerCategorie).not.toHaveBeenCalled();
+		expect(prismaMock.voiceHub.updateMany).toHaveBeenCalledWith({
+			where: { id: { in: ["hub-uuid"] } },
+			data: { landingCategoryId: null },
+		});
+	});
+
+	it("garde l'identifiant quand Discord refuse la suppression", async () => {
+		chercherSalon.mockImplementation(async (id: string) => categorieFactice(id, 0));
+		supprimerCategorie.mockRejectedValue(new Error("Missing Permissions"));
+		const silenceErreur = jest.spyOn(console, "error").mockImplementation(() => {});
+
+		expect(await voiceHubs.nettoyerCategoriesVides(serveurDeCategories())).toBe(0);
+		// Une categorie toujours la reste utilisable : en creer une seconde
+		// serait pire que de garder celle qu'on ne peut pas effacer.
+		expect(prismaMock.voiceHubRank.updateMany).not.toHaveBeenCalled();
+		expect(prismaMock.voiceHub.updateMany).not.toHaveBeenCalled();
+
+		silenceErreur.mockRestore();
 	});
 });
 

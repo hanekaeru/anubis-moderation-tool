@@ -6,7 +6,14 @@ export function snowflakeToDate(id: Snowflake): Date {
 	return new Date(Number((BigInt(id) >> 22n) + DISCORD_EPOCH));
 }
 
-const SNOWFLAKE_PATTERN = /^\d{17,20}$/;
+/**
+ * Un identifiant Discord : 17 a 20 chiffres, rien d'autre.
+ *
+ * Exporte pour que le dashboard valide la saisie avec la meme regle que l'API,
+ * qui seule fait foi. Pas de drapeau `g` : l'expression est partagee, et
+ * `lastIndex` ferait echouer un test sur deux.
+ */
+export const SNOWFLAKE_PATTERN = /^\d{17,20}$/;
 
 export function isSnowflake(value: string): boolean {
 	return SNOWFLAKE_PATTERN.test(value);

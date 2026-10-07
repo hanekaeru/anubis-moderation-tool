@@ -3,6 +3,7 @@ import {
 	DEFAULT_VOICE_LANDING_CATEGORY,
 	DEFAULT_VOICE_NAME_PATTERN,
 	DEFAULT_VOICE_STATUS_PATTERN,
+	DEFAULT_VOICE_TEAM_SLOTS,
 	MAX_VOICE_HUB_OPTIONS,
 	VoicePlacementMode,
 	type LiveVoiceChannelDto,
@@ -52,6 +53,12 @@ type HubRow = {
 	landingCategoryName: string;
 	landingCategoryId: string | null;
 	userLimit: number;
+	tankSlots: number;
+	dpsSlots: number;
+	supportSlots: number;
+	tankEmoji: string | null;
+	dpsEmoji: string | null;
+	supportEmoji: string | null;
 	position: number;
 	enabled: boolean;
 	updatedAt: Date;
@@ -93,6 +100,12 @@ export class VoiceService {
 			landingCategoryName: row.landingCategoryName,
 			landingCategoryId: row.landingCategoryId,
 			userLimit: row.userLimit,
+			tankSlots: row.tankSlots,
+			dpsSlots: row.dpsSlots,
+			supportSlots: row.supportSlots,
+			tankEmoji: row.tankEmoji,
+			dpsEmoji: row.dpsEmoji,
+			supportEmoji: row.supportEmoji,
 			position: row.position,
 			enabled: row.enabled,
 			ranks: (row.ranks ?? []).map((rank) => this.toRankDto(rank)),
@@ -148,6 +161,12 @@ export class VoiceService {
 					dto.landingCategoryName ?? DEFAULT_VOICE_LANDING_CATEGORY,
 				landingCategoryId: dto.landingCategoryId ?? null,
 				userLimit: dto.userLimit ?? 0,
+				tankSlots: dto.tankSlots ?? DEFAULT_VOICE_TEAM_SLOTS.tank,
+				dpsSlots: dto.dpsSlots ?? DEFAULT_VOICE_TEAM_SLOTS.dps,
+				supportSlots: dto.supportSlots ?? DEFAULT_VOICE_TEAM_SLOTS.support,
+				tankEmoji: dto.tankEmoji ?? null,
+				dpsEmoji: dto.dpsEmoji ?? null,
+				supportEmoji: dto.supportEmoji ?? null,
 				position: dto.position ?? 0,
 				enabled: dto.enabled ?? true,
 			},
@@ -202,6 +221,14 @@ export class VoiceService {
 					? { landingCategoryId: dto.landingCategoryId }
 					: {}),
 				...(dto.userLimit !== undefined ? { userLimit: dto.userLimit } : {}),
+				...(dto.tankSlots !== undefined ? { tankSlots: dto.tankSlots } : {}),
+				...(dto.dpsSlots !== undefined ? { dpsSlots: dto.dpsSlots } : {}),
+				...(dto.supportSlots !== undefined ? { supportSlots: dto.supportSlots } : {}),
+				// `null` explicite remet l'emoji de repli : c'est le seul moyen de
+				// revenir en arriere apres en avoir pose un.
+				...(dto.tankEmoji !== undefined ? { tankEmoji: dto.tankEmoji } : {}),
+				...(dto.dpsEmoji !== undefined ? { dpsEmoji: dto.dpsEmoji } : {}),
+				...(dto.supportEmoji !== undefined ? { supportEmoji: dto.supportEmoji } : {}),
 				...(dto.position !== undefined ? { position: dto.position } : {}),
 				...(dto.enabled !== undefined ? { enabled: dto.enabled } : {}),
 			},

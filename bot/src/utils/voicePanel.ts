@@ -32,8 +32,9 @@ export const VOICE_KICK_SELECT = "voice:kick:select";
 export const VOICE_CUSTOMIZE_MODAL = "voice:customize:modal";
 export const VOICE_RANK_SELECT = "rank";
 export const VOICE_PLATFORM_SELECT = "platform";
-export const VOICE_LIMIT_INPUT = "limit";
-export const VOICE_TOPIC_INPUT = "topic";
+export const VOICE_TANK_INPUT = "tank";
+export const VOICE_DPS_INPUT = "dps";
+export const VOICE_SUPPORT_INPUT = "support";
 export const VOICE_REPORT_MODAL = "voice:report:modal";
 export const VOICE_REPORT_INPUT = "description";
 

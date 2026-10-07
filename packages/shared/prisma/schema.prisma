@@ -1172,10 +1172,20 @@ model VoiceHub {
   /// faire retrouver — ou recreer — la categorie au prochain salon.
   landingCategoryId   String?            @map("landing_category_id") @db.VarChar(20)
   /// Gabarit du sujet (« voice status ») des salons crees : `{rang}`,
-  /// `{plateforme}` et `{sujet}` y sont remplaces. Le rang et la plateforme
+  /// `{plateforme}` et `{roles}` y sont remplaces. Le rang et la plateforme
   /// vivent la et non dans le nom, que Discord ne laisse changer que deux
   /// fois par dix minutes.
-  statusPattern       String             @default("{rang} {plateforme} · {sujet}") @map("status_pattern")
+  statusPattern       String             @default("{rang} {plateforme} · {roles}") @map("status_pattern")
+  /// Composition d'equipe : le « sur combien » de la ligne des roles. Un 5v5
+  /// porte un seul tank, un 6v6 en porte deux. 0 retire le role du sujet.
+  tankSlots           Int                @default(2) @map("tank_slots")
+  dpsSlots            Int                @default(2) @map("dps_slots")
+  supportSlots        Int                @default(2) @map("support_slots")
+  /// Emoji de chaque role, unicode ou `<:nom:id>`. `null` laisse celui de
+  /// repli de `@anubis/shared` : un serveur sans emojis dedies reste lisible.
+  tankEmoji           String?            @map("tank_emoji")
+  dpsEmoji            String?            @map("dps_emoji")
+  supportEmoji        String?            @map("support_emoji")
   position            Int                @default(0)
   enabled             Boolean            @default(true)
   createdAt           DateTime           @default(now()) @map("created_at")
@@ -1256,9 +1266,16 @@ model TemporaryVoiceChannel {
   /// salon reste alors dans la categorie de son salon de creation.
   rankId     String?   @map("rank_id") @db.Uuid
   platformId String?   @map("platform_id") @db.Uuid
-  /// Texte libre du sujet, sans le rang ni la plateforme : le gabarit du hub
-  /// les compose a l'affichage.
-  topic      String?
+  /// Places deja prises dans chaque role, declarees par le proprietaire.
+  /// `null` tant qu'il n'a rien declare : la ligne des roles n'apparait alors
+  /// pas du tout dans le sujet. Le total vient du salon de creation.
+  ///
+  /// Remplace l'ancien texte libre du sujet, retire parce qu'il invitait au
+  /// debordement — un champ libre affiche sous le nom du salon finit par
+  /// porter autre chose que des places d'equipe.
+  tankTaken    Int?    @map("tank_taken")
+  dpsTaken     Int?    @map("dps_taken")
+  supportTaken Int?    @map("support_taken")
   createdAt  DateTime  @default(now()) @map("created_at")
   /// Pose a la suppression du salon Discord : la ligne reste pour l'audit.
   closedAt   DateTime? @map("closed_at")

@@ -21,6 +21,7 @@ import {
 import type { TicketSubject } from "@anubis/shared/prisma";
 import * as referentiel from "../collectors/referentiel";
 import * as tickets from "../collectors/tickets";
+import { referenceMembre } from "../utils/mentions";
 import {
 	closeButtonRow,
 	closedEmbed,
@@ -319,7 +320,13 @@ export async function handleTicketButton(
 			components: [closeButtonRow(ticketId, true)],
 		});
 
-		await channel.send(`<@${interaction.user.id}> prend en charge ce ticket.`);
+		// Celui qui vient de cliquer n'a pas besoin qu'on l'interpelle : c'est le
+		// reglage du serveur qui decide si son nom est mentionne ou simplement
+		// ecrit.
+		await channel.send({
+			content: `${await referenceMembre(interaction.guildId, interaction.user.id, interaction.user.username)} prend en charge ce ticket.`,
+			allowedMentions: { users: [interaction.user.id] },
+		});
 
 		// Discord n'accepte que deux renommages par tranche de dix minutes :
 		// le dire evite de chercher un bug la ou il n'y en a pas.

@@ -4,7 +4,9 @@ import { Observable } from 'rxjs';
 import type {
 	CreateGuildConfigRequest,
 	GuildConfigDto,
+	MentionSettingsDto,
 	UpdateGuildConfigRequest,
+	UpdateMentionSettingsRequest,
 } from '@anubis/shared';
 
 @Injectable({ providedIn: 'root' })
@@ -25,5 +27,13 @@ export class GuildConfigApi {
 
 	delete(id: string): Observable<void> {
 		return this.http.delete<void>(`/api/guild-config/${id}`);
+	}
+
+	getMentions(): Observable<MentionSettingsDto> {
+		return this.http.get<MentionSettingsDto>('/api/guild-config/mentions');
+	}
+
+	updateMentions(request: UpdateMentionSettingsRequest): Observable<MentionSettingsDto> {
+		return this.http.put<MentionSettingsDto>('/api/guild-config/mentions', request);
 	}
 }

@@ -4,6 +4,7 @@ import type { BotEvent } from "../types";
 import activite from "../collectors/activite";
 import * as colors from "../utils/constantes";
 import * as guildConfig from "../collectors/guildConfig";
+import { referenceMembre } from "../utils/mentions";
 
 const event: BotEvent<typeof Events.MessageUpdate> = {
 	name: Events.MessageUpdate,
@@ -46,7 +47,7 @@ const event: BotEvent<typeof Events.MessageUpdate> = {
 		// parent — c'est bien la que la moderation doit aller regarder.
 		editedMessageEmbed
 			.setDescription(
-				`Auteur : <@${message.author.id}> | \`${message.author.username}\` | \`${message.author.id}\`\n` +
+				`Auteur : ${await referenceMembre(message.guild.id, message.author.id, message.author.username)}\n` +
 					`Salon : <#${message.channelId}>`,
 			)
 			.addFields(

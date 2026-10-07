@@ -11,6 +11,7 @@ export * from "./enums";
 export * from "./permissions";
 export * from "./discord";
 export * from "./duration";
+export * from "./mentions";
 export * from "./xp";
 export * from "./dto/common";
 export * from "./dto/auth";

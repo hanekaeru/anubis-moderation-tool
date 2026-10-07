@@ -193,6 +193,12 @@ const NAV_SECTIONS: NavSection[] = [
         permissions: [Permission.LOGS_READ],
       },
       {
+        path: '/mentions',
+        label: 'Rôles & mentions',
+        icon: 'alternate_email',
+        permissions: [Permission.LOGS_WRITE],
+      },
+      {
         path: '/journal',
         label: "Journal d'activité",
         icon: 'history',

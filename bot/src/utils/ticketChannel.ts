@@ -17,6 +17,7 @@ import {
 	newTicketChannelName,
 } from "@anubis/shared";
 import * as colors from "./constantes";
+import { roleDAlerte } from "./mentions";
 import * as guildConfig from "../collectors/guildConfig";
 
 /**
@@ -207,6 +208,28 @@ export async function createTicketChannel(
 	const openerId = state.openerId;
 	const parent = await ensureTicketsCategory(guild);
 
+	// Le role interpelle a l'ouverture recoit l'acces au salon avec la mention.
+	// Il n'est pas forcement de ceux qui portent `ModerateMembers` : appeler une
+	// equipe dans un salon qu'elle ne voit pas serait pire que ne pas l'appeler.
+	//
+	// Son existence est **verifiee** : l'identifiant vient d'un champ libre du
+	// dashboard et le role a pu etre supprime depuis. Une surcharge de
+	// permissions visant un role inexistant fait refuser la creation du salon
+	// par Discord — un reglage perime empecherait alors d'ouvrir le moindre
+	// ticket, au lieu de simplement ne prevenir personne.
+	const roleConfigure = await roleDAlerte(guild.id);
+	const roleMentionne =
+		roleConfigure && guild.roles.cache.has(roleConfigure) ? roleConfigure : null;
+
+	if (roleConfigure && !roleMentionne) {
+		console.warn(
+			`[Tickets] Rôle à mentionner introuvable sur le serveur (${roleConfigure}) : ouverture sans mention.`,
+		);
+	}
+
+	const rolesAutorises = new Set(moderatorRoleIds(guild));
+	if (roleMentionne) rolesAutorises.add(roleMentionne);
+
 	const channel = await guild.channels.create({
 		name: newTicketChannelName(state.number),
 		type: ChannelType.GuildText,
@@ -222,7 +245,7 @@ export async function createTicketChannel(
 					PermissionFlagsBits.AttachFiles,
 				],
 			},
-			...moderatorRoleIds(guild).map((roleId) => ({
+			...[...rolesAutorises].map((roleId) => ({
 				id: roleId,
 				allow: [
 					PermissionFlagsBits.ViewChannel,
@@ -233,9 +256,15 @@ export async function createTicketChannel(
 		],
 	});
 
+	// La mention vit dans le contenu, jamais dans l'embed : Discord n'envoie
+	// aucune notification pour une mention posee dans un embed. `allowedMentions`
+	// est explicite pour que le texte de la demande, recopie dans l'embed, ne
+	// puisse jamais interpeller qui que ce soit d'autre.
 	await channel.send({
+		content: roleMentionne ? `<@&${roleMentionne}>` : undefined,
 		embeds: [openEmbed(state)],
 		components: [closeButtonRow(ticketId)],
+		allowedMentions: { roles: roleMentionne ? [roleMentionne] : [] },
 	});
 
 	return channel;

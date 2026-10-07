@@ -92,6 +92,92 @@ describe("GuildConfigService.create", () => {
 	});
 });
 
+describe("GuildConfigService — reglages de mention", () => {
+	function makeMentionService(rows: ReturnType<typeof configRow>[]) {
+		const configGuild = {
+			findMany: jest.fn().mockResolvedValue(rows),
+			findUnique: jest.fn(),
+			findFirst: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			upsert: jest.fn(),
+			deleteMany: jest.fn(),
+			delete: jest.fn(),
+		};
+
+		return makeService({
+			configGuild,
+			$transaction: jest.fn().mockResolvedValue([]),
+		});
+	}
+
+	it("rend les defauts quand aucune cle n'est posee", async () => {
+		const { service } = makeMentionService([]);
+
+		const settings = await service.getMentionSettings();
+
+		expect(settings.roles.MOD_ROLE).toBeNull();
+		expect(settings.alertRoleKey).toBeNull();
+		// Les journaux n'interpellent personne tant que rien n'est regle.
+		expect(settings.mentionMembers).toBe(false);
+	});
+
+	it("ignore une cle de role inconnue posee a la main dans la table", async () => {
+		const { service } = makeMentionService([
+			configRow({ configName: "ALERT_MENTION_ROLE", configValue: "N_IMPORTE_QUOI" }),
+		]);
+
+		expect((await service.getMentionSettings()).alertRoleKey).toBeNull();
+	});
+
+	it("refuse un identifiant de role qui n'est pas un snowflake", async () => {
+		const { service } = makeMentionService([]);
+
+		await expect(
+			service.updateMentionSettings(
+				{
+					roles: { MOD_ROLE: "@Modération" },
+					alertRoleKey: null,
+					mentionMembers: false,
+				},
+				ACTOR,
+			),
+		).rejects.toBeInstanceOf(BadRequestException);
+	});
+
+	it("refuse de mentionner un role dont l'identifiant n'est pas renseigne", async () => {
+		const { service } = makeMentionService([]);
+
+		await expect(
+			service.updateMentionSettings(
+				{ roles: {}, alertRoleKey: "MOD_ROLE", mentionMembers: false },
+				ACTOR,
+			),
+		).rejects.toBeInstanceOf(BadRequestException);
+	});
+
+	it("efface la ligne d'un role vide plutot que d'y laisser une chaine vide", async () => {
+		const { service, prisma } = makeMentionService([]);
+
+		await service.updateMentionSettings(
+			{ roles: { MOD_ROLE: "   " }, alertRoleKey: null, mentionMembers: true },
+			ACTOR,
+		);
+
+		expect(prisma.configGuild.deleteMany).toHaveBeenCalledWith(
+			expect.objectContaining({ where: { guildId: "guild-1", configName: "MOD_ROLE" } }),
+		);
+		expect(prisma.configGuild.upsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				create: expect.objectContaining({
+					configName: "LOG_MENTION_MEMBERS",
+					configValue: "true",
+				}),
+			}),
+		);
+	});
+});
+
 describe("GuildConfigService — identifiants", () => {
 	it("rejette un id non numerique sur update", async () => {
 		const { service } = makeService();

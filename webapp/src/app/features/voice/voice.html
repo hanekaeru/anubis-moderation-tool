@@ -236,12 +236,64 @@
 					<mat-label>Sujet des salons créés</mat-label>
 					<input matInput formControlName="statusPattern" />
 					<mat-hint>
-						{{ '{rang}' }}, {{ '{plateforme}' }} et {{ '{sujet}' }} sont remplacés. Affiché sous le
+						{{ '{rang}' }}, {{ '{plateforme}' }} et {{ '{roles}' }} sont remplacés. Affiché sous le
 						nom du salon sur Discord — c'est là que vivent le rang et la plateforme, le nom des
 						salons ne changeant jamais.
 					</mat-hint>
 				</mat-form-field>
 			</div>
+
+			<h3 class="sous-titre">Composition d'équipe</h3>
+			<p class="aide">
+				Le « sur combien » de {{ '{roles}' }} : un 5v5 porte un seul tank, un 6v6 en porte deux.
+				Le propriétaire déclare depuis le panneau du salon combien de places sont déjà prises.
+				Mettre 0 retire le rôle du sujet et de la modale.
+			</p>
+
+			<div class="row">
+				<mat-form-field>
+					<mat-label>Places {{ roleLabels.tank }}</mat-label>
+					<input matInput type="number" formControlName="tankSlots" min="0" [max]="maxTeamSlots" />
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Places {{ roleLabels.dps }}</mat-label>
+					<input matInput type="number" formControlName="dpsSlots" min="0" [max]="maxTeamSlots" />
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Places {{ roleLabels.support }}</mat-label>
+					<input
+						matInput
+						type="number"
+						formControlName="supportSlots"
+						min="0"
+						[max]="maxTeamSlots"
+					/>
+				</mat-form-field>
+			</div>
+
+			<div class="row">
+				<mat-form-field>
+					<mat-label>Emoji {{ roleLabels.tank }}</mat-label>
+					<input matInput formControlName="tankEmoji" placeholder="🛡️" />
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Emoji {{ roleLabels.dps }}</mat-label>
+					<input matInput formControlName="dpsEmoji" placeholder="⚔️" />
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Emoji {{ roleLabels.support }}</mat-label>
+					<input matInput formControlName="supportEmoji" placeholder="💉" />
+				</mat-form-field>
+			</div>
+
+			<p class="aide">
+				Unicode, ou un emoji du serveur sous la forme
+				<code>&lt;:tank:123456789012345678&gt;</code>. Vide laisse l'emoji par défaut.
+			</p>
 
 			<p class="preview">
 				<span class="preview-label">Aperçu</span>

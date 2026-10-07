@@ -137,6 +137,15 @@ export const routes: Routes = [
 				title: 'Logs — Anubis',
 			},
 			{
+				// Garde sur la permission d'ecriture : la page n'existe que pour
+				// changer qui le bot interpelle, il n'y a rien a y consulter.
+				path: 'mentions',
+				canActivate: [permissionGuard(Permission.LOGS_WRITE)],
+				loadComponent: () =>
+					import('./features/admin/mentions/mentions').then((m) => m.MentionsPage),
+				title: 'Rôles & mentions — Anubis',
+			},
+			{
 				path: 'automod',
 				canActivate: [permissionGuard(Permission.AUTOMOD_READ)],
 				loadComponent: () =>
