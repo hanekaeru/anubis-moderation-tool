@@ -5,6 +5,7 @@ import activite from "../collectors/activite";
 import * as colors from "../utils/constantes";
 import * as guildConfig from "../collectors/guildConfig";
 import { chercherAction } from "../collectors/discordAudit";
+import { referenceMembre } from "../utils/mentions";
 
 const event: BotEvent<typeof Events.MessageDelete> = {
 	name: Events.MessageDelete,
@@ -31,8 +32,8 @@ const event: BotEvent<typeof Events.MessageDelete> = {
 		// supprime par son propre auteur.
 		const suppression = await chercherAction(message.guild, AuditLogEvent.MessageDelete, message.author.id);
 		const supprimePar = suppression?.executorId
-			? `<@${suppression.executorId}>`
-			: `<@${message.author.id}> (auto-suppression probable)`;
+			? await referenceMembre(message.guild.id, suppression.executorId)
+			: `${await referenceMembre(message.guild.id, message.author.id, message.author.username)} (auto-suppression probable)`;
 
 		// `channelId` est toujours livre par Discord, meme sur un message partiel :
 		// c'est la seule information de contexte qui survit a l'absence de cache.
@@ -40,7 +41,7 @@ const event: BotEvent<typeof Events.MessageDelete> = {
 		// c'est bien la que la moderation doit aller regarder.
 		editedMessageEmbed
 			.setDescription(
-				`Auteur : <@${message.author.id}> | \`${message.author.username}\` | \`${message.author.id}\`\n` +
+				`Auteur : ${await referenceMembre(message.guild.id, message.author.id, message.author.username)}\n` +
 					`Salon : <#${message.channelId}>`,
 			)
 			.addFields(

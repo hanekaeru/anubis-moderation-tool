@@ -14,9 +14,10 @@ import {
 	type StringSelectMenuInteraction,
 	type VoiceBasedChannel,
 } from "discord.js";
-import { MAX_VOICE_TOPIC_LENGTH } from "@anubis/shared";
+import { VOICE_TEAM_ROLE_LABELS } from "@anubis/shared";
 import type {
 	TemporaryVoiceChannel,
+	VoiceHub,
 	VoiceHubPlatform,
 	VoiceHubRank,
 } from "@anubis/shared/prisma";
@@ -26,13 +27,14 @@ import * as voiceHubs from "../collectors/voiceHubs";
 import * as voiceLog from "../collectors/voiceLog";
 import {
 	VOICE_CUSTOMIZE_MODAL,
+	VOICE_DPS_INPUT,
 	VOICE_KICK_SELECT,
-	VOICE_LIMIT_INPUT,
 	VOICE_PLATFORM_SELECT,
 	VOICE_RANK_SELECT,
 	VOICE_REPORT_INPUT,
 	VOICE_REPORT_MODAL,
-	VOICE_TOPIC_INPUT,
+	VOICE_SUPPORT_INPUT,
+	VOICE_TANK_INPUT,
 	VoicePanelAction,
 	panelEmbed,
 	panelRow,
@@ -244,20 +246,47 @@ function optionsDeChoix(
 	});
 }
 
+/** Champ « places prises » d'un role, avec son total en description. */
+function champDeRole(
+	customId: string,
+	label: string,
+	total: number,
+	valeur: number | null,
+): LabelBuilder {
+	return new LabelBuilder()
+		.setLabel(`${label} (sur ${total})`)
+		.setTextInputComponent(
+			new TextInputBuilder()
+				.setCustomId(customId)
+				.setStyle(TextInputStyle.Short)
+				.setPlaceholder("0")
+				.setMaxLength(2)
+				.setRequired(false)
+				.setValue(valeur === null ? "" : String(valeur)),
+		);
+}
+
 /**
  * Modale de personnalisation du salon.
  *
  * Le nom n'y figure pas : il vient du gabarit du salon de creation et n'a
- * jamais a bouger. Le rang, la plateforme et le texte libre composent le
- * *sujet* du salon, que Discord affiche sous son nom sans plafonner les
- * changements — la ou un renommage est limite a deux par dix minutes.
+ * jamais a bouger. Le rang, la plateforme et les places composent le *sujet*
+ * du salon, que Discord affiche sous son nom sans plafonner les changements —
+ * la ou un renommage est limite a deux par dix minutes.
  *
  * Les deux selects sont facultatifs (`setRequired(false)`, `minValues` a 0) :
  * les vider est le seul moyen de retirer un rang deja pose, et un salon sans
  * rang retourne dans la categorie de son salon de creation.
+ *
+ * **Discord plafonne une modale a cinq champs.** Rang, plateforme et les trois
+ * roles l'occupent entierement : c'est ce qui a fait sortir la limite de
+ * places, qui se regle desormais par salon de creation depuis le dashboard.
+ * Un role sans place dans la composition n'a pas de champ — demander « 0 sur
+ * 0 » ne veut rien dire, et cela laisse de la place quand le serveur ne joue
+ * pas avec les trois roles.
  */
 function modaleDePersonnalisation(
-	salon: VoiceBasedChannel,
+	hub: VoiceHub,
 	temporaire: TemporaryVoiceChannel,
 	options: { ranks: VoiceHubRank[]; platforms: VoiceHubPlatform[] },
 ): ModalBuilder {
@@ -300,27 +329,20 @@ function modaleDePersonnalisation(
 		);
 	}
 
-	modale.addLabelComponents(
-		new LabelBuilder().setLabel("Places (0 = illimité)").setTextInputComponent(
-			new TextInputBuilder()
-				.setCustomId(VOICE_LIMIT_INPUT)
-				.setStyle(TextInputStyle.Short)
-				.setMaxLength(2)
-				.setRequired(false)
-				.setValue(String(salon.userLimit)),
-		),
-		new LabelBuilder()
-			.setLabel("Sujet")
-			.setDescription("Places et rôles recherchés, mode de jeu…")
-			.setTextInputComponent(
-				new TextInputBuilder()
-					.setCustomId(VOICE_TOPIC_INPUT)
-					.setStyle(TextInputStyle.Paragraph)
-					.setMaxLength(MAX_VOICE_TOPIC_LENGTH)
-					.setRequired(false)
-					.setValue(temporaire.topic ?? ""),
-			),
-	);
+	const roles: [string, string, number, number | null][] = [
+		[VOICE_TANK_INPUT, VOICE_TEAM_ROLE_LABELS.tank, hub.tankSlots, temporaire.tankTaken],
+		[VOICE_DPS_INPUT, VOICE_TEAM_ROLE_LABELS.dps, hub.dpsSlots, temporaire.dpsTaken],
+		[
+			VOICE_SUPPORT_INPUT,
+			VOICE_TEAM_ROLE_LABELS.support,
+			hub.supportSlots,
+			temporaire.supportTaken,
+		],
+	];
+
+	for (const [customId, label, total, valeur] of roles) {
+		if (total > 0) modale.addLabelComponents(champDeRole(customId, label, total, valeur));
+	}
 
 	return modale;
 }
@@ -336,13 +358,21 @@ async function ouvrirModale(interaction: ButtonInteraction): Promise<void> {
 	if (!contexte) return;
 
 	if (interaction.customId === VoicePanelAction.CUSTOMIZE) {
-		// `showModal` est refuse apres un accuse de reception : la lecture des
-		// rangs doit tenir dans les trois secondes de l'interaction. Deux
-		// requetes indexees sur `hub_id`, comme pour `/preuve`.
-		const options = await voiceHubs.chargerOptions(contexte.temporaire.hubId);
+		// `showModal` est refuse apres un accuse de reception : la lecture du
+		// salon de creation doit tenir dans les trois secondes de
+		// l'interaction. Trois requetes indexees, comme pour `/preuve`.
+		const [hub, options] = await Promise.all([
+			prisma.voiceHub.findUnique({ where: { id: contexte.temporaire.hubId } }),
+			voiceHubs.chargerOptions(contexte.temporaire.hubId),
+		]);
+
+		if (!hub) {
+			await refuser(interaction, "Ce salon n'est plus géré par le bot.");
+			return;
+		}
 
 		await interaction.showModal(
-			modaleDePersonnalisation(contexte.salon, contexte.temporaire, options),
+			modaleDePersonnalisation(hub, contexte.temporaire, options),
 		);
 		return;
 	}
@@ -437,27 +467,22 @@ export async function handleVoiceModal(
 		? (interaction.fields.getStringSelectValues(VOICE_PLATFORM_SELECT)[0] ?? null)
 		: temporaire.platformId;
 
-	const limiteBrute = interaction.fields
-		.getTextInputValue(VOICE_LIMIT_INPUT)
-		.trim();
-	const limite = Number.parseInt(limiteBrute, 10);
-
-	if (limiteBrute && (Number.isNaN(limite) || limite < 0 || limite > 99)) {
-		await interaction.editReply({
-			content: "La limite de places doit être un nombre entre 0 et 99.",
-		});
+	const hub = await prisma.voiceHub.findUnique({ where: { id: temporaire.hubId } });
+	if (!hub) {
+		await refuser(interaction, "Ce salon n'est plus géré par le bot.");
 		return;
 	}
 
-	const sujetLibre = interaction.fields
-		.getTextInputValue(VOICE_TOPIC_INPUT)
-		.trim();
+	const places = lirePlaces(interaction, hub);
+	if ("erreur" in places) {
+		await interaction.editReply({ content: places.erreur });
+		return;
+	}
 
 	const resultat = await voiceHubs.appliquerPersonnalisation(salon, temporaire, {
 		rankId,
 		platformId,
-		topic: sujetLibre || null,
-		userLimit: limiteBrute ? limite : null,
+		...places.valeurs,
 	});
 
 	await voiceLog.salonPersonnalise(
@@ -481,6 +506,79 @@ export async function handleVoiceModal(
 			? `Salon mis à jour, sauf le rang. ${resultat.avertissement}`
 			: "Salon mis à jour.",
 	});
+}
+
+/**
+ * Places declarees dans la modale, ou le motif du refus.
+ *
+ * Trois regles, chacune pour une raison :
+ * - un role absent de la composition n'a pas de champ : le lire leverait une
+ *   erreur, c'est le salon de creation qui dit lesquels ont ete envoyes ;
+ * - **tout vide vaut « rien a annoncer »** et efface la ligne des roles. C'est
+ *   le seul chemin de retour vers un sujet sans composition, et il fallait
+ *   qu'il existe — sinon le premier remplissage serait definitif ;
+ * - une place au-dela du total est refusee plutot que ramenee au plafond :
+ *   « 3 tanks sur 2 » est une faute de frappe, et la corriger en silence
+ *   afficherait un chiffre que personne n'a saisi.
+ */
+export function lirePlaces(
+	interaction: Pick<ModalSubmitInteraction, "fields">,
+	hub: Pick<VoiceHub, "tankSlots" | "dpsSlots" | "supportSlots">,
+):
+	| { valeurs: { tankTaken: number | null; dpsTaken: number | null; supportTaken: number | null } }
+	| { erreur: string } {
+	const champs: [string, string, number][] = [
+		[VOICE_TANK_INPUT, VOICE_TEAM_ROLE_LABELS.tank, hub.tankSlots],
+		[VOICE_DPS_INPUT, VOICE_TEAM_ROLE_LABELS.dps, hub.dpsSlots],
+		[VOICE_SUPPORT_INPUT, VOICE_TEAM_ROLE_LABELS.support, hub.supportSlots],
+	];
+
+	// Trois etats a distinguer, et ils ne donnent pas le meme resultat :
+	// `undefined` = le role n'a pas de champ, `null` = champ laisse vide,
+	// un nombre = place declaree.
+	const lues: (number | null | undefined)[] = [];
+
+	for (const [customId, label, total] of champs) {
+		if (total <= 0) {
+			lues.push(undefined);
+			continue;
+		}
+
+		const brut = interaction.fields.getTextInputValue(customId).trim();
+		if (!brut) {
+			lues.push(null);
+			continue;
+		}
+
+		const valeur = Number.parseInt(brut, 10);
+		if (!/^\d+$/.test(brut) || Number.isNaN(valeur) || valeur > total) {
+			return {
+				erreur: `« ${label} » : indique un nombre entre 0 et ${total}.`,
+			};
+		}
+
+		lues.push(valeur);
+	}
+
+	const [tank, dps, support] = lues;
+
+	if (typeof tank !== "number" && typeof dps !== "number" && typeof support !== "number") {
+		return { valeurs: { tankTaken: null, dpsTaken: null, supportTaken: null } };
+	}
+
+	// Un champ laisse vide a cote d'un autre rempli vaut zero : la ligne des
+	// roles s'affiche en entier ou pas du tout. Un role que la composition ne
+	// propose pas reste `null` : il n'a jamais ete declare.
+	const declaree = (valeur: number | null | undefined) =>
+		valeur === undefined ? null : (valeur ?? 0);
+
+	return {
+		valeurs: {
+			tankTaken: declaree(tank),
+			dpsTaken: declaree(dps),
+			supportTaken: declaree(support),
+		},
+	};
 }
 
 /**

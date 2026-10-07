@@ -11,7 +11,11 @@ import {
 	MinLength,
 	ValidateIf,
 } from "class-validator";
-import { MAX_VOICE_STATUS_LENGTH, VoicePlacementMode } from "@anubis/shared";
+import {
+	MAX_VOICE_STATUS_LENGTH,
+	MAX_VOICE_TEAM_SLOTS,
+	VoicePlacementMode,
+} from "@anubis/shared";
 
 /**
  * Le gabarit doit contenir `{index}` : sans lui, tous les salons d'un meme
@@ -29,7 +33,54 @@ const SNOWFLAKE = /^\d{17,20}$/;
  */
 const STATUS_PATTERN_MAX = MAX_VOICE_STATUS_LENGTH;
 
-export class CreateVoiceHubDto {
+/**
+ * Composition d'equipe, commune a la creation et a la mise a jour.
+ *
+ * Classe de base plutot que six champs recopies : `class-validator` suit
+ * l'heritage, et une regle qui ne vaudrait que d'un cote serait un trou.
+ *
+ * Les emojis acceptent `null` explicitement — c'est le seul moyen de revenir a
+ * celui de repli, une chaine vide laisserait croire a un emoji pose.
+ */
+export class VoiceTeamCompositionDto {
+	@IsOptional()
+	@IsInt()
+	@Min(0)
+	@Max(MAX_VOICE_TEAM_SLOTS)
+	tankSlots?: number;
+
+	@IsOptional()
+	@IsInt()
+	@Min(0)
+	@Max(MAX_VOICE_TEAM_SLOTS)
+	dpsSlots?: number;
+
+	@IsOptional()
+	@IsInt()
+	@Min(0)
+	@Max(MAX_VOICE_TEAM_SLOTS)
+	supportSlots?: number;
+
+	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
+	@IsString()
+	@MaxLength(64)
+	tankEmoji?: string | null;
+
+	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
+	@IsString()
+	@MaxLength(64)
+	dpsEmoji?: string | null;
+
+	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
+	@IsString()
+	@MaxLength(64)
+	supportEmoji?: string | null;
+}
+
+export class CreateVoiceHubDto extends VoiceTeamCompositionDto {
 	@IsString()
 	@MinLength(1)
 	@MaxLength(100)
@@ -84,7 +135,7 @@ export class CreateVoiceHubDto {
 	enabled?: boolean;
 }
 
-export class UpdateVoiceHubDto {
+export class UpdateVoiceHubDto extends VoiceTeamCompositionDto {
 	@IsOptional()
 	@IsString()
 	@MinLength(1)

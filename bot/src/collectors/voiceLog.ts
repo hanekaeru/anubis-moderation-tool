@@ -9,6 +9,7 @@ import { LogChannelKey } from "@anubis/shared";
 import type { TemporaryVoiceChannel, VoiceHub } from "@anubis/shared/prisma";
 import * as colors from "../utils/constantes";
 import prisma from "../prisma";
+import { referenceMembre, roleDAlerte } from "../utils/mentions";
 import * as guildConfig from "./guildConfig";
 
 /**
@@ -18,25 +19,43 @@ import * as guildConfig from "./guildConfig";
  * ce qui s'y passe. Les mouvements dans les vocaux ordinaires n'y figurent pas
  * — ils rempliraient le salon sans rien apprendre sur le systeme de parties, et
  * restent de toute facon consultables sur la fiche de chaque membre.
+ *
+ * Les membres y sont designes par `referenceMembre` : c'est le reglage du
+ * serveur qui decide d'une mention ou d'un « pseudo | identifiant ». Un salon
+ * vocal anime produit une entree par arrivee et par depart, et personne ne
+ * demande a voir son nom surligne a chaque fois.
  */
 
-async function envoyer(guild: Guild, embed: EmbedBuilder): Promise<void> {
+/**
+ * Pose l'embed dans le journal des vocaux.
+ *
+ * `roleAlerte` n'est renseigne que pour un signalement : c'est la seule entree
+ * de ce journal qui appelle une action humaine, et la mention vit dans le
+ * contenu parce que Discord n'envoie aucune notification pour une mention
+ * posee dans un embed.
+ */
+async function envoyer(
+	guild: Guild,
+	embed: EmbedBuilder,
+	roleAlerte?: string | null,
+): Promise<void> {
 	const channelId = await guildConfig.getConfig(guild.id, LogChannelKey.VOICE);
 	if (!channelId) return;
 
 	const channel = await guild.channels.fetch(channelId).catch(() => null);
 	if (!channel?.isTextBased()) return;
 
-	await channel.send({ embeds: [embed] }).catch(() => undefined);
+	await channel
+		.send({
+			content: roleAlerte ? `<@&${roleAlerte}>` : undefined,
+			embeds: [embed],
+			allowedMentions: { roles: roleAlerte ? [roleAlerte] : [] },
+		})
+		.catch(() => undefined);
 }
 
 function base(titre: string, couleur: ColorResolvable): EmbedBuilder {
 	return new EmbedBuilder().setColor(couleur).setTitle(titre).setTimestamp();
-}
-
-/** Mention lisible meme si le compte a disparu du cache. */
-function membre(userId: string): string {
-	return `<@${userId}> | \`${userId}\``;
 }
 
 export async function salonCree(
@@ -50,7 +69,11 @@ export async function salonCree(
 		base("🔊 Salon temporaire créé", colors.success).addFields(
 			{ name: "Salon", value: `${salon} | \`${salon.id}\`` },
 			{ name: "Salon de création", value: hub.name, inline: true },
-			{ name: "Propriétaire", value: membre(proprietaire.id), inline: true },
+			{
+				name: "Propriétaire",
+				value: await referenceMembre(guild.id, proprietaire.id, proprietaire.username),
+				inline: true,
+			},
 		),
 	);
 }
@@ -87,7 +110,7 @@ export async function membreArrive(
 		guild,
 		base("➡️ Arrivée dans un salon temporaire", colors.info).addFields(
 			{ name: "Salon", value: `${salon}`, inline: true },
-			{ name: "Membre", value: membre(userId), inline: true },
+			{ name: "Membre", value: await referenceMembre(guild.id, userId), inline: true },
 		),
 	);
 }
@@ -102,7 +125,7 @@ export async function membreParti(
 		guild,
 		base("⬅️ Départ d'un salon temporaire", colors.info).addFields(
 			{ name: "Salon", value: `${nomSalon} | \`${channelId}\``, inline: true },
-			{ name: "Membre", value: membre(userId), inline: true },
+			{ name: "Membre", value: await referenceMembre(guild.id, userId), inline: true },
 		),
 	);
 }
@@ -117,8 +140,8 @@ export async function proprieteTransferee(
 		guild,
 		base("👑 Propriétaire changé", colors.warning).addFields(
 			{ name: "Salon", value: `${salon}` },
-			{ name: "Ancien", value: membre(ancienId), inline: true },
-			{ name: "Nouveau", value: membre(nouveauId), inline: true },
+			{ name: "Ancien", value: await referenceMembre(guild.id, ancienId), inline: true },
+			{ name: "Nouveau", value: await referenceMembre(guild.id, nouveauId), inline: true },
 		),
 	);
 }
@@ -136,7 +159,7 @@ export async function verrouChange(
 			colors.warning,
 		).addFields(
 			{ name: "Salon", value: `${salon}`, inline: true },
-			{ name: "Par", value: membre(auteurId), inline: true },
+			{ name: "Par", value: await referenceMembre(guild.id, auteurId), inline: true },
 		),
 	);
 }
@@ -151,8 +174,8 @@ export async function membreExpulse(
 		guild,
 		base("👢 Membre expulsé d'un salon", colors.danger).addFields(
 			{ name: "Salon", value: `${salon}` },
-			{ name: "Expulsé", value: membre(cibleId), inline: true },
-			{ name: "Par", value: membre(auteurId), inline: true },
+			{ name: "Expulsé", value: await referenceMembre(guild.id, cibleId), inline: true },
+			{ name: "Par", value: await referenceMembre(guild.id, auteurId), inline: true },
 		),
 	);
 }
@@ -179,11 +202,13 @@ export async function salonPersonnalise(
 		{ name: "Salon", value: `${salon} | \`${salon.id}\`` },
 		{ name: "Rang", value: choix.rank?.label ?? "—", inline: true },
 		{ name: "Plateforme", value: choix.platform?.label ?? "—", inline: true },
-		{ name: "Par", value: membre(auteurId), inline: true },
+		{ name: "Par", value: await referenceMembre(guild.id, auteurId), inline: true },
 	);
 
+	// Le sujet porte desormais la composition d'equipe : le reproduire tel quel
+	// est ce qui permet de relire dans le journal ce que le serveur a vu.
 	if (choix.sujet) {
-		embed.addFields({ name: "Sujet", value: choix.sujet.slice(0, 1024) });
+		embed.addFields({ name: "Sujet affiché", value: choix.sujet.slice(0, 1024) });
 	}
 
 	// Un rangement refuse merite d'etre visible du staff : c'est le signe
@@ -203,7 +228,9 @@ export async function salonPersonnalise(
  * Signalement depuis le panneau du salon.
  *
  * Volontairement en `danger` et sans mise en forme decorative : c'est le seul
- * message de ce journal qui appelle une action humaine.
+ * message de ce journal qui appelle une action humaine — et le seul qui
+ * interpelle le role configure, comme le fait l'ouverture d'un ticket. Un
+ * signalement que personne ne lit avant le lendemain ne sert a rien.
  */
 export async function problemeSignale(
 	guild: Guild,
@@ -213,8 +240,14 @@ export async function problemeSignale(
 ): Promise<void> {
 	const occupants = await prisma.voiceSession.findMany({
 		where: { guildId: guild.id, channelId: salon.id, leftAt: null },
-		select: { userId: true },
+		select: { userId: true, user: { select: { username: true } } },
 	});
+
+	const presents = await Promise.all(
+		occupants.map((occupant) =>
+			referenceMembre(guild.id, occupant.userId, occupant.user.username),
+		),
+	);
 
 	await envoyer(
 		guild,
@@ -222,13 +255,16 @@ export async function problemeSignale(
 			.setDescription(description.slice(0, 2000))
 			.addFields(
 				{ name: "Salon", value: `${salon} | \`${salon.id}\`` },
-				{ name: "Signalé par", value: membre(auteurId), inline: true },
+				{
+					name: "Signalé par",
+					value: await referenceMembre(guild.id, auteurId),
+					inline: true,
+				},
 				{
 					name: "Présents",
-					value:
-						occupants.map((occupant) => `<@${occupant.userId}>`).join(", ") ||
-						"(aucun)",
+					value: presents.join("\n").slice(0, 1024) || "(aucun)",
 				},
 			),
+		await roleDAlerte(guild.id),
 	);
 }

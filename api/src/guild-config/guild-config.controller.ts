@@ -8,14 +8,20 @@ import {
 	Param,
 	Patch,
 	Post,
+	Put,
 } from "@nestjs/common";
-import { Permission, type GuildConfigDto } from "@anubis/shared";
+import {
+	Permission,
+	type GuildConfigDto,
+	type MentionSettingsDto,
+} from "@anubis/shared";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../common/decorators/require-permissions.decorator";
 import type { AuthenticatedUser } from "../common/types";
 import {
 	CreateGuildConfigDto,
 	UpdateGuildConfigDto,
+	UpdateMentionSettingsDto,
 } from "./dto/guild-config.dto";
 import { GuildConfigService } from "./guild-config.service";
 
@@ -27,6 +33,28 @@ export class GuildConfigController {
 	@RequirePermissions(Permission.LOGS_READ)
 	list(): Promise<GuildConfigDto[]> {
 		return this.guildConfig.list();
+	}
+
+	/**
+	 * Lecture gardee par la permission d'**ecriture**, a dessein.
+	 *
+	 * Ces reglages decident de qui le bot interpelle sur le serveur : le
+	 * proprietaire les a voulus reserves aux administrateurs. Rien n'y est
+	 * consultable pour soi — la page n'existe que pour les changer.
+	 */
+	@Get("mentions")
+	@RequirePermissions(Permission.LOGS_WRITE)
+	getMentions(): Promise<MentionSettingsDto> {
+		return this.guildConfig.getMentionSettings();
+	}
+
+	@Put("mentions")
+	@RequirePermissions(Permission.LOGS_WRITE)
+	updateMentions(
+		@Body() dto: UpdateMentionSettingsDto,
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<MentionSettingsDto> {
+		return this.guildConfig.updateMentionSettings(dto, actor);
 	}
 
 	@Post()

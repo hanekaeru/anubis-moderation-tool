@@ -1,0 +1,108 @@
+<div class="page" [formGroup]="form">
+	<header class="page-header">
+		<div>
+			<h1>Rôles &amp; mentions</h1>
+			<p class="subtitle">
+				Les rôles que le bot connaît, qui il interpelle à l'ouverture d'un ticket, et la façon
+				dont les journaux désignent un membre. Réservé aux administrateurs.
+			</p>
+		</div>
+	</header>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Rôles du serveur</mat-card-title>
+			<mat-card-subtitle>
+				Identifiant Discord de chaque rôle. Pour le copier : clic droit sur le rôle dans les
+				paramètres du serveur, « Copier l'identifiant » (mode développeur activé). Laisser vide
+				retire le rôle de la liste.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<div class="roles">
+				@for (key of roleKeys; track key) {
+					<mat-form-field>
+						<mat-label>{{ roleLabels[key] }}</mat-label>
+						<input
+							matInput
+							[formControlName]="key"
+							inputmode="numeric"
+							placeholder="123456789012345678"
+							(blur)="onRoleCleared(key)"
+						/>
+						<mat-hint>{{ roleDescriptions[key] }}</mat-hint>
+						@if (form.controls[key].hasError('pattern')) {
+							<mat-error>Un identifiant Discord est fait de 17 à 20 chiffres.</mat-error>
+						}
+					</mat-form-field>
+				}
+			</div>
+		</mat-card-content>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Appeler le staff</mat-card-title>
+			<mat-card-subtitle>
+				Le rôle choisi est mentionné à l'ouverture d'un ticket — où il reçoit aussi l'accès au
+				salon — et quand un membre signale un problème depuis un salon vocal. Seuls les rôles
+				renseignés ci-dessus peuvent être choisis.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<mat-form-field>
+				<mat-label>Rôle interpellé</mat-label>
+				<mat-select formControlName="alertRoleKey">
+					<mat-option value="">Aucune mention</mat-option>
+					@for (key of mentionnables(); track key) {
+						<mat-option [value]="key">{{ roleLabels[key] }}</mat-option>
+					}
+				</mat-select>
+				<mat-hint>
+					Jusqu'ici personne n'était prévenu : le staff découvrait ticket et signalement en
+					passant.
+				</mat-hint>
+			</mat-form-field>
+		</mat-card-content>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Journaux</mat-card-title>
+			<mat-card-subtitle>
+				Un salon vocal animé produit une entrée par arrivée et par départ. Sans mention, les
+				journaux restent aussi lisibles et personne n'y voit son nom surligné.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<mat-slide-toggle formControlName="mentionMembers">
+				Mentionner les membres dans les journaux
+			</mat-slide-toggle>
+
+			<div class="apercu">
+				<span class="apercu-label">Aperçu</span>
+				<code>Membre : {{ preview() }}</code>
+			</div>
+
+			<p class="note">
+				L'identifiant reste écrit dans les deux cas : c'est lui qui permet de retrouver un compte
+				renommé, et il survit au départ du membre. Le réglage vaut aussi pour le message de prise
+				en charge d'un ticket.
+			</p>
+		</mat-card-content>
+	</mat-card>
+
+	<div class="actions">
+		<button
+			matButton="filled"
+			[disabled]="saving() || loading()"
+			(click)="save()"
+			*appHasPermission="Permission.LOGS_WRITE"
+		>
+			Enregistrer
+		</button>
+	</div>
+</div>

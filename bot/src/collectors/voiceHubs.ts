@@ -6,7 +6,11 @@ import {
 	type VoiceBasedChannel,
 	type VoiceState,
 } from "discord.js";
-import { renderVoiceStatus } from "@anubis/shared";
+import {
+	renderVoiceStatus,
+	voiceTeamSlots,
+	type VoiceTeamTaken,
+} from "@anubis/shared";
 import type {
 	TemporaryVoiceChannel,
 	VoiceHub,
@@ -172,6 +176,9 @@ export async function quitterSalonTemporaire(
 
 	if (!doyen) {
 		await supprimerSalon(guild, temporaire, "Salon vide.");
+		// Le salon qui vient de partir etait peut-etre le dernier de sa
+		// categorie : c'est le seul moment ou elle peut devenir vide.
+		await nettoyerCategoriesVides(guild);
 		return;
 	}
 
@@ -217,8 +224,8 @@ async function supprimerSalon(
  * `channelId`, pour que le reglage survive et que `/create_parties` le recree
  * a l'identique.
  */
-export async function oublierSalon(channelId: string): Promise<void> {
-	await prisma.temporaryVoiceChannel.updateMany({
+export async function oublierSalon(channelId: string): Promise<boolean> {
+	const { count } = await prisma.temporaryVoiceChannel.updateMany({
 		where: { channelId, closedAt: null },
 		data: { closedAt: new Date() },
 	});
@@ -227,6 +234,10 @@ export async function oublierSalon(channelId: string): Promise<void> {
 		where: { channelId },
 		data: { channelId: null },
 	});
+
+	// L'appelant s'en sert pour savoir s'il vaut la peine de chercher une
+	// categorie devenue vide : tout autre salon supprime n'en libere aucune.
+	return count > 0;
 }
 
 /**
@@ -293,6 +304,89 @@ async function categorieDAccueil(
 	}
 
 	return categorie;
+}
+
+/**
+ * Supprime les categories de rangement devenues vides.
+ *
+ * Elles naissent a la demande — un rang choisi pour la premiere fois, un salon
+ * qui atterrit dans « En attente » — et rien ne les refermait : un serveur
+ * finissait avec autant de categories vides que de rangs jamais rejoues.
+ *
+ * Seules celles que le bot gere lui-meme sont concernees, c'est-a-dire celles
+ * dont l'identifiant est retenu dans `VoiceHubRank.categoryId` ou
+ * `VoiceHub.landingCategoryId`. Une categorie faite a la main ne lui appartient
+ * pas, meme vide, meme homonyme.
+ *
+ * L'identifiant retenu est efface dans le meme mouvement : sans cela le bot
+ * continuerait de viser une categorie qui n'existe plus, la ou
+ * `garantirCategorieNommee` la recreera au prochain salon qui en aura besoin.
+ */
+export async function nettoyerCategoriesVides(guild: Guild): Promise<number> {
+	const [hubs, rangs] = await Promise.all([
+		prisma.voiceHub.findMany({
+			where: { guildId: guild.id, landingCategoryId: { not: null } },
+			select: { id: true, landingCategoryId: true },
+		}),
+		prisma.voiceHubRank.findMany({
+			where: { hub: { guildId: guild.id }, categoryId: { not: null } },
+			select: { id: true, categoryId: true },
+		}),
+	]);
+
+	// Deux salons de creation peuvent partager la meme categorie d'accueil : on
+	// la traite une fois, et on oublie l'identifiant des deux cotes.
+	const gerees = new Map<string, { hubs: string[]; rangs: string[] }>();
+	const retenir = (categoryId: string, cle: "hubs" | "rangs", id: string) => {
+		const entree = gerees.get(categoryId) ?? { hubs: [], rangs: [] };
+		entree[cle].push(id);
+		gerees.set(categoryId, entree);
+	};
+
+	for (const hub of hubs) retenir(hub.landingCategoryId!, "hubs", hub.id);
+	for (const rang of rangs) retenir(rang.categoryId!, "rangs", rang.id);
+
+	let supprimees = 0;
+
+	for (const [categoryId, proprietaires] of gerees) {
+		const salon = await guild.channels.fetch(categoryId).catch(() => null);
+
+		if (salon?.type === ChannelType.GuildCategory) {
+			if (salon.children.cache.size > 0) continue;
+
+			try {
+				await salon.delete("Catégorie de rangement vide.");
+				supprimees += 1;
+			} catch (err) {
+				// Une categorie qu'on ne peut pas supprimer reste utilisable : on
+				// garde son identifiant plutot que d'en creer une seconde.
+				console.error(
+					`[Vocaux] Suppression de la catégorie « ${salon.name} » refusée :`,
+					err,
+				);
+				continue;
+			}
+		}
+
+		// Le salon a disparu, ou n'est plus une categorie : l'identifiant retenu
+		// ne vaut plus rien dans les deux cas.
+		await Promise.all([
+			proprietaires.hubs.length
+				? prisma.voiceHub.updateMany({
+						where: { id: { in: proprietaires.hubs } },
+						data: { landingCategoryId: null },
+					})
+				: null,
+			proprietaires.rangs.length
+				? prisma.voiceHubRank.updateMany({
+						where: { id: { in: proprietaires.rangs } },
+						data: { categoryId: null },
+					})
+				: null,
+		]);
+	}
+
+	return supprimees;
 }
 
 /** Categorie d'un rang, creee d'apres son libelle si elle n'existe pas. */
@@ -390,14 +484,23 @@ export async function definirSujet(
 		});
 }
 
-/** Recompose le sujet a partir du gabarit du hub et des choix courants. */
+/**
+ * Recompose le sujet a partir du gabarit du hub et des choix courants.
+ *
+ * Le hub est passe en entier : il porte desormais la composition d'equipe,
+ * c'est-a-dire le « sur combien » de la ligne des roles.
+ */
 function composerSujet(
-	hub: Pick<VoiceHub, "statusPattern">,
+	hub: VoiceHub,
 	rank: VoiceHubRank | null,
 	platform: VoiceHubPlatform | null,
-	topic: string | null,
+	places: VoiceTeamTaken,
 ): string {
-	return renderVoiceStatus(hub.statusPattern, { rank, platform, topic });
+	return renderVoiceStatus(hub.statusPattern, {
+		rank,
+		platform,
+		team: voiceTeamSlots(hub, places),
+	});
 }
 
 /**
@@ -452,17 +555,14 @@ export async function sujetDuSalon(
 	});
 	if (!ligne) return "";
 
-	return composerSujet(ligne.hub, ligne.rank, ligne.platform, ligne.topic);
+	return composerSujet(ligne.hub, ligne.rank, ligne.platform, ligne);
 }
 
 /** Choix soumis par le proprietaire depuis la modale de personnalisation. */
-export interface ChoixPersonnalisation {
+export interface ChoixPersonnalisation extends VoiceTeamTaken {
 	/** `null` retire le rang : le salon repart dans la categorie de son hub. */
 	rankId: string | null;
 	platformId: string | null;
-	topic: string | null;
-	/** `null` laisse la limite inchangee. */
-	userLimit: number | null;
 }
 
 export interface ResultatPersonnalisation {
@@ -530,22 +630,18 @@ export async function appliquerPersonnalisation(
 		}
 	}
 
-	if (choix.userLimit !== null && choix.userLimit !== salon.userLimit) {
-		await salon
-			.setUserLimit(choix.userLimit, "Modifié par le propriétaire.")
-			.catch(() => undefined);
-	}
-
 	await prisma.temporaryVoiceChannel.update({
 		where: { id: temporaire.id },
 		data: {
 			rankId: rangApplique?.id ?? null,
 			platformId: platform?.id ?? null,
-			topic: choix.topic,
+			tankTaken: choix.tankTaken,
+			dpsTaken: choix.dpsTaken,
+			supportTaken: choix.supportTaken,
 		},
 	});
 
-	const sujet = composerSujet(hub, rangApplique, platform, choix.topic);
+	const sujet = composerSujet(hub, rangApplique, platform, choix);
 	await definirSujet(salon, sujet);
 
 	return { rank: rangApplique, platform, sujet, avertissement };
@@ -620,13 +716,19 @@ export async function reconcilierSalons(guild: Guild): Promise<void> {
 				temporaire.hub,
 				temporaire.rank,
 				temporaire.platform,
-				temporaire.topic,
+				temporaire,
 			),
 		);
 	}
 
-	if (fermes) {
-		console.log(`[Vocaux] ${guild.name} : ${fermes} salon(s) temporaire(s) clos.`);
+	// Apres la remise a plat, et pas avant : les salons replaces ci-dessus
+	// viennent peut-etre de vider la categorie qu'ils quittaient.
+	const videes = await nettoyerCategoriesVides(guild);
+
+	if (fermes || videes) {
+		console.log(
+			`[Vocaux] ${guild.name} : ${fermes} salon(s) temporaire(s) clos, ${videes} catégorie(s) vide(s) supprimée(s).`,
+		);
 	}
 }
 
@@ -714,6 +816,10 @@ export async function purgerSalonsTemporaires(guild: Guild): Promise<number> {
 	for (const temporaire of vivants) {
 		await supprimerSalon(guild, temporaire, "Purge manuelle des salons temporaires.");
 	}
+
+	// Une seule passe apres la boucle : la purge vide en general toutes les
+	// categories d'un coup, les parcourir a chaque salon n'apprendrait rien.
+	await nettoyerCategoriesVides(guild);
 
 	return vivants.length;
 }

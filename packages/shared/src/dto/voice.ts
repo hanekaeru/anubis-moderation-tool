@@ -33,13 +33,53 @@ export const DEFAULT_VOICE_NAME_PATTERN = "{name} #{index}";
  * proprietaire qui corrige son rang puis sa plateforme atteindrait le plafond
  * du premier coup.
  */
-export const DEFAULT_VOICE_STATUS_PATTERN = "{rang} {plateforme} · {sujet}";
+export const DEFAULT_VOICE_STATUS_PATTERN = "{rang} {plateforme} · {roles}";
 
 /** Plafond Discord du sujet d'un salon vocal. */
 export const MAX_VOICE_STATUS_LENGTH = 500;
 
-/** Plafond de la partie libre du sujet, saisie par le proprietaire. */
-export const MAX_VOICE_TOPIC_LENGTH = 200;
+/**
+ * Roles d'une composition d'equipe, dans l'ordre ou ils s'affichent.
+ *
+ * Trois valeurs figees : ce sont celles du jeu, pas un reglage. Les **places**
+ * de chaque role, elles, se reglent par salon de creation — un 5v5 ne porte
+ * qu'un tank la ou un 6v6 en porte deux.
+ */
+export const VoiceTeamRole = {
+	TANK: "tank",
+	DPS: "dps",
+	SUPPORT: "support",
+} as const;
+export type VoiceTeamRole = (typeof VoiceTeamRole)[keyof typeof VoiceTeamRole];
+
+export const VOICE_TEAM_ROLE_LABELS: Record<VoiceTeamRole, string> = {
+	tank: "Tank",
+	dps: "DPS",
+	support: "Support",
+};
+
+/**
+ * Emojis de repli des roles.
+ *
+ * Un serveur qui a ses propres emojis les renseigne par salon de creation ;
+ * ceux-ci servent tant que rien n'est pose, pour qu'un sujet reste lisible
+ * sans configuration prealable.
+ */
+export const DEFAULT_VOICE_TEAM_EMOJIS: Record<VoiceTeamRole, string> = {
+	tank: "🛡️",
+	dps: "⚔️",
+	support: "💉",
+};
+
+/** Composition par defaut d'un salon de creation : un 6v6. */
+export const DEFAULT_VOICE_TEAM_SLOTS: Record<VoiceTeamRole, number> = {
+	tank: 2,
+	dps: 2,
+	support: 2,
+};
+
+/** Places par role : au-dela, ce n'est plus une composition d'equipe. */
+export const MAX_VOICE_TEAM_SLOTS = 12;
 
 /** Nombre de rangs (ou de plateformes) proposables par salon de creation. */
 export const MAX_VOICE_HUB_OPTIONS = 25;
@@ -91,8 +131,16 @@ export interface VoiceHubDto {
 	channelId: Snowflake | null;
 	name: string;
 	namePattern: string;
-	/** `{rang}`, `{plateforme}` et `{sujet}` y sont remplaces. */
+	/** `{rang}`, `{plateforme}` et `{roles}` y sont remplaces. */
 	statusPattern: string;
+	/** Places de chaque role : le « sur combien » du sujet. 0 retire le role. */
+	tankSlots: number;
+	dpsSlots: number;
+	supportSlots: number;
+	/** Emoji de chaque role, `null` pour celui de repli de `@anubis/shared`. */
+	tankEmoji: string | null;
+	dpsEmoji: string | null;
+	supportEmoji: string | null;
 	/** Ce qui decide de la categorie des salons crees. */
 	placementMode: VoicePlacementMode;
 	/** Categorie ou atterrissent les salons crees, creee au besoin. */
@@ -111,7 +159,17 @@ export interface VoiceHubDto {
 	updatedAt: IsoDateString;
 }
 
-export interface CreateVoiceHubRequest {
+/** Reglages de composition, communs a la creation et a la mise a jour. */
+export interface VoiceTeamCompositionRequest {
+	tankSlots?: number;
+	dpsSlots?: number;
+	supportSlots?: number;
+	tankEmoji?: string | null;
+	dpsEmoji?: string | null;
+	supportEmoji?: string | null;
+}
+
+export interface CreateVoiceHubRequest extends VoiceTeamCompositionRequest {
 	name: string;
 	namePattern?: string;
 	statusPattern?: string;
@@ -124,7 +182,7 @@ export interface CreateVoiceHubRequest {
 	enabled?: boolean;
 }
 
-export interface UpdateVoiceHubRequest {
+export interface UpdateVoiceHubRequest extends VoiceTeamCompositionRequest {
 	name?: string;
 	namePattern?: string;
 	statusPattern?: string;
@@ -169,15 +227,100 @@ export interface VoiceStatusOption {
 	emoji?: string | null;
 }
 
+/** Un role de la composition tel qu'il s'ecrit : emoji, places prises, total. */
+export interface VoiceTeamSlot {
+	emoji: string;
+	taken: number;
+	total: number;
+}
+
 export interface VoiceStatusContext {
 	rank?: VoiceStatusOption | null;
 	platform?: VoiceStatusOption | null;
-	topic?: string | null;
+	/** `null` tant que le proprietaire n'a pas renseigne la composition. */
+	team?: Record<VoiceTeamRole, VoiceTeamSlot> | null;
+}
+
+/** Ce que porte un salon de creation pour composer la ligne des roles. */
+export interface VoiceTeamComposition {
+	tankSlots: number;
+	dpsSlots: number;
+	supportSlots: number;
+	tankEmoji: string | null;
+	dpsEmoji: string | null;
+	supportEmoji: string | null;
+}
+
+/** Places declarees par le proprietaire, `null` tant qu'il n'a rien declare. */
+export interface VoiceTeamTaken {
+	tankTaken: number | null;
+	dpsTaken: number | null;
+	supportTaken: number | null;
+}
+
+/**
+ * Compose la ligne des roles a partir du salon de creation et des places
+ * declarees.
+ *
+ * Partagee entre le bot (qui pousse le sujet) et le dashboard (qui le
+ * previsualise), pour la meme raison que `renderVoiceStatus` : recopiee aux
+ * deux endroits, elle finirait par diverger.
+ *
+ * Renvoie `null` tant qu'**aucune** place n'est declaree : un salon qui vient
+ * de naitre n'annonce pas une equipe vide, il n'annonce rien — exactement
+ * comme il n'annonce ni rang ni plateforme avant qu'on les choisisse.
+ */
+export function voiceTeamSlots(
+	composition: VoiceTeamComposition,
+	taken: VoiceTeamTaken,
+): Record<VoiceTeamRole, VoiceTeamSlot> | null {
+	if (
+		taken.tankTaken === null &&
+		taken.dpsTaken === null &&
+		taken.supportTaken === null
+	) {
+		return null;
+	}
+
+	return {
+		tank: {
+			emoji: composition.tankEmoji || DEFAULT_VOICE_TEAM_EMOJIS.tank,
+			taken: taken.tankTaken ?? 0,
+			total: composition.tankSlots,
+		},
+		dps: {
+			emoji: composition.dpsEmoji || DEFAULT_VOICE_TEAM_EMOJIS.dps,
+			taken: taken.dpsTaken ?? 0,
+			total: composition.dpsSlots,
+		},
+		support: {
+			emoji: composition.supportEmoji || DEFAULT_VOICE_TEAM_EMOJIS.support,
+			taken: taken.supportTaken ?? 0,
+			total: composition.supportSlots,
+		},
+	};
 }
 
 function formatOption(option?: VoiceStatusOption | null): string {
 	if (!option) return "";
 	return option.emoji ? `${option.emoji} ${option.label}` : option.label;
+}
+
+/**
+ * « 🛡️ 1/2 · ⚔️ 2/2 · 💉 2/2 ».
+ *
+ * Un role sans aucune place dans la composition est **omis** : un salon de
+ * creation regle sur 0 tank ne doit pas afficher « 0/0 », qui se lirait comme
+ * une equipe complete.
+ */
+function formatTeam(team?: Record<VoiceTeamRole, VoiceTeamSlot> | null): string {
+	if (!team) return "";
+
+	return Object.values(VoiceTeamRole)
+		.map((role) => team[role])
+		.filter((slot) => slot.total > 0)
+		.map((slot) => `${slot.emoji} ${slot.taken}/${slot.total}`)
+		.join(" · ");
 }
 
 /**
@@ -191,6 +334,10 @@ function formatOption(option?: VoiceStatusOption | null): string {
  * l'arrivee. Les jetons vides sont donc retires **avec les separateurs restes
  * orphelins**, sans quoi un salon sans plateforme afficherait « Or  · » suivi
  * de rien.
+ *
+ * `{sujet}` est accepte et rendu vide : c'est l'ancien texte libre, retire
+ * parce qu'il invitait au debordement. La migration a reecrit les gabarits
+ * existants, mais le champ reste modifiable a la main depuis le dashboard.
  */
 export function renderVoiceStatus(
 	pattern: string,
@@ -199,7 +346,8 @@ export function renderVoiceStatus(
 	const rendered = pattern
 		.replaceAll("{rang}", formatOption(context.rank))
 		.replaceAll("{plateforme}", formatOption(context.platform))
-		.replaceAll("{sujet}", context.topic?.trim() ?? "");
+		.replaceAll("{roles}", formatTeam(context.team))
+		.replaceAll("{sujet}", "");
 
 	return rendered
 		// Separateurs laisses par un jeton vide : « Or  · » ou « · PC ».

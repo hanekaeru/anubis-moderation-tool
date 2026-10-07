@@ -17,12 +17,15 @@ import {
 	DEFAULT_VOICE_LANDING_CATEGORY,
 	DEFAULT_VOICE_NAME_PATTERN,
 	DEFAULT_VOICE_STATUS_PATTERN,
-	MAX_VOICE_TOPIC_LENGTH,
+	DEFAULT_VOICE_TEAM_SLOTS,
+	MAX_VOICE_TEAM_SLOTS,
 	Permission,
+	VOICE_TEAM_ROLE_LABELS,
 	VOICE_PLACEMENT_MODE_DESCRIPTIONS,
 	VOICE_PLACEMENT_MODE_LABELS,
 	VoicePlacementMode,
 	renderVoiceStatus,
+	voiceTeamSlots,
 	type LiveVoiceDto,
 	type VoiceHubDto,
 	type VoiceHubPlatformDto,
@@ -78,7 +81,8 @@ export class VoicePage {
 	readonly placementDescriptions: Record<string, string> =
 		VOICE_PLACEMENT_MODE_DESCRIPTIONS;
 	readonly hubColumns = ['name', 'pattern', 'options', 'userLimit', 'state', 'actions'];
-	readonly maxTopicLength = MAX_VOICE_TOPIC_LENGTH;
+	readonly roleLabels = VOICE_TEAM_ROLE_LABELS;
+	readonly maxTeamSlots = MAX_VOICE_TEAM_SLOTS;
 
 	readonly loading = signal(true);
 	readonly saving = signal(false);
@@ -106,6 +110,21 @@ export class VoicePage {
 			[Validators.required, Validators.maxLength(100)],
 		],
 		userLimit: [0, [Validators.required, Validators.min(0), Validators.max(99)]],
+		tankSlots: [
+			DEFAULT_VOICE_TEAM_SLOTS.tank,
+			[Validators.required, Validators.min(0), Validators.max(MAX_VOICE_TEAM_SLOTS)],
+		],
+		dpsSlots: [
+			DEFAULT_VOICE_TEAM_SLOTS.dps,
+			[Validators.required, Validators.min(0), Validators.max(MAX_VOICE_TEAM_SLOTS)],
+		],
+		supportSlots: [
+			DEFAULT_VOICE_TEAM_SLOTS.support,
+			[Validators.required, Validators.min(0), Validators.max(MAX_VOICE_TEAM_SLOTS)],
+		],
+		tankEmoji: [''],
+		dpsEmoji: [''],
+		supportEmoji: [''],
 		position: [0, [Validators.required, Validators.min(0)]],
 		enabled: [true],
 	});
@@ -144,12 +163,25 @@ export class VoicePage {
 	 */
 	readonly apercuSujet = computed(() => {
 		const hub = this.editingHub();
-		const gabarit = this.formValue().statusPattern ?? DEFAULT_VOICE_STATUS_PATTERN;
+		this.formValue();
+		const raw = this.form.getRawValue();
 
-		return renderVoiceStatus(gabarit, {
+		return renderVoiceStatus(raw.statusPattern || DEFAULT_VOICE_STATUS_PATTERN, {
 			rank: hub?.ranks[0] ?? { label: 'Or' },
 			platform: hub?.platforms[0] ?? { label: 'PC' },
-			topic: 'cherche 2 joueurs',
+			// Une equipe a moitie remplie : c'est le cas le plus long a afficher,
+			// et celui qui montre a quoi sert le « sur combien ».
+			team: voiceTeamSlots(
+				{
+					tankSlots: raw.tankSlots,
+					dpsSlots: raw.dpsSlots,
+					supportSlots: raw.supportSlots,
+					tankEmoji: raw.tankEmoji.trim() || null,
+					dpsEmoji: raw.dpsEmoji.trim() || null,
+					supportEmoji: raw.supportEmoji.trim() || null,
+				},
+				{ tankTaken: 1, dpsTaken: raw.dpsSlots, supportTaken: 0 },
+			),
 		});
 	});
 
@@ -180,6 +212,12 @@ export class VoicePage {
 			placementMode: hub.placementMode,
 			landingCategoryName: hub.landingCategoryName,
 			userLimit: hub.userLimit,
+			tankSlots: hub.tankSlots,
+			dpsSlots: hub.dpsSlots,
+			supportSlots: hub.supportSlots,
+			tankEmoji: hub.tankEmoji ?? '',
+			dpsEmoji: hub.dpsEmoji ?? '',
+			supportEmoji: hub.supportEmoji ?? '',
 			position: hub.position,
 			enabled: hub.enabled,
 		});
@@ -194,6 +232,12 @@ export class VoicePage {
 			placementMode: VoicePlacementMode.RANK_CATEGORY,
 			landingCategoryName: DEFAULT_VOICE_LANDING_CATEGORY,
 			userLimit: 0,
+			tankSlots: DEFAULT_VOICE_TEAM_SLOTS.tank,
+			dpsSlots: DEFAULT_VOICE_TEAM_SLOTS.dps,
+			supportSlots: DEFAULT_VOICE_TEAM_SLOTS.support,
+			tankEmoji: '',
+			dpsEmoji: '',
+			supportEmoji: '',
 			position: 0,
 			enabled: true,
 		});
@@ -288,9 +332,18 @@ export class VoicePage {
 		const raw = this.form.getRawValue();
 		const id = this.editingId();
 
+		// Un champ emoji vide vaut « celui de repli », et cela s'ecrit `null` :
+		// une chaine vide en base se lirait comme un emoji pose.
+		const payload = {
+			...raw,
+			tankEmoji: raw.tankEmoji.trim() || null,
+			dpsEmoji: raw.dpsEmoji.trim() || null,
+			supportEmoji: raw.supportEmoji.trim() || null,
+		};
+
 		const request$ = id
-			? this.voiceApi.updateHub(id, raw)
-			: this.voiceApi.createHub(raw);
+			? this.voiceApi.updateHub(id, payload)
+			: this.voiceApi.createHub(payload);
 
 		request$.subscribe({
 			next: () => {
