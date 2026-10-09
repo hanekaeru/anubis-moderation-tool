@@ -1,15 +1,9 @@
-.tabs {
-	margin-bottom: 16px;
-}
-
 .banner {
-	margin-bottom: 16px;
 
 	mat-card-content {
 		display: flex;
 		align-items: center;
-		gap: 16px;
-		padding-top: 8px;
+		gap: var(--space-4);
 
 		div {
 			flex: 1;
@@ -22,21 +16,16 @@
 	}
 }
 
-mat-card + mat-card {
-	margin-top: 16px;
-}
-
 mat-card-content {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
-	padding-top: 8px;
+	gap: var(--space-1);
 }
 
 .permission {
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: var(--space-3);
 	padding: 4px 0;
 	flex-wrap: wrap;
 }
@@ -64,6 +53,5 @@ code {
 .actions {
 	display: flex;
 	justify-content: flex-end;
-	gap: 8px;
-	margin-top: 16px;
+	gap: var(--space-2);
 }

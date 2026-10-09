@@ -84,6 +84,21 @@ export class VoicePage {
 	readonly roleLabels = VOICE_TEAM_ROLE_LABELS;
 	readonly maxTeamSlots = MAX_VOICE_TEAM_SLOTS;
 
+	/**
+	 * Les jetons du gabarit, montres plutot que decrits.
+	 *
+	 * Une phrase qui enumere « {rang}, {rang-icone}, {plateforme}… » ne dit pas
+	 * ce que chacun produit, et c'est precisement la question qu'on se pose en
+	 * remplissant le champ.
+	 */
+	readonly jetons = [
+		{ cle: '{rang}', rend: 'Icône et nom du rang', exemple: '🥇 Or' },
+		{ cle: '{rang-icone}', rend: 'Icône du rang seule', exemple: '🥇' },
+		{ cle: '{plateforme}', rend: 'Icône et nom de la plateforme', exemple: '🖥️ PC' },
+		{ cle: '{plateforme-icone}', rend: 'Icône de la plateforme seule', exemple: '🖥️' },
+		{ cle: '{roles}', rend: "Composition d'équipe", exemple: '🛡️ 1/2 · ⚔️ 2/2 · 💉 0/2' },
+	];
+
 	readonly loading = signal(true);
 	readonly saving = signal(false);
 	readonly hubs = signal<VoiceHubDto[]>([]);
@@ -167,8 +182,11 @@ export class VoicePage {
 		const raw = this.form.getRawValue();
 
 		return renderVoiceStatus(raw.statusPattern || DEFAULT_VOICE_STATUS_PATTERN, {
-			rank: hub?.ranks[0] ?? { label: 'Or' },
-			platform: hub?.platforms[0] ?? { label: 'PC' },
+			// Les valeurs de repli portent un emoji : sans lui, les jetons réduits
+			// à l'icône retomberaient sur le libellé et l'aperçu ne montrerait pas
+			// ce que le gabarit produit réellement.
+			rank: hub?.ranks[0] ?? { label: 'Or', emoji: '🥇' },
+			platform: hub?.platforms[0] ?? { label: 'PC', emoji: '🖥️' },
 			// Une equipe a moitie remplie : c'est le cas le plus long a afficher,
 			// et celui qui montre a quoi sert le « sur combien ».
 			team: voiceTeamSlots(

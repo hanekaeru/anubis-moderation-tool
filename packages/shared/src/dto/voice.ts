@@ -307,6 +307,20 @@ function formatOption(option?: VoiceStatusOption | null): string {
 }
 
 /**
+ * L'option reduite a son icone, pour les gabarits qui manquent de place.
+ *
+ * **Repli sur le libelle quand l'option n'a pas d'emoji.** Rendre vide serait
+ * la seule lecture coherente avec le nom du jeton, mais elle ferait disparaitre
+ * le rang du sujet sans que personne ne comprenne pourquoi : l'information
+ * compte plus que la promesse de compacite. Le dashboard signale les options
+ * sans emoji pour que le cas se corrige a la source.
+ */
+function formatOptionIcone(option?: VoiceStatusOption | null): string {
+	if (!option) return "";
+	return option.emoji || option.label;
+}
+
+/**
  * « 🛡️ 1/2 · ⚔️ 2/2 · 💉 2/2 ».
  *
  * Un role sans aucune place dans la composition est **omis** : un salon de
@@ -335,6 +349,13 @@ function formatTeam(team?: Record<VoiceTeamRole, VoiceTeamSlot> | null): string 
  * orphelins**, sans quoi un salon sans plateforme afficherait « Or  · » suivi
  * de rien.
  *
+ * Chaque option existe en **deux jetons** : `{rang}` rend « 🥇 Or » et
+ * `{rang-icone}` rend « 🥇 ». Le sujet d'un salon vocal est court et Discord le
+ * tronque sans prevenir ; pouvoir retirer les libelles sans renoncer a
+ * l'information est ce qui permet d'y faire tenir la composition d'equipe.
+ * Les deux formes se melangent — rien n'empeche « 🥇 Or » suivi de la seule
+ * icone de plateforme — et l'ordre reste celui du gabarit.
+ *
  * `{sujet}` est accepte et rendu vide : c'est l'ancien texte libre, retire
  * parce qu'il invitait au debordement. La migration a reecrit les gabarits
  * existants, mais le champ reste modifiable a la main depuis le dashboard.
@@ -344,6 +365,8 @@ export function renderVoiceStatus(
 	context: VoiceStatusContext,
 ): string {
 	const rendered = pattern
+		.replaceAll("{rang-icone}", formatOptionIcone(context.rank))
+		.replaceAll("{plateforme-icone}", formatOptionIcone(context.platform))
 		.replaceAll("{rang}", formatOption(context.rank))
 		.replaceAll("{plateforme}", formatOption(context.platform))
 		.replaceAll("{roles}", formatTeam(context.team))

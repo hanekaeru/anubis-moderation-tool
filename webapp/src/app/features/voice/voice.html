@@ -236,12 +236,28 @@
 					<mat-label>Sujet des salons créés</mat-label>
 					<input matInput formControlName="statusPattern" />
 					<mat-hint>
-						{{ '{rang}' }}, {{ '{plateforme}' }} et {{ '{roles}' }} sont remplacés. Affiché sous le
-						nom du salon sur Discord — c'est là que vivent le rang et la plateforme, le nom des
-						salons ne changeant jamais.
+						Affiché sous le nom du salon sur Discord — c'est là que vivent le rang et la
+						plateforme, le nom des salons ne changeant jamais.
 					</mat-hint>
 				</mat-form-field>
 			</div>
+
+			<table class="jetons">
+				<caption>
+					Jetons remplacés dans le sujet. Chaque option existe en version complète et en
+					version réduite à son icône : le sujet est court, et Discord le tronque sans
+					prévenir.
+				</caption>
+				<tbody>
+					@for (jeton of jetons; track jeton.cle) {
+						<tr>
+							<th scope="row"><code>{{ jeton.cle }}</code></th>
+							<td>{{ jeton.rend }}</td>
+							<td class="muted">{{ jeton.exemple }}</td>
+						</tr>
+					}
+				</tbody>
+			</table>
 
 			<h3 class="sous-titre">Composition d'équipe</h3>
 			<p class="aide">

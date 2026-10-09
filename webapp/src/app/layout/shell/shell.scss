@@ -43,9 +43,11 @@
    cliquable de plus. Petit, en capitales espacees et dans la teinte la plus
    recessive, il se lit comme une etiquette et jamais comme une entree — ce
    qu'un titre de la meme taille que les liens laisserait croire. */
+/* L'intertitre se detache nettement plus de la section precedente que de ses
+   propres entrees : c'est cet ecart asymetrique qui fait lire le groupe. */
 .nav-section {
 	margin: 0;
-	padding: 16px 12px 6px;
+	padding: var(--space-5) var(--space-3) var(--space-2);
 	font-size: 0.66rem;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -56,7 +58,7 @@
 /* Le premier intertitre suit immediatement le trait sous la marque : la marge
    haute ferait un blanc de trop a cet endroit precis. */
 .nav-section:first-of-type {
-	padding-top: 10px;
+	padding-top: var(--space-3);
 }
 
 /* La navigation est ramenee a des lignes compactes et arrondies : c'est ce
@@ -66,12 +68,12 @@
 	padding: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
+	gap: var(--space-1);
 }
 
 .mat-mdc-list-item {
 	border-radius: 8px;
-	height: 38px !important;
+	height: 40px !important;
 	color: var(--anubis-text-2);
 
 	.mat-mdc-list-item-title {

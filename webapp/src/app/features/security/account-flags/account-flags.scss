@@ -1,6 +1,6 @@
 .filters {
 	display: flex;
-	gap: 12px;
+	gap: var(--space-4);
 	margin-bottom: 12px;
 
 	mat-form-field {

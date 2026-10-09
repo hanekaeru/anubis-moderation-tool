@@ -1,15 +1,14 @@
+/* Pas de `margin-top` : le rythme entre sections vient de `.page > * + *`. */
 .charts {
 	display: grid;
-	gap: 16px;
+	gap: var(--space-5);
 	grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-	margin-top: 24px;
 }
 
 .lists {
 	display: grid;
-	gap: 16px;
+	gap: var(--space-5);
 	grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-	margin-top: 24px;
 }
 
 .feed {
@@ -20,7 +19,7 @@
 	li {
 		display: flex;
 		align-items: flex-start;
-		gap: 12px;
+		gap: var(--space-3);
 		padding: 12px 0;
 		border-bottom: 1px solid var(--mat-sys-outline-variant);
 	}
@@ -39,7 +38,7 @@
 .feed-body {
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
+	gap: var(--space-1);
 	min-width: 0;
 }
 

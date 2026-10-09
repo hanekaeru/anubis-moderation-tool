@@ -100,6 +100,45 @@ describe("renderVoiceStatus", () => {
 		expect(renderVoiceStatus(DEFAULT_VOICE_STATUS_PATTERN, {})).toBe("");
 	});
 
+	// Le sujet d'un salon est court : pouvoir retirer les libelles sans perdre
+	// l'information est ce qui permet d'y faire tenir la composition.
+	describe("jetons reduits a l'icone", () => {
+		it("rend la seule icone", () => {
+			expect(
+				renderVoiceStatus("{rang-icone} {plateforme-icone}", { rank, platform: { label: "PC", emoji: "🖥️" } }),
+			).toBe("🥇 🖥️");
+		});
+
+		it("se melange avec la forme complete", () => {
+			expect(
+				renderVoiceStatus("{rang} · {plateforme-icone}", { rank, platform: { label: "PC", emoji: "🖥️" } }),
+			).toBe("🥇 Or · 🖥️");
+		});
+
+		// Rendre vide serait coherent avec le nom du jeton, mais ferait
+		// disparaitre le rang sans que personne ne comprenne pourquoi.
+		it("retombe sur le libelle quand l'option n'a pas d'emoji", () => {
+			expect(renderVoiceStatus("{rang-icone}", { rank: { label: "Or", emoji: null } })).toBe("Or");
+		});
+
+		it("reste vide quand l'option elle-meme est absente", () => {
+			expect(renderVoiceStatus("{rang-icone} · {roles}", { team })).toBe(
+				"🛡️ 1/2 · ⚔️ 2/2 · 💉 0/2",
+			);
+		});
+
+		// `{rang}` n'est pas un sous-ensemble de `{rang-icone}` : les deux jetons
+		// sont independants, et l'ordre de substitution n'a pas a etre garde.
+		it("ne laisse aucun fragment de jeton derriere lui", () => {
+			const rendu = renderVoiceStatus("{rang-icone}{plateforme-icone}{rang}{plateforme}", {
+				rank,
+				platform,
+			});
+			expect(rendu).not.toContain("{");
+			expect(rendu).not.toContain("icone}");
+		});
+	});
+
 	// Le texte libre a disparu, mais un gabarit modifie a la main depuis le
 	// dashboard peut encore porter son jeton : il ne doit rien afficher.
 	it("rend vide l'ancien jeton de sujet libre", () => {

@@ -25,7 +25,11 @@ html {
 			// couleurs reellement affichees sont surchargees plus bas.
 			color: (primary: mat.$azure-palette, tertiary: mat.$blue-palette),
 			typography: Inter,
-			density: -2,
+			// `-2` est le cran le plus serre de Material : chaque bouton tombait a
+			// 32 px et chaque ligne de table a 44 px. `-1` garde une interface
+			// compacte et rend une dizaine de pixels a chaque controle — c'est le
+			// seul reglage qui aere toutes les pages d'un coup.
+			density: -1,
 		)
 	);
 }
@@ -61,6 +65,52 @@ html {
 
 	--anubis-warning-soft: rgb(245 158 11 / 16%);
 	--anubis-warning-text: #fcd34d;
+}
+
+/* --- Espacement ------------------------------------------------------------
+ * Une echelle unique, et sept valeurs : tout ce qui separe deux choses dans
+ * cette application sort de cette liste. Avant, chaque page inventait les
+ * siennes (2, 6, 10, 14, 24 px melanges), et l'interface paraissait tassee
+ * sans qu'on puisse dire ou.
+ *
+ * **La regle qui compte est l'echelle de proximite** : l'ecart doit croitre
+ * avec la distance *semantique* entre deux elements, et un niveau ne doit
+ * jamais valoir autant que celui du dessus.
+ *
+ *   --space-1   4px   a l'interieur d'un element     icone <-> son libelle
+ *   --space-2   8px   elements d'une meme suite      pastilles d'une ligne
+ *   --space-3  12px   controles d'un meme groupe     boutons d'une barre
+ *   --space-4  16px   freres d'un meme bloc          champs d'un formulaire
+ *   --space-5  24px   blocs d'une meme carte         titre <-> contenu
+ *   --space-6  32px   sections d'une page            carte <-> carte
+ *   --space-7  48px   regions                        bas de page
+ *
+ * Deux corollaires :
+ *   - une carte, un encadre, un panneau respirent a `--space-5` a l'interieur
+ *     et se separent de leur voisin a `--space-6`. L'ecart exterieur est
+ *     toujours plus grand que l'interieur, sinon le groupe ne se lit plus
+ *     comme un groupe ;
+ *   - un texte suivi ne depasse jamais `--measure`. Un sous-titre etire sur
+ *     1400 px reste illisible quelle que soit la place qu'on lui donne autour
+ *     — l'oeil perd la ligne en revenant a la marge.
+ */
+
+:root {
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 24px;
+	--space-6: 32px;
+	--space-7: 48px;
+
+	/* Longueur de ligne confortable pour du texte suivi. */
+	--measure: 72ch;
+
+	/* Interlignes : du texte a lire respire plus qu'un titre ou qu'une cellule. */
+	--line-tight: 1.3;
+	--line-normal: 1.5;
+	--line-prose: 1.65;
 }
 
 :root[data-theme='light'] {
@@ -163,7 +213,22 @@ body {
 	/* Interlettrage legerement resserre : c'est ce qui distingue une interface
 	   dense d'une interface simplement petite. */
 	letter-spacing: -0.006em;
+	/* `normal` laissait Inter a ~1.2 : des lignes qui se touchent presque. */
+	line-height: var(--line-normal);
 	-webkit-font-smoothing: antialiased;
+}
+
+/* Les titres se resserrent, le texte suivi s'ouvre : l'inverse donnerait des
+   titres mous et des paragraphes etouffes. */
+h1,
+h2,
+h3,
+h4 {
+	line-height: var(--line-tight);
+}
+
+p {
+	line-height: var(--line-prose);
 }
 
 * {
@@ -185,6 +250,49 @@ table,
 	border-radius: 12px;
 }
 
+/* --- Respiration des cartes -------------------------------------------------
+ * Material donne 16 px a l'en-tete et au contenu, et colle les deux l'un a
+ * l'autre. Une carte de reglages y perdait toute hierarchie : le titre, le
+ * sous-titre explicatif et les champs formaient un seul pate.
+ *
+ * L'interieur passe donc a `--space-5` et l'en-tete se detache du contenu de
+ * `--space-4`. L'ecart entre deux cartes (`--space-6`) reste superieur, pour
+ * que chaque carte continue de se lire comme un ensemble.
+ *
+ * Le selecteur porte **deux classes** a dessein : les styles de `mat-card`
+ * sont injectes dans le document apres cette feuille, et a specificite egale
+ * c'est le dernier arrive qui gagne. Avec une seule classe, le rembourrage de
+ * Material restait a 16 px sans rien signaler.
+ */
+.mat-mdc-card .mat-mdc-card-header {
+	padding: var(--space-5) var(--space-5) 0;
+}
+
+.mat-mdc-card .mat-mdc-card-content {
+	padding: var(--space-5);
+
+	&:last-child {
+		padding-bottom: var(--space-5);
+	}
+}
+
+/* Un en-tete deja espace du bord : le contenu n'a besoin que de s'en detacher. */
+.mat-mdc-card .mat-mdc-card-header + .mat-mdc-card-content {
+	padding-top: var(--space-4);
+}
+
+.mat-mdc-card .mat-mdc-card-actions {
+	padding: 0 var(--space-5) var(--space-5);
+	gap: var(--space-3);
+}
+
+/* Le sous-titre d'une carte est du texte a lire, pas une etiquette : il suit
+   la regle de longueur de ligne comme n'importe quel paragraphe. */
+.mat-mdc-card-subtitle {
+	max-width: var(--measure);
+	line-height: var(--line-prose);
+}
+
 /* Les en-tetes de table gagnent a se detacher par la casse et la couleur
    plutot que par le gras, qui alourdit une grille dense. */
 .mat-mdc-header-cell {
@@ -203,6 +311,21 @@ table,
 .mat-mdc-cell {
 	border-bottom-color: var(--anubis-border);
 	font-size: 0.875rem;
+}
+
+/* Une ligne qui porte deux etages d'information (pseudo + identifiant,
+   plusieurs pastilles de role) debordait de la hauteur que lui laissait la
+   densite. Un plancher, pas une hauteur fixe : la ligne grandit encore quand
+   son contenu l'exige. */
+.mat-mdc-row,
+.mat-mdc-header-row {
+	min-height: 52px;
+}
+
+.mat-mdc-cell,
+.mat-mdc-header-cell {
+	padding-top: var(--space-2);
+	padding-bottom: var(--space-2);
 }
 
 .mat-mdc-paginator {
@@ -261,8 +384,11 @@ table,
 
 /* --- Utilitaires partages -------------------------------------------------- */
 
+/* Le cadre de page : `--space-6` sur les cotes, `--space-5` en haut, et
+   `--space-7` en bas pour que le dernier bloc ne colle pas au bord de la
+   fenetre quand on finit de derouler. */
 .page {
-	padding: 28px 32px 48px;
+	padding: var(--space-5) var(--space-6) var(--space-7);
 	max-width: 1600px;
 	margin: 0 auto;
 }
@@ -270,10 +396,11 @@ table,
 .page-header {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 16px;
+	gap: var(--space-4);
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 24px;
+	/* Pas de `margin-bottom` : c'est `.page > * + *` qui separe l'en-tete de la
+	   suite. Deux mecanismes pour un seul ecart, et il double. */
 
 	h1 {
 		margin: 0;
@@ -283,24 +410,38 @@ table,
 	}
 
 	.subtitle {
-		margin: 4px 0 0;
+		margin: var(--space-2) 0 0;
+		max-width: var(--measure);
 		color: var(--anubis-text-2);
 		font-size: 0.875rem;
+		line-height: var(--line-prose);
 	}
 }
 
+/* Les tuiles de chiffres sont des cartes : elles se separent comme des cartes.
+   `14px` les faisait paraitre collees les unes aux autres. */
 .card-grid {
 	display: grid;
-	gap: 14px;
-	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: var(--space-5);
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
+/* Une barre de filtres est un groupe de controles : `--space-3` entre eux,
+   `--space-6` avant ce qu'ils filtrent — l'ecart dit lequel agit sur l'autre. */
 .filters {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 10px;
+	gap: var(--space-3);
 	align-items: flex-start;
-	margin-bottom: 16px;
+}
+
+/* Texte explicatif d'une page ou d'un bloc, partout ou il apparait. */
+.description,
+.hint,
+.aide,
+.note {
+	max-width: var(--measure);
+	line-height: var(--line-prose);
 }
 
 /* Une table large doit defiler dans son propre conteneur, jamais faire
@@ -319,10 +460,28 @@ table,
 }
 
 .empty-state {
-	padding: 56px 24px;
+	padding: var(--space-7) var(--space-5);
 	text-align: center;
 	color: var(--anubis-text-3);
 	font-size: 0.9rem;
+	line-height: var(--line-prose);
+}
+
+/* --- Rythme vertical d'une page --------------------------------------------
+ * Les sections d'une page se separent de `--space-6`, **declare ici une seule
+ * fois**. Avant, chaque page portait ses propres `margin-top` (16, 20, 24 px
+ * selon l'auteur) et l'ecart entre deux cartes changeait d'un ecran a l'autre.
+ *
+ * `* + *` plutot que `margin-bottom` sur chacun : le dernier bloc ne pousse
+ * alors aucun blanc superflu avant le bas de page, qui a deja le sien.
+ *
+ * Une page qui veut un ecart different le declare sur l'element concerne —
+ * sa regle de composant l'emporte, Angular ajoutant son attribut d'encapsulation
+ * a la specificite. Ce qui reste interdit, c'est de **remettre le meme ecart**
+ * a la main : c'est ainsi qu'on finit avec trois valeurs pour une seule idee.
+ */
+.page > * + * {
+	margin-top: var(--space-6);
 }
 
 .snack-success {

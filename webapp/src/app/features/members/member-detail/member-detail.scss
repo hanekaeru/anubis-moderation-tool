@@ -1,11 +1,9 @@
 .score-banner {
-	margin-bottom: 16px;
 
 	mat-card-content {
 		display: flex;
 		align-items: center;
-		gap: 16px;
-		padding-top: 8px;
+		gap: var(--space-4);
 
 		div {
 			flex: 1;
@@ -35,14 +33,12 @@
 }
 
 .flags-banner {
-	margin-bottom: 16px;
 	border-color: var(--mat-sys-error);
 
 	mat-card-content {
 		display: flex;
 		align-items: center;
-		gap: 16px;
-		padding-top: 8px;
+		gap: var(--space-4);
 
 		mat-icon {
 			color: var(--mat-sys-error);
@@ -65,9 +61,8 @@
 	grid-template-areas:
 		'back back'
 		'identity actions';
-	gap: 16px;
+	gap: var(--space-4);
 	align-items: flex-start;
-	margin-bottom: 24px;
 }
 
 .back {
@@ -78,7 +73,7 @@
 .identity {
 	grid-area: identity;
 	display: flex;
-	gap: 20px;
+	gap: var(--space-5);
 	align-items: flex-start;
 	min-width: 0;
 }
@@ -133,7 +128,7 @@
 .roles {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: var(--space-2);
 	margin-top: 12px;
 }
 
@@ -148,12 +143,8 @@
 .header-actions {
 	grid-area: actions;
 	display: flex;
-	gap: 8px;
+	gap: var(--space-2);
 	flex-wrap: wrap;
-}
-
-.counters {
-	margin-bottom: 24px;
 }
 
 .tabs {
@@ -176,7 +167,7 @@
 
 	li {
 		display: flex;
-		gap: 14px;
+		gap: var(--space-4);
 		padding-bottom: 20px;
 		position: relative;
 	}
@@ -260,7 +251,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
+	gap: var(--space-3);
 	margin-bottom: 16px;
 }
 
@@ -285,7 +276,7 @@
 .note-head {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--space-1);
 	font-size: 0.8rem;
 	color: var(--mat-sys-on-surface-variant);
 }
@@ -337,7 +328,7 @@
 .record-head {
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: var(--space-3);
 }
 
 .record-title {
@@ -400,7 +391,7 @@
 .evidence {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--space-1);
 	margin-top: 8px;
 	font-size: 0.82rem;
 	color: var(--mat-sys-primary);
@@ -423,7 +414,7 @@
 
 .charts {
 	display: grid;
-	gap: 16px;
+	gap: var(--space-5);
 	grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
 	margin-top: 16px;
 }
@@ -452,6 +443,6 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 8px;
+	gap: var(--space-2);
 	margin-top: 10px;
 }
