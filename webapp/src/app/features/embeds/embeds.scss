@@ -1,16 +1,8 @@
-mat-card + mat-card {
-	margin-top: 16px;
-}
-
-mat-card-content {
-	padding-top: 8px;
-}
-
 /* Formulaire et apercu cote a cote sur grand ecran, empiles sinon : l'apercu
    passe sous le formulaire plutot que de retrecir jusqu'a mentir sur le rendu. */
 .composer {
 	display: grid;
-	gap: 16px;
+	gap: var(--space-5);
 	grid-template-columns: minmax(0, 3fr) minmax(340px, 2fr);
 	align-items: start;
 
@@ -31,13 +23,13 @@ mat-card-content {
 form {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: var(--space-3);
 }
 
 .row {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 12px;
+	gap: var(--space-4);
 	align-items: flex-start;
 
 	mat-form-field {
@@ -57,7 +49,7 @@ form {
 .color-field {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: var(--space-1);
 	padding-top: 6px;
 
 	label {
@@ -80,7 +72,7 @@ form {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
+	gap: var(--space-3);
 	margin-top: 4px;
 
 	h3 {
@@ -93,14 +85,14 @@ form {
 .fields {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: var(--space-2);
 }
 
 .field-row {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 12px;
+	gap: var(--space-4);
 	padding: 10px 12px;
 	border: 1px solid var(--mat-sys-outline-variant);
 	border-radius: 12px;
@@ -129,7 +121,7 @@ form {
 .actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: var(--space-2);
 }
 
 /* --- Apercu ---------------------------------------------------------------- */
@@ -162,7 +154,7 @@ form {
 
 .embed-body {
 	display: flex;
-	gap: 12px;
+	gap: var(--space-3);
 	align-items: flex-start;
 }
 
@@ -174,7 +166,7 @@ form {
 .embed-author {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--space-2);
 	margin-bottom: 8px;
 	font-size: 0.8rem;
 	font-weight: 600;
@@ -253,7 +245,7 @@ form {
 .embed-footer {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--space-2);
 	margin-top: 10px;
 	font-size: 0.75rem;
 	color: #b5bac1;
@@ -269,7 +261,7 @@ form {
 /* --- Liste ----------------------------------------------------------------- */
 
 .filters .row {
-	gap: 4px;
+	gap: var(--space-1);
 }
 
 .filters button.active {
@@ -283,7 +275,7 @@ form {
 	padding: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: var(--space-3);
 
 	> li {
 		padding: 12px 14px;
@@ -295,7 +287,7 @@ form {
 .head {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--space-2);
 	flex-wrap: wrap;
 }
 
@@ -350,7 +342,7 @@ form {
 .row-actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 4px;
+	gap: var(--space-1);
 	margin-top: 10px;
 }
 

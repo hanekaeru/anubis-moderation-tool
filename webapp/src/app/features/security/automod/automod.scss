@@ -1,23 +1,21 @@
 .rules {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-	gap: 16px;
-	margin-bottom: 16px;
+	gap: var(--space-5);
 }
 
 .rule-card {
 	mat-card-content {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
-		padding-top: 8px;
+		gap: var(--space-3);
 	}
 }
 
 .row {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 12px;
+	gap: var(--space-4);
 
 	mat-form-field {
 		flex: 1;

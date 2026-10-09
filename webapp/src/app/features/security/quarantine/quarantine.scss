@@ -1,11 +1,9 @@
 .banner {
-	margin-bottom: 16px;
 
 	mat-card-content {
 		display: flex;
 		align-items: center;
-		gap: 16px;
-		padding-top: 8px;
+		gap: var(--space-4);
 
 		div {
 			flex: 1;
@@ -22,21 +20,16 @@
 	}
 }
 
-mat-card + mat-card {
-	margin-top: 16px;
-}
-
 mat-card-content {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding-top: 8px;
+	gap: var(--space-3);
 }
 
 .row {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 12px;
+	gap: var(--space-4);
 
 	mat-form-field {
 		flex: 1;

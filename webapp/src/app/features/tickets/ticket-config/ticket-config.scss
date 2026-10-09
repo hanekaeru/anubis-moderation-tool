@@ -1,14 +1,8 @@
-.page {
-	display: flex;
-	flex-direction: column;
-	gap: 24px;
-}
-
 .row {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: flex-start;
-	gap: 12px;
+	gap: var(--space-4);
 
 	mat-form-field {
 		flex: 1;
@@ -24,7 +18,7 @@
 	li {
 		display: flex;
 		align-items: center;
-		gap: 12px;
+		gap: var(--space-3);
 		padding: 10px 0;
 		border-bottom: 1px solid var(--mat-sys-outline-variant);
 	}
@@ -64,7 +58,7 @@
 
 .row-actions {
 	display: flex;
-	gap: 4px;
+	gap: var(--space-1);
 }
 
 .tag {

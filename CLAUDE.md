@@ -743,6 +743,16 @@ le dev avec rechargement).
       est `{roles}` ; `{sujet}`, l'ancien texte libre, est accepte et **rendu
       vide** — la migration a reecrit les gabarits existants, mais le champ
       reste modifiable a la main depuis le dashboard.
+  - **chaque option du sujet existe en deux jetons** : `{rang}` rend « 🥇 Or »
+    et `{rang-icone}` rend « 🥇 » ; de meme pour `{plateforme}` et
+    `{plateforme-icone}`. Le sujet est court et Discord le tronque sans
+    prevenir : retirer les libelles est ce qui permet d'y faire tenir la
+    composition d'equipe. Les deux formes se melangent librement et l'ordre
+    reste celui du gabarit. Un jeton reduit **retombe sur le libelle quand
+    l'option n'a pas d'emoji** : rendre vide serait coherent avec son nom, mais
+    ferait disparaitre le rang du sujet sans que personne ne comprenne
+    pourquoi. Le dashboard liste les quatre jetons avec un exemple de rendu —
+    une enumeration entre accolades ne dit pas ce que chacun produit.
   - le sujet n'existe pas dans discord.js 14.27 : l'appel part en brut sur
     `PUT /channels/:id/voice-status`, et demande la permission
     `SetVoiceChannelStatus` — ajoutee a `permissionsManquantes`, sans quoi la
@@ -811,6 +821,29 @@ le dev avec rechargement).
 ## Dashboard
 
 - Composants standalone, signaux, `ChangeDetectionStrategy.OnPush` partout.
+- **Espacement : une echelle, declaree dans `styles.scss`, et rien d'autre.**
+  Sept jetons `--space-1` a `--space-7` (4 a 48 px), et la regle qui les
+  gouverne est l'**echelle de proximite** — l'ecart croit avec la distance
+  semantique, et un niveau ne vaut jamais autant que celui du dessus : a
+  l'interieur d'un element (4), entre elements d'une suite (8), entre controles
+  d'un groupe (12), entre freres d'un bloc (16), entre blocs d'une carte (24),
+  entre sections d'une page (32), entre regions (48). Quatre consequences :
+  - **le rythme vertical d'une page vient de `.page > * + *`**, declare une
+    seule fois. Une page ne remet pas `margin-top: 24px` sur ses sections :
+    c'est ainsi qu'on se retrouvait avec trois ecarts differents d'un ecran a
+    l'autre. Elle peut en declarer un **autre**, pas le meme.
+  - une carte respire a `--space-5` dedans et se separe de sa voisine a
+    `--space-6` : l'exterieur toujours plus grand que l'interieur, sinon le
+    groupe cesse de se lire comme un groupe. Le selecteur global porte **deux
+    classes** (`.mat-mdc-card .mat-mdc-card-content`) parce que les styles de
+    `mat-card` sont injectes apres cette feuille — a specificite egale, le
+    rembourrage de Material de 16 px l'emportait sans rien signaler.
+  - **un texte suivi ne depasse jamais `--measure`** (72ch). Un sous-titre
+    etire sur 1400 px reste illisible quelle que soit la place autour : l'oeil
+    perd la ligne en revenant a la marge.
+  - la densite Material est a **`-1`**, pas `-2`. Le cran le plus serre mettait
+    les boutons a 32 px et les lignes de table a 44 px. C'est le seul reglage
+    qui agit sur toutes les pages a la fois — le changer se voit partout.
 - Les lignes de `mat-table` arrivent **typees `any`** dans les templates : un
   dictionnaire d'etiquettes indexe depuis un template doit etre declare
   `Record<string, string>`, pas `Record<MonEnum, string>`.
