@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="1 1 22 22">
+	<!--
+		Le glyphe « shield » de Material Icons, celui qui marque l'application
+		dans la barre laterale : l'onglet et l'interface portent ainsi le meme
+		signe. La boite de vue est resserree sur le bouclier (22 au lieu de 24)
+		pour qu'il remplisse l'icone d'onglet plutot que de flotter au milieu.
+
+		La couleur suit le theme du navigateur, avec les deux teintes d'accent
+		de styles.scss : la claire sur fond sombre, la soutenue sur fond clair.
+	-->
+	<style>
+		path { fill: #2563eb; }
+		@media (prefers-color-scheme: dark) {
+			path { fill: #4c8dff; }
+		}
+	</style>
+	<path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
+</svg>
