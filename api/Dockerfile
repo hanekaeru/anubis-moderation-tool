@@ -1,6 +1,6 @@
 FROM node:22-bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends openssl \
-    && rm -rf /var/lib/apt/lists/*
+	&& rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 
 COPY package.json package-lock.json ./
@@ -16,12 +16,12 @@ COPY api api
 # schema, meme sans connexion reelle : valeur factice, ecrasee au runtime.
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 RUN npm run build --workspace @anubis/shared \
-    && npm run generate --workspace @anubis/shared \
-    && npm run build --workspace @anubis/api
+	&& npm run generate --workspace @anubis/shared \
+	&& npm run build --workspace @anubis/api
 
 FROM node:22-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends openssl \
-    && rm -rf /var/lib/apt/lists/*
+	&& rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 ENV NODE_ENV=production
 
@@ -32,4 +32,4 @@ COPY --from=build /repo/api/dist ./api/dist
 COPY --from=build /repo/api/package.json ./api/package.json
 
 EXPOSE 3000
-CMD ["node", "api/dist/main.js"]
+CMD ["sh", "-c", "(cd packages/shared && node ../../node_modules/prisma/build/index.js migrate deploy) && exec node api/dist/main.js"]

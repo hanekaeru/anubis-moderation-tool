@@ -542,16 +542,23 @@ docker build -f bot/Dockerfile -t anubis-bot .
       remettre à `true` rend la protection sans reconfiguration.
 5. **Webhook** : Coolify l'a déjà enregistré côté GitHub via la GitHub App de
    l'étape 6 — chaque push sur `master` redéploiera automatiquement.
-6. **Commande post-déploiement** sur le service `api` (_Configuration →
-   Post-deployment Command_) :
-    ```
-    npm run db:deploy
-    ```
-    Applique les migrations Prisma en attente après chaque déploiement, avant
-    de basculer le trafic. `npm run db:seed` n'est **volontairement pas**
-    automatisé (il ne doit tourner qu'une fois) — à lancer manuellement via le
-    terminal intégré de Coolify sur le conteneur `api` lors de la toute
-    première mise en production.
+6. **Migrations** : rien à configurer. Le conteneur `api` applique les
+   migrations en attente **à chaque démarrage, avant de lancer l'API**
+   (`CMD` de `api/Dockerfile`). Une migration qui échoue empêche l'API de
+   démarrer : le conteneur redémarre en boucle et le journal Coolify montre
+   l'erreur Prisma — c'est voulu, une API lancée sur un schéma en retard
+   répondrait 500 sur toutes les routes qui touchent une colonne neuve.
+
+    Une commande post-déploiement `npm run db:deploy` encore configurée ne
+    gêne pas : `migrate deploy` est idempotent et prend un verrou
+    PostgreSQL, elle ne fera que constater qu'il n'y a plus rien à appliquer.
+    Elle reste utile **à la main**, depuis le terminal intégré de Coolify,
+    pour diagnostiquer un démarrage bloqué.
+
+    `npm run db:seed` n'est **volontairement pas** automatisé (il ne doit
+    tourner qu'une fois) — à lancer manuellement via le terminal intégré de
+    Coolify sur le conteneur `api` lors de la toute première mise en
+    production.
 7. Lancer le premier déploiement manuellement (_Deploy_), puis vérifier les
    logs de chaque service dans l'onglet correspondant.
 

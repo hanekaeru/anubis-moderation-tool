@@ -72,9 +72,21 @@ Consequences pratiques :
   et `bot/` pointent vers la meme base en dev). Pas d'interpolation `${...}` :
   ni Prisma ni le flag natif `--env-file` de Node (utilise par `bot/`) ne la
   resolvent.
-- Sous Windows, ne pas ecrire `.env`, `migration_lock.toml` ni les `.sql` avec
-  `Set-Content -Encoding utf8` : PowerShell 5.1 ajoute un BOM que Prisma et
-  dotenv refusent.
+- Sous Windows, ne pas ecrire `.env`, `migration_lock.toml`, les `.sql` **ni
+  les `package.json`** avec PowerShell : `Get-Content` relit en ANSI et
+  `Set-Content -Encoding utf8` reecrit avec un BOM. Les deux ensemble ont deja
+  mis un BOM et des « â€” » dans le `package.json` racine (commit `69656f8`,
+  repare depuis). npm s'en accommode, **Prisma non** : lance depuis la racine,
+  il relit ce fichier et meurt sur « Unexpected token ».
+- **Les migrations s'appliquent au demarrage du conteneur `api`** (`CMD` de
+  `api/Dockerfile`), avant l'API et chainees par `&&`. Elles dependaient d'une
+  commande post-deploiement saisie a la main dans Coolify, et deux mises en
+  production ont livre un client Prisma en avance sur la base — 500 sur toutes
+  les routes touchant une colonne neuve. Une migration en echec empeche
+  desormais l'API de demarrer : un conteneur qui boucle se voit tout de suite,
+  une API qui sert des 500 sur la moitie de ses routes peut passer inapercue.
+  La commande part de `packages/shared` (sous-shell), comme `npm run
+  db:deploy`, pour ne pas dependre du `package.json` racine.
 - `user_levels` appartient au bot. Sa creation est en `CREATE TABLE IF NOT
 EXISTS` dans la migration initiale, pour ne pas ecraser les donnees d'XP
   d'une base existante. Garder cette forme si la migration est regeneree.
