@@ -88,6 +88,33 @@ export const MAX_VOICE_HUB_OPTIONS = 25;
 export const DEFAULT_VOICE_LANDING_CATEGORY = "En attente";
 
 /**
+ * Reglages vocaux valables pour tout le serveur.
+ *
+ * Distincts d'un `VoiceHubDto`, qui ne decrit qu'un salon de creation : ce qui
+ * protege un moderateur n'a aucune raison de se regler hub par hub.
+ */
+export interface VoiceConfigDto {
+	/**
+	 * Roles qu'un proprietaire de salon temporaire ne peut pas expulser.
+	 *
+	 * Vide ne veut pas dire « personne n'est protege » : les porteurs de
+	 * `ModerateMembers` le sont toujours, par le meme marqueur qui donne deja
+	 * l'acces aux salons de ticket. Cette liste sert aux roles a proteger sans
+	 * leur donner de pouvoir de moderation.
+	 */
+	protectedRoleIds: Snowflake[];
+	updatedAt: IsoDateString | null;
+}
+
+export interface UpdateVoiceConfigRequest {
+	/** Remplacee en bloc : envoyer `[]` est le seul moyen de vider la liste. */
+	protectedRoleIds: Snowflake[];
+}
+
+/** Roles proteges : au-dela, c'est le bouton d'expulsion qu'il faut retirer. */
+export const MAX_VOICE_PROTECTED_ROLES = 25;
+
+/**
  * Plafond Discord de salons dans une categorie.
  *
  * Partage avec le bot, qui le verifie avant de deplacer un salon : le

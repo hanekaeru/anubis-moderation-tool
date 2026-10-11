@@ -35,6 +35,45 @@
 		</section>
 	}
 
+	<mat-card appearance="outlined" [formGroup]="configForm">
+		<mat-card-header>
+			<mat-card-title>Rôles protégés</mat-card-title>
+			<mat-card-subtitle>
+				Rôles qu'un propriétaire de salon temporaire ne peut pas expulser avec le bouton
+				« Expulser » de son panneau. Les membres portant la permission Discord « Exclure
+				temporairement » sont protégés d'office, sans figurer ici.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<mat-form-field class="wide">
+				<mat-label>Identifiants de rôle</mat-label>
+				<input
+					matInput
+					formControlName="protectedRoleIds"
+					placeholder="123456789012345678, 234567890123456789"
+				/>
+				<mat-hint>Séparés par des virgules. Laisser vide ne protège que la modération.</mat-hint>
+				@if (configForm.controls.protectedRoleIds.hasError('snowflakes')) {
+					<mat-error>
+						{{ configForm.controls.protectedRoleIds.getError('snowflakes') }}
+					</mat-error>
+				}
+			</mat-form-field>
+		</mat-card-content>
+
+		<mat-card-actions align="end">
+			<button
+				matButton="filled"
+				[disabled]="savingConfig()"
+				(click)="saveConfig()"
+				*appHasPermission="Permission.VOICE_MANAGE"
+			>
+				Enregistrer
+			</button>
+		</mat-card-actions>
+	</mat-card>
+
 	<mat-card appearance="outlined">
 		<mat-card-header>
 			<mat-card-title>En direct</mat-card-title>

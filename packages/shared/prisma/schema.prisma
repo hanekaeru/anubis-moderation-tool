@@ -206,6 +206,7 @@ model Guild {
   battlenetAccounts      BattlenetAccount[]
   battlenetStates        BattlenetVerificationState[]
   shadowbanRoleBackups   ShadowbanRoleBackup[]
+  voiceConfig            VoiceConfig?
   voiceHubs              VoiceHub[]
   temporaryVoiceChannels TemporaryVoiceChannel[]
   wikiArticles           WikiArticle[]
@@ -1153,6 +1154,27 @@ enum VoicePlacementMode {
 /// deplace l'arrivant. La liste se gere depuis le dashboard ; la commande
 /// `/create_parties` cree les salons Discord correspondants, `/delete_parties`
 /// les retire (le reglage, lui, survit a la suppression du salon Discord).
+/// Reglages vocaux valables pour tout le serveur, par opposition a `VoiceHub`
+/// qui ne decrit qu'un salon de creation.
+model VoiceConfig {
+  guildId String @id @map("guild_id") @db.VarChar(20)
+
+  /// Roles qu'un proprietaire de salon temporaire ne peut pas expulser.
+  ///
+  /// Sans cette liste, le bouton « Expulser » du panneau laissait un membre
+  /// sortir un moderateur de son propre salon — exactement ce que la
+  /// moderation vient y faire. Vide ne veut pas dire « personne n'est
+  /// protege » : les porteurs de `ModerateMembers` le sont toujours, cette
+  /// liste sert aux roles qui doivent l'etre sans moderer.
+  protectedRoleIds String[] @default([]) @map("protected_role_ids")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("voice_config")
+}
+
 model VoiceHub {
   id                  String             @id @default(uuid()) @db.Uuid
   guildId             String             @map("guild_id") @db.VarChar(20)
@@ -1343,6 +1365,11 @@ model XpConfig {
   /// Mentionner le membre dans l'annonce publique. Decoche, son nom est
   /// affiche sans notification — utile a un salon d'annonces tres frequente.
   pingMember Boolean @default(true) @map("ping_member")
+
+  /// Salons ou ecrire ne rapporte aucune experience : commandes du bot,
+  /// tickets, salons de test. Vide par defaut, donc tous les salons comptent
+  /// comme avant ce reglage.
+  blockedChannelIds String[] @default([]) @map("blocked_channel_ids")
 
   updatedAt DateTime @updatedAt @map("updated_at")
 

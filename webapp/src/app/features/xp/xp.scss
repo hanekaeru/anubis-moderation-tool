@@ -251,3 +251,17 @@ mat-card-content > mat-form-field.grow {
 	text-align: center;
 	color: var(--mat-sys-on-surface-variant);
 }
+
+/* Memes intertitres que la page Vocaux : une carte de reglages y gagne a
+   separer ses blocs par un titre plutot que par du blanc seul. */
+.sous-titre {
+	margin: var(--space-2) 0 var(--space-1);
+	font-size: 0.95rem;
+	font-weight: 500;
+}
+
+.aide {
+	margin: 0;
+	font-size: 0.85rem;
+	color: var(--mat-sys-on-surface-variant);
+}

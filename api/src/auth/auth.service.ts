@@ -1,4 +1,5 @@
 import {
+	BadRequestException,
 	ForbiddenException,
 	Injectable,
 	Logger,
@@ -348,7 +349,12 @@ export class AuthService {
 		const valid = await verifySecret(account.passwordHash, currentPassword);
 
 		if (!valid) {
-			throw new UnauthorizedException("Mot de passe actuel incorrect.");
+			// 400 et non 401 : la requete est parfaitement authentifiee, c'est le
+			// champ qui est faux. En 401, l'intercepteur du dashboard y voyait un
+			// jeton expire — il rafraichissait, rejouait, puis deconnectait, et
+			// l'on se retrouvait sur la page de connexion sans savoir pourquoi.
+			// Sur le changement force de mot de passe, la boucle etait complete.
+			throw new BadRequestException("Mot de passe actuel incorrect.");
 		}
 
 		if (await verifySecret(account.passwordHash, newPassword)) {

@@ -18,6 +18,7 @@ import {
 	DEFAULT_VOICE_NAME_PATTERN,
 	DEFAULT_VOICE_STATUS_PATTERN,
 	DEFAULT_VOICE_TEAM_SLOTS,
+	MAX_VOICE_PROTECTED_ROLES,
 	MAX_VOICE_TEAM_SLOTS,
 	Permission,
 	VOICE_TEAM_ROLE_LABELS,
@@ -37,6 +38,11 @@ import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/c
 import { StatCard } from '../../shared/components/stat-card';
 import { HasPermissionDirective } from '../../shared/directives/has-permission.directive';
 import { FrDatePipe, RelativeTimePipe } from '../../shared/pipes/format.pipes';
+import {
+	formatSnowflakeList,
+	listeDeSnowflakes,
+	parseSnowflakeList,
+} from '../../shared/validators/snowflake-list';
 
 /** Vue d'exploitation : elle doit vieillir vite, sans pour autant marteler l'API. */
 const LIVE_POLL_INTERVAL_MS = 10_000;
@@ -144,6 +150,19 @@ export class VoicePage {
 		enabled: [true],
 	});
 
+	readonly savingConfig = signal(false);
+
+	/**
+	 * Roles proteges, saisis en identifiants separes par des virgules.
+	 *
+	 * Meme simplification que les pages Sécurité et Expérience : le dashboard
+	 * n'a pas de liste des roles du serveur, et en inventer une pour un champ
+	 * serait une API de plus a tenir.
+	 */
+	readonly configForm = this.formBuilder.nonNullable.group({
+		protectedRoleIds: ['', [listeDeSnowflakes(MAX_VOICE_PROTECTED_ROLES, 'rôle')]],
+	});
+
 	/** Ajout d'un rang : la categorie se saisit en identifiant, comme ailleurs. */
 	readonly rankForm = this.formBuilder.nonNullable.group({
 		label: ['', [Validators.required, Validators.maxLength(40)]],
@@ -203,8 +222,40 @@ export class VoicePage {
 		});
 	});
 
+	saveConfig(): void {
+		if (this.configForm.invalid) {
+			this.configForm.markAllAsTouched();
+			return;
+		}
+
+		this.savingConfig.set(true);
+		this.voiceApi
+			.updateConfig({
+				protectedRoleIds: parseSnowflakeList(this.configForm.getRawValue().protectedRoleIds),
+			})
+			.subscribe({
+				next: (config) => {
+					this.savingConfig.set(false);
+					// Réafficher ce que le serveur a retenu : il déduplique, et montrer
+					// la saisie laisserait croire qu'un doublon a été conservé.
+					this.configForm.setValue({
+						protectedRoleIds: formatSnowflakeList(config.protectedRoleIds),
+					});
+					this.notifications.success('Rôles protégés enregistrés.');
+				},
+				error: () => this.savingConfig.set(false),
+			});
+	}
+
 	constructor() {
 		this.loadHubs();
+
+		this.voiceApi.getConfig().subscribe({
+			next: (config) =>
+				this.configForm.setValue({
+					protectedRoleIds: formatSnowflakeList(config.protectedRoleIds),
+				}),
+		});
 
 		interval(LIVE_POLL_INTERVAL_MS)
 			.pipe(

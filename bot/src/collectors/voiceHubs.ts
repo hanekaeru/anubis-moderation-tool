@@ -708,6 +708,10 @@ export async function reconcilierSalons(guild: Guild): Promise<void> {
 			await deplacerVers(salon, attendue);
 		}
 
+		// Avant de reposer le sujet : un salon ne par cette ligne est anterieur
+		// au refus pose a la creation, et ses occupants pourraient le reecrire.
+		await garantirSujetReserve(salon);
+
 		// Discord efface le sujet quand un salon se vide : le reposer est la
 		// seule facon qu'un salon repris apres l'arret retrouve le sien.
 		await definirSujet(
@@ -853,16 +857,42 @@ async function garantirCategorie(guild: Guild) {
 function accesDeBase(guild: Guild, ownerId: string) {
 	return [
 		{
+			id: guild.roles.everyone.id,
+			// **Le sujet n'appartient pas aux occupants.** Discord laisse par
+			// defaut quiconque est connecte ecrire le « voice status » depuis le
+			// client, et le panneau devenait alors decoratif : le rang, la
+			// plateforme et la composition se faisaient ecraser par du texte
+			// libre, celui-la meme qu'on a retire de la modale. Le refuser a
+			// `@everyone` rend la modale seule maitresse du sujet.
+			deny: [PermissionFlagsBits.SetVoiceChannelStatus],
+		},
+		{
 			id: guild.members.me?.id ?? guild.client.user.id,
 			allow: [
 				PermissionFlagsBits.ViewChannel,
 				PermissionFlagsBits.Connect,
 				PermissionFlagsBits.ManageChannels,
 				PermissionFlagsBits.MoveMembers,
+				// Refuse a `@everyone` ci-dessus : sans se le rendre, le bot ne
+				// pourrait plus poser le sujet qu'il compose lui-meme.
+				PermissionFlagsBits.SetVoiceChannelStatus,
 			],
 		},
+		// La moderation garde la main : corriger un sujet deplace fait partie
+		// du travail courant, et le meme marqueur ouvre deja les tickets.
+		...moderationRoleIds(guild).map((roleId) => ({
+			id: roleId,
+			allow: [PermissionFlagsBits.SetVoiceChannelStatus],
+		})),
 		{ id: ownerId, allow: [PermissionFlagsBits.Connect] },
 	];
+}
+
+/** Roles portant `ModerateMembers`, le marqueur d'equipe de ce depot. */
+function moderationRoleIds(guild: Guild): string[] {
+	return guild.roles.cache
+		.filter((role) => role.permissions.has(PermissionFlagsBits.ModerateMembers))
+		.map((role) => role.id);
 }
 
 /**
@@ -900,7 +930,35 @@ async function garantirAccesDuBot(salon: VoiceBasedChannel): Promise<void> {
 		Connect: true,
 		ManageChannels: true,
 		MoveMembers: true,
+		SetVoiceChannelStatus: true,
 	});
+}
+
+/**
+ * Rend le sujet au seul panneau sur un salon deja ouvert.
+ *
+ * Les salons crees avant ce changement n'ont pas le refus pose a la creation :
+ * sans cette reparation, leurs occupants continueraient d'ecrire ce qu'ils
+ * veulent sous le nom du salon jusqu'a sa fermeture. Appelee au rattrapage du
+ * demarrage, ou les salons survivants sont de toute facon relus.
+ */
+async function garantirSujetReserve(salon: VoiceBasedChannel): Promise<void> {
+	const everyone = salon.guild.roles.everyone.id;
+	if (salon.permissionOverwrites.cache.get(everyone)?.deny.has("SetVoiceChannelStatus")) {
+		return;
+	}
+
+	try {
+		await salon.permissionOverwrites.edit(everyone, { SetVoiceChannelStatus: false });
+		await garantirAccesDuBot(salon);
+		for (const roleId of moderationRoleIds(salon.guild)) {
+			await salon.permissionOverwrites.edit(roleId, { SetVoiceChannelStatus: true });
+		}
+	} catch (err) {
+		// Un salon dont on ne peut pas corriger les permissions reste
+		// utilisable : seul son sujet demeure ouvert a tous.
+		console.error("[Vocaux] Réservation du sujet échouée :", err);
+	}
 }
 
 /**

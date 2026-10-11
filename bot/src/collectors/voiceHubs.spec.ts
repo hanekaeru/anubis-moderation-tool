@@ -1,4 +1,4 @@
-import type { Guild } from "discord.js";
+import { PermissionFlagsBits, type Guild } from "discord.js";
 import type { VoiceHub } from "@anubis/shared/prisma";
 
 const prismaMock = {
@@ -80,7 +80,7 @@ function salonFactice(overrides: Record<string, unknown> = {}) {
 		guild: {
 			id: GUILD_ID,
 			members: { me: { id: BOT_ID } },
-			roles: { everyone: { id: GUILD_ID } },
+			roles: { everyone: { id: GUILD_ID }, cache: [] },
 			channels: {
 				fetch: chercherSalon,
 				create: creerCategorie,
@@ -95,7 +95,13 @@ function salonFactice(overrides: Record<string, unknown> = {}) {
 		delete: supprimerSalon,
 		setParent: deplacerSalon,
 		setUserLimit: definirLimite,
-		permissionOverwrites: { edit: editerAcces, delete: supprimerAcces },
+		// `cache` sert a savoir si le refus du sujet est deja pose : sans elle,
+		// le rattrapage du demarrage ne peut pas se decider.
+		permissionOverwrites: {
+			edit: editerAcces,
+			delete: supprimerAcces,
+			cache: { get: () => undefined },
+		},
 		...overrides,
 	};
 }
@@ -120,7 +126,7 @@ function serveur(salonExiste = true): Guild {
 		id: GUILD_ID,
 		name: "Serveur",
 		members: { me: { id: BOT_ID } },
-		roles: { everyone: { id: GUILD_ID } },
+		roles: { everyone: { id: GUILD_ID }, cache: [] },
 		client: { user: { id: BOT_ID } },
 		channels: {
 			fetch: jest.fn().mockResolvedValue(salonExiste ? salonFactice() : null),
@@ -576,6 +582,48 @@ describe("appliquerPersonnalisation", () => {
 			expect.anything(),
 		);
 		expect(deplacerSalon).not.toHaveBeenCalledWith("categorie-or", expect.anything());
+	});
+});
+
+// Discord laisse par defaut tout occupant ecrire le « voice status » : sans ce
+// refus, le panneau devenait decoratif et le sujet se faisait ecraser par du
+// texte libre — celui-la meme qu'on a retire de la modale.
+describe("réservation du sujet", () => {
+	it("refuse le sujet a @everyone des la creation du salon", async () => {
+		occupantsDuSalon.mockResolvedValue([]);
+		prismaMock.temporaryVoiceChannel.create.mockResolvedValue(ligneTemporaire());
+
+		const etat = {
+			guild: serveur(),
+			channel: { id: "salon-hub-1", parentId: "categorie-parties" },
+			member: {
+				id: OWNER_ID,
+				user: { id: OWNER_ID, username: "owner" },
+				voice: { setChannel: jest.fn().mockResolvedValue(undefined) },
+			},
+		};
+
+		await voiceHubs.accueillirDansHub(hubFactice() as never, etat as never);
+
+		const surcharges = creerSalon.mock.calls.at(-1)?.[0]?.permissionOverwrites ?? [];
+		const everyone = surcharges.find((s: { id: string }) => s.id === GUILD_ID);
+		expect(everyone?.deny).toContain(PermissionFlagsBits.SetVoiceChannelStatus);
+
+		// Se l'etre refuse a `@everyone` vaut aussi pour le bot : sans se le
+		// rendre, il ne pourrait plus poser le sujet qu'il compose lui-meme.
+		const bot = surcharges.find((s: { id: string }) => s.id === BOT_ID);
+		expect(bot?.allow).toContain(PermissionFlagsBits.SetVoiceChannelStatus);
+	});
+
+	// Les salons nes avant ce changement n'ont pas le refus : leurs occupants
+	// continueraient sinon d'ecrire sous le nom du salon jusqu'a sa fermeture.
+	it("repare un salon anterieur au rattrapage du demarrage", async () => {
+		occupantsDuSalon.mockResolvedValue([{ userId: OWNER_ID }]);
+		prismaMock.temporaryVoiceChannel.findMany.mockResolvedValue([ligneTemporaire()]);
+
+		await voiceHubs.reconcilierSalons(serveur());
+
+		expect(editerAcces).toHaveBeenCalledWith(GUILD_ID, { SetVoiceChannelStatus: false });
 	});
 });
 

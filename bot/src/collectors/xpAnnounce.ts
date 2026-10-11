@@ -30,6 +30,7 @@ const DEFAULTS: Omit<XpConfig, "guildId" | "updatedAt"> = {
 	channelId: null,
 	message: null,
 	pingMember: true,
+	blockedChannelIds: [],
 };
 
 const cache = new Map<string, { config: XpConfig | null; expiresAt: number }>();
@@ -42,6 +43,27 @@ export async function getConfig(guildId: string): Promise<XpConfig | null> {
 
 	cache.set(guildId, { config, expiresAt: Date.now() + CACHE_TTL_MS });
 	return config;
+}
+
+/**
+ * Un salon ou ecrire ne rapporte aucune experience.
+ *
+ * Le reglage vit dans `xp_config` plutot que dans une table a part : il decrit
+ * bien le systeme d'XP, et il se lit deja a chaque message par le meme cache.
+ *
+ * Le salon d'un fil est **son parent** : bloquer un salon de tickets doit
+ * bloquer les fils qui s'y ouvrent, sans quoi la liste serait a refaire a
+ * chaque fil cree.
+ */
+export async function gainBloque(
+	guildId: string,
+	channelId: string,
+	parentId: string | null,
+): Promise<boolean> {
+	const bloques = (await getConfig(guildId))?.blockedChannelIds ?? DEFAULTS.blockedChannelIds;
+	if (!bloques.length) return false;
+
+	return bloques.includes(channelId) || (parentId !== null && bloques.includes(parentId));
 }
 
 /** Vide le cache d'un serveur : utile aux tests et a un rechargement force. */

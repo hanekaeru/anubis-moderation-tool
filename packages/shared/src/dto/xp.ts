@@ -90,6 +90,8 @@ export interface XpConfigDto {
 	message: string | null;
 	/** Mentionner le membre (donc le notifier) plutot que citer son nom. */
 	pingMember: boolean;
+	/** Salons ou ecrire ne rapporte aucune experience. */
+	blockedChannelIds: Snowflake[];
 	updatedAt: IsoDateString;
 }
 
@@ -98,7 +100,16 @@ export interface UpdateXpConfigRequest {
 	channelId?: Snowflake | null;
 	message?: string | null;
 	pingMember?: boolean;
+	/**
+	 * Remplacee en bloc, jamais fusionnee : envoyer `[]` est le seul moyen de
+	 * vider la liste, et une absorption partielle laisserait un salon retire du
+	 * dashboard continuer de bloquer l'experience.
+	 */
+	blockedChannelIds?: Snowflake[];
 }
+
+/** Salons bloques : au-dela, c'est le gain d'XP lui-meme qu'il faut couper. */
+export const MAX_XP_BLOCKED_CHANNELS = 50;
 
 /**
  * Gabarit par defaut d'une annonce publique.

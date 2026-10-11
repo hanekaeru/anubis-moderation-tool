@@ -12,6 +12,7 @@ import {
 	Permission,
 	type LiveVoiceDto,
 	type Snowflake,
+	type VoiceConfigDto,
 	type VoiceHubDto,
 	type VoiceHubPlatformDto,
 	type VoiceHubRankDto,
@@ -23,6 +24,7 @@ import {
 	CreateVoiceHubDto,
 	CreateVoiceHubPlatformDto,
 	CreateVoiceHubRankDto,
+	UpdateVoiceConfigDto,
 	UpdateVoiceHubDto,
 	UpdateVoiceHubPlatformDto,
 	UpdateVoiceHubRankDto,
@@ -32,6 +34,25 @@ import { VoiceService } from "./voice.service";
 @Controller("voice")
 export class VoiceController {
 	constructor(private readonly voice: VoiceService) {}
+
+	/**
+	 * Declare avant `hubs/:id`, comme `live` : une route litterale posee apres
+	 * un parametre serait captee par lui.
+	 */
+	@Get("configuration")
+	@RequirePermissions(Permission.VOICE_READ)
+	getConfig(): Promise<VoiceConfigDto> {
+		return this.voice.getConfig();
+	}
+
+	@Patch("configuration")
+	@RequirePermissions(Permission.VOICE_MANAGE)
+	updateConfig(
+		@Body() dto: UpdateVoiceConfigDto,
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<VoiceConfigDto> {
+		return this.voice.updateConfig(dto, actor);
+	}
 
 	/** Declare avant :id, sinon "live" serait pris pour un identifiant. */
 	@Get("live")

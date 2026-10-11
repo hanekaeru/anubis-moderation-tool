@@ -96,6 +96,29 @@
 				}
 			</ul>
 
+			<h3 class="sous-titre">Salons sans expérience</h3>
+			<p class="aide">
+				Écrire dans ces salons ne rapporte rien : salons de commandes, tickets, bacs à sable.
+				Les messages y restent comptés dans les statistiques et surveillés par
+				l'automodération — seul le gain d'XP est coupé. Bloquer un salon bloque aussi les fils
+				qui s'y ouvrent.
+			</p>
+
+			<mat-form-field class="grow">
+				<mat-label>Identifiants de salon</mat-label>
+				<input
+					matInput
+					formControlName="blockedChannelIds"
+					placeholder="123456789012345678, 234567890123456789"
+				/>
+				<mat-hint>Séparés par des virgules. Vide, tous les salons rapportent de l'XP.</mat-hint>
+				@if (configForm.controls.blockedChannelIds.hasError('snowflakes')) {
+					<mat-error>
+						{{ configForm.controls.blockedChannelIds.getError('snowflakes') }}
+					</mat-error>
+				}
+			</mat-form-field>
+
 			<!-- Rendu par la fonction que le bot utilise lui-meme : deux rendus
 			     separes finiraient par diverger, et l'apercu mentirait. -->
 			<div class="preview">

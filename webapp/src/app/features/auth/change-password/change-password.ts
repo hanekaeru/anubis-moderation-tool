@@ -17,11 +17,28 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { readApiError } from '../../../core/error.interceptor';
 import { NotificationService } from '../../../core/notification.service';
 
-/** Verifie que la confirmation correspond au nouveau mot de passe. */
+/**
+ * Vérifie que la confirmation correspond au nouveau mot de passe.
+ *
+ * L'erreur est posée **sur le champ de confirmation**, pas seulement sur le
+ * groupe. `mat-form-field` n'affiche un `mat-error` que lorsque *son* contrôle
+ * est en erreur : une erreur de groupe laissait le champ parfaitement valide à
+ * ses yeux, et le message restait invisible. On pouvait alors cliquer
+ * « Enregistrer » indéfiniment sans jamais savoir ce qui bloquait.
+ */
 function passwordsMatch(group: AbstractControl): ValidationErrors | null {
-	const password = group.get('newPassword')?.value as string;
-	const confirmation = group.get('confirmation')?.value as string;
-	return password === confirmation ? null : { mismatch: true };
+	const confirmation = group.get('confirmation');
+	if (!confirmation) return null;
+
+	const identiques = group.get('newPassword')?.value === confirmation.value;
+
+	// Ne toucher qu'à notre propre clé : `required` et consorts appartiennent
+	// au contrôle, les écraser masquerait un champ simplement vide.
+	const { mismatch: _retire, ...autres } = confirmation.errors ?? {};
+	const erreurs = identiques ? autres : { ...autres, mismatch: true };
+	confirmation.setErrors(Object.keys(erreurs).length ? erreurs : null);
+
+	return identiques ? null : { mismatch: true };
 }
 
 @Component({
@@ -59,9 +76,35 @@ export class ChangePasswordPage {
 		{ validators: passwordsMatch },
 	);
 
+	/**
+	 * Ce qui empêche l'envoi, dit en une phrase.
+	 *
+	 * Les `mat-error` signalent le champ fautif, encore faut-il le voir : sur
+	 * un formulaire déroulé, le bouton peut être loin du champ en cause. Ce
+	 * résumé s'affiche juste au-dessus du bouton, là où l'on clique.
+	 */
+	private raisonDuBlocage(): string | null {
+		const { currentPassword, newPassword, confirmation } = this.form.controls;
+
+		if (currentPassword.hasError('required')) return 'Indiquez votre mot de passe actuel.';
+		if (newPassword.hasError('required')) return 'Choisissez un nouveau mot de passe.';
+		if (newPassword.hasError('minlength')) {
+			return `Le nouveau mot de passe doit faire au moins ${this.minLength} caractères.`;
+		}
+		if (confirmation.hasError('required')) return 'Confirmez le nouveau mot de passe.';
+		if (confirmation.hasError('mismatch')) {
+			return 'Les deux mots de passe saisis ne correspondent pas.';
+		}
+
+		return null;
+	}
+
 	submit(): void {
-		if (this.form.invalid || this.submitting()) {
+		if (this.submitting()) return;
+
+		if (this.form.invalid) {
 			this.form.markAllAsTouched();
+			this.errorMessage.set(this.raisonDuBlocage());
 			return;
 		}
 

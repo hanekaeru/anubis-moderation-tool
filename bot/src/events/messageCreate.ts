@@ -46,6 +46,23 @@ const event: BotEvent<typeof Events.MessageCreate> = {
 			});
 		}
 
+		// Apres l'activite et l'automod, avant le cooldown : un salon sans XP
+		// reste compte dans les statistiques et reste modere. Poser le test
+		// plus haut reviendrait a ne plus rien y surveiller.
+		//
+		// Avant le cooldown, et non apres : consommer le delai d'attente dans un
+		// salon qui ne rapporte rien priverait le membre de son gain suivant
+		// ailleurs.
+		if (
+			await xpAnnounce.gainBloque(
+				message.guild.id,
+				message.channel.id,
+				message.channel.isThread() ? message.channel.parentId : null,
+			)
+		) {
+			return;
+		}
+
 		const cooldownKey = `${message.author.id}:${message.guild.id}`;
 		if (cooldowns.has(cooldownKey)) return;
 
