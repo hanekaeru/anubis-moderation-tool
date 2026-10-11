@@ -41,6 +41,7 @@ const CONFIG_DEFAULTS = {
 	channelId: null as string | null,
 	message: null as string | null,
 	pingMember: true,
+	blockedChannelIds: [] as string[],
 };
 
 /**
@@ -211,6 +212,7 @@ export class XpService {
 			channelId: row.channelId,
 			message: row.message,
 			pingMember: row.pingMember,
+			blockedChannelIds: row.blockedChannelIds,
 			updatedAt: row.updatedAt.toISOString(),
 		};
 	}
@@ -259,6 +261,12 @@ export class XpService {
 				...(dto.channelId !== undefined ? { channelId: dto.channelId } : {}),
 				...(dto.message !== undefined ? { message: dto.message } : {}),
 				...(dto.pingMember !== undefined ? { pingMember: dto.pingMember } : {}),
+				// Remplacee en bloc : `[]` est le seul moyen de vider la liste, et
+				// une fusion laisserait un salon retire du dashboard continuer de
+				// bloquer l'experience.
+				...(dto.blockedChannelIds !== undefined
+					? { blockedChannelIds: dto.blockedChannelIds }
+					: {}),
 			},
 			create: {
 				guildId,
@@ -266,6 +274,7 @@ export class XpService {
 				channelId,
 				message: dto.message ?? CONFIG_DEFAULTS.message,
 				pingMember: dto.pingMember ?? CONFIG_DEFAULTS.pingMember,
+				blockedChannelIds: dto.blockedChannelIds ?? CONFIG_DEFAULTS.blockedChannelIds,
 			},
 		});
 
@@ -279,6 +288,7 @@ export class XpService {
 						mode: existing.mode,
 						channelId: existing.channelId,
 						pingMember: existing.pingMember,
+						blockedChannelIds: existing.blockedChannelIds,
 					}
 				: undefined,
 			after: { ...dto },

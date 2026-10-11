@@ -15,6 +15,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
 	defaultXpLevelUpMessage,
+	MAX_XP_BLOCKED_CHANNELS,
 	MAX_XP_LEVEL_UP_MESSAGE_LENGTH,
 	MAX_XP_REWARD_LEVEL,
 	Permission,
@@ -33,6 +34,11 @@ import { XpApi } from '../../core/api/xp.api';
 import { NotificationService } from '../../core/notification.service';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { HasPermissionDirective } from '../../shared/directives/has-permission.directive';
+import {
+	formatSnowflakeList,
+	listeDeSnowflakes,
+	parseSnowflakeList,
+} from '../../shared/validators/snowflake-list';
 
 const SNOWFLAKE = /^\d{17,20}$/;
 
@@ -118,6 +124,7 @@ export class XpPage {
 		channelId: [''],
 		message: ['', [Validators.maxLength(MAX_XP_LEVEL_UP_MESSAGE_LENGTH)]],
 		pingMember: [true],
+		blockedChannelIds: ['', [listeDeSnowflakes(MAX_XP_BLOCKED_CHANNELS, 'salon')]],
 	});
 
 	/**
@@ -185,6 +192,7 @@ export class XpPage {
 				// Vider le champ, c'est revenir au texte par defaut du mode.
 				message: raw.message.trim() || null,
 				pingMember: raw.pingMember,
+				blockedChannelIds: parseSnowflakeList(raw.blockedChannelIds),
 			})
 			.subscribe({
 				next: (config) => {
@@ -202,6 +210,7 @@ export class XpPage {
 			channelId: config.channelId ?? '',
 			message: config.message ?? '',
 			pingMember: config.pingMember,
+			blockedChannelIds: formatSnowflakeList(config.blockedChannelIds),
 		});
 	}
 

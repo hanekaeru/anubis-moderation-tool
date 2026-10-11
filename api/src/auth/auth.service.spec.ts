@@ -1,4 +1,8 @@
-import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
+import {
+	BadRequestException,
+	ForbiddenException,
+	UnauthorizedException,
+} from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { AppConfig } from "../config/configuration";
 import type { PrismaService } from "../prisma/prisma.service";
@@ -357,9 +361,11 @@ describe("changePassword", () => {
 			},
 		});
 
+		// 400 et non 401 : la requete est authentifiee, c'est le champ qui est
+		// faux. En 401, le dashboard y voyait un jeton expire et deconnectait.
 		await expect(
 			service.changePassword("user-1", OTHER_PASSWORD, "new password", {}),
-		).rejects.toBeInstanceOf(UnauthorizedException);
+		).rejects.toBeInstanceOf(BadRequestException);
 	});
 
 	it("rejette un nouveau mot de passe identique a l'ancien", async () => {

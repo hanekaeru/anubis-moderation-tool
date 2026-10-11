@@ -1,4 +1,6 @@
 import {
+	ArrayMaxSize,
+	IsArray,
 	IsBoolean,
 	IsEnum,
 	IsInt,
@@ -13,6 +15,7 @@ import {
 } from "class-validator";
 import {
 	MAX_VOICE_STATUS_LENGTH,
+	MAX_VOICE_PROTECTED_ROLES,
 	MAX_VOICE_TEAM_SLOTS,
 	VoicePlacementMode,
 } from "@anubis/shared";
@@ -32,6 +35,20 @@ const SNOWFLAKE = /^\d{17,20}$/;
  * de Discord.
  */
 const STATUS_PATTERN_MAX = MAX_VOICE_STATUS_LENGTH;
+
+/**
+ * Roles qu'un proprietaire de salon temporaire ne peut pas expulser.
+ *
+ * La liste est **remplacee en bloc** : envoyer `[]` est le seul moyen de la
+ * vider, et une absorption partielle laisserait un role retire du dashboard
+ * continuer de proteger.
+ */
+export class UpdateVoiceConfigDto {
+	@IsArray()
+	@ArrayMaxSize(MAX_VOICE_PROTECTED_ROLES)
+	@Matches(SNOWFLAKE, { each: true, message: "Identifiant de rôle invalide." })
+	protectedRoleIds!: string[];
+}
 
 /**
  * Composition d'equipe, commune a la creation et a la mise a jour.

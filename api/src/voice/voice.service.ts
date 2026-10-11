@@ -8,6 +8,7 @@ import {
 	VoicePlacementMode,
 	type LiveVoiceChannelDto,
 	type LiveVoiceDto,
+	type VoiceConfigDto,
 	type VoiceHubDto,
 	type VoiceHubPlatformDto,
 	type VoiceHubRankDto,
@@ -21,6 +22,7 @@ import type {
 	CreateVoiceHubDto,
 	CreateVoiceHubPlatformDto,
 	CreateVoiceHubRankDto,
+	UpdateVoiceConfigDto,
 	UpdateVoiceHubDto,
 	UpdateVoiceHubPlatformDto,
 	UpdateVoiceHubRankDto,
@@ -144,6 +146,56 @@ export class VoiceService {
 		});
 
 		return rows.map((row) => this.toHubDto(row));
+	}
+
+	/**
+	 * Reglages vocaux du serveur.
+	 *
+	 * Aucune ligne n'est creee tant que rien n'est regle : l'absence vaut une
+	 * liste vide, et le bot protege de toute facon les porteurs de
+	 * `ModerateMembers` sans rien demander a personne.
+	 */
+	async getConfig(): Promise<VoiceConfigDto> {
+		const row = await this.prisma.voiceConfig.findUnique({
+			where: { guildId: this.guild.guildId },
+		});
+
+		return {
+			protectedRoleIds: row?.protectedRoleIds ?? [],
+			updatedAt: row?.updatedAt.toISOString() ?? null,
+		};
+	}
+
+	async updateConfig(
+		dto: UpdateVoiceConfigDto,
+		actor: AuthenticatedUser,
+	): Promise<VoiceConfigDto> {
+		const guildId = this.guild.guildId;
+		const existing = await this.prisma.voiceConfig.findUnique({ where: { guildId } });
+
+		// Deux fois le meme role dans la liste ne protege pas davantage, et
+		// ferait croire a un reglage different de celui enregistre.
+		const protectedRoleIds = [...new Set(dto.protectedRoleIds)];
+
+		const saved = await this.prisma.voiceConfig.upsert({
+			where: { guildId },
+			update: { protectedRoleIds },
+			create: { guildId, protectedRoleIds },
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "voice.config.update",
+			entityType: "voice_config",
+			entityId: guildId,
+			before: existing ? { protectedRoleIds: existing.protectedRoleIds } : undefined,
+			after: { protectedRoleIds },
+		});
+
+		return {
+			protectedRoleIds: saved.protectedRoleIds,
+			updatedAt: saved.updatedAt.toISOString(),
+		};
 	}
 
 	async createHub(

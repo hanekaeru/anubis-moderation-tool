@@ -1,5 +1,7 @@
 import { Type } from "class-transformer";
 import {
+	ArrayMaxSize,
+	IsArray,
 	IsBoolean,
 	IsEnum,
 	IsInt,
@@ -12,6 +14,7 @@ import {
 	ValidateIf,
 } from "class-validator";
 import {
+	MAX_XP_BLOCKED_CHANNELS,
 	MAX_XP_LEVEL_UP_MESSAGE_LENGTH,
 	MAX_XP_REWARD_LEVEL,
 	XpAnnouncementMode,
@@ -81,4 +84,17 @@ export class UpdateXpConfigDto {
 	@IsOptional()
 	@IsBoolean()
 	pingMember?: boolean;
+
+	/**
+	 * Salons ou ecrire ne rapporte aucune experience.
+	 *
+	 * Remplacee en bloc : `[]` vide la liste, et c'est le seul moyen de le
+	 * faire. `ArrayMaxSize` borne la saisie — au-dela, c'est le gain d'XP
+	 * lui-meme qu'il faut couper.
+	 */
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(MAX_XP_BLOCKED_CHANNELS)
+	@Matches(SNOWFLAKE, { each: true, message: "Identifiant de salon invalide." })
+	blockedChannelIds?: string[];
 }

@@ -23,6 +23,7 @@ import type {
 } from "@anubis/shared/prisma";
 import prisma from "../prisma";
 import * as voice from "../collectors/voice";
+import * as voiceConfig from "../collectors/voiceConfig";
 import * as voiceHubs from "../collectors/voiceHubs";
 import * as voiceLog from "../collectors/voiceLog";
 import {
@@ -184,22 +185,38 @@ export async function handleVoicePanelButton(
 
 		// 25 est le plafond d'options d'un select menu Discord ; au-dela, un
 		// salon vocal aurait de toute facon deborde bien avant.
-		const options = await Promise.all(
+		const candidats = await Promise.all(
 			autres.slice(0, 25).map(async (occupant) => {
 				const membre = await interaction.guild.members
 					.fetch(occupant.userId)
 					.catch(() => null);
-				return {
-					label: membre?.displayName ?? occupant.userId,
-					value: occupant.userId,
-				};
+				return { occupant, membre };
 			}),
 		);
+
+		// Les membres proteges sont **retires de la liste**, pas refuses apres
+		// coup : proposer un nom pour repondre « non » ensuite invite a
+		// reessayer, et apprend au passage qui est moderateur.
+		const expulsables = [];
+		for (const { occupant, membre } of candidats) {
+			if (membre && (await voiceConfig.estProtege(membre))) continue;
+			expulsables.push({
+				label: membre?.displayName ?? occupant.userId,
+				value: occupant.userId,
+			});
+		}
+
+		if (!expulsables.length) {
+			await interaction.editReply({
+				content: "Personne ici ne peut être expulsé de ce salon.",
+			});
+			return;
+		}
 
 		const select = new StringSelectMenuBuilder()
 			.setCustomId(VOICE_KICK_SELECT)
 			.setPlaceholder("Choisis le membre à expulser")
-			.addOptions(options);
+			.addOptions(expulsables);
 
 		await interaction.editReply({
 			content: "Qui souhaites-tu expulser de ce salon ?",
@@ -406,6 +423,16 @@ export async function handleVoiceKickSelect(
 	if (!cibleId) return;
 
 	const membre = await interaction.guild.members.fetch(cibleId).catch(() => null);
+
+	// Revalide cote serveur : l'identifiant vient du client, et le select a pu
+	// rester ouvert pendant qu'un role etait attribue a la cible.
+	if (membre && (await voiceConfig.estProtege(membre))) {
+		await interaction.editReply({
+			content: `${membre.displayName} ne peut pas être expulsé de ce salon.`,
+			components: [],
+		});
+		return;
+	}
 
 	// Deconnecte du vocal, pas expulse du serveur : c'est le verrou du panneau
 	// qui empeche un retour immediat, pas une sanction.

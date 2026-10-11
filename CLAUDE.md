@@ -510,6 +510,17 @@ le dev avec rechargement).
   Le reglage n'a pas de `discordSyncedAt` : il ne decrit rien a rejouer sur
   Discord, seulement la facon de rediger la prochaine annonce. Le bot le relit
   a chaque montee de niveau, avec le meme cache de 30s que l'automod.
+- **Salons sans experience** (`XpConfig.blockedChannelIds`) : salons de
+  commandes, tickets, bacs a sable. Trois points a garder :
+  - le test se pose **apres** l'activite et l'automod : un salon sans XP reste
+    compte dans les statistiques et reste modere. Le poser plus haut
+    reviendrait a ne plus rien y surveiller.
+  - il se pose **avant** le cooldown : consommer le delai d'attente dans un
+    salon qui ne rapporte rien priverait le membre de son gain suivant
+    ailleurs.
+  - le salon d'un fil est **son parent**. Bloquer un salon de tickets doit
+    bloquer les fils qui s'y ouvrent, sans quoi la liste serait a refaire a
+    chaque fil cree.
 - **Automod** (`src/collectors/automod.ts`) : regles mises en cache par
   serveur (TTL 30s) pour eviter une requete DB a chaque message. Une seule
   regle se declenche par message. Le contenu et les pieces jointes du
@@ -761,6 +772,24 @@ le dev avec rechargement).
     permissions sur la categorie d'arrivee effacerait les surcharges du salon :
     le verrou du panneau sauterait a chaque changement de rang, et l'acces
     garanti du proprietaire avec lui.
+  - **le sujet est refuse a `@everyone`** (`accesDeBase`). Discord laisse par
+    defaut tout occupant ecrire le « voice status » depuis le client, et le
+    panneau devenait decoratif : le rang, la plateforme et la composition se
+    faisaient ecraser par du texte libre — celui-la meme qu'on avait retire de
+    la modale. Le bot se le rend explicitement (sans quoi il ne pourrait plus
+    poser le sujet qu'il compose) et les roles portant `ModerateMembers` le
+    gardent. Les salons nes avant ce refus sont repares au rattrapage du
+    demarrage par `garantirSujetReserve`.
+  - **le bouton « Expulser » ne touche pas a la moderation**
+    (`src/collectors/voiceConfig.ts`, table `voice_config`). Tout porteur de
+    `ModerateMembers` est protege **sans configuration** — c'est deja le
+    marqueur qui ouvre les salons de ticket, et sans ce defaut la protection ne
+    vaudrait rien tant que personne n'aurait rempli la liste. `protectedRoleIds`
+    couvre le reste : un role a proteger sans pouvoir de moderation. Les
+    proteges sont **retires du select**, pas refuses apres coup — proposer un
+    nom pour repondre « non » invite a reessayer et apprend qui est moderateur
+    — et la verification est **rejouee a la soumission**, l'identifiant venant
+    du client.
   - une categorie pleine (**50 salons**) fait echouer le deplacement en 50035 :
     le compte est verifie avant, et le rang **n'est alors pas enregistre**. Une
     ligne annoncant un rangement que Discord n'a jamais fait ferait deplacer le
@@ -844,6 +873,22 @@ le dev avec rechargement).
   - la densite Material est a **`-1`**, pas `-2`. Le cran le plus serre mettait
     les boutons a 32 px et les lignes de table a 44 px. C'est le seul reglage
     qui agit sur toutes les pages a la fois — le changer se voit partout.
+- **Les listes d'identifiants se saisissent par `shared/validators/snowflake-list.ts`.**
+  Le dashboard n'a pas de selecteur de roles ni de salons — simplification
+  assumee. Ce qui manquait, c'est de **dire ce qui ne va pas** : une faute de
+  frappe partait jusqu'a l'API, qui refusait la requete entiere sans designer
+  le fautif. Le message nomme donc le premier identifiant invalide, et le
+  separateur est tolerant (virgule, point-virgule, espace) parce qu'on colle
+  souvent une liste venue d'ailleurs.
+- **Un `mat-error` ne s'affiche que si le controle du champ est en erreur.**
+  Un validateur pose sur le `FormGroup` (deux mots de passe qui doivent
+  correspondre) laisse chaque champ valide aux yeux de Material, et le message
+  reste invisible — on pouvait cliquer « Enregistrer » indefiniment sans
+  savoir ce qui bloquait. Le validateur de groupe doit donc **poser l'erreur
+  sur le controle concerne**, en ne touchant qu'a sa propre cle pour ne pas
+  effacer un `required`. Les formulaires longs y ajoutent un resume de la
+  raison du blocage, juste au-dessus du bouton : le `mat-error` peut etre hors
+  de l'ecran au moment du clic.
 - Les lignes de `mat-table` arrivent **typees `any`** dans les templates : un
   dictionnaire d'etiquettes indexe depuis un template doit etre declare
   `Record<string, string>`, pas `Record<MonEnum, string>`.

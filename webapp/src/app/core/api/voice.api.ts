@@ -8,7 +8,9 @@ import type {
 	LiveVoiceDto,
 	UpdateVoiceHubPlatformRequest,
 	UpdateVoiceHubRankRequest,
+	UpdateVoiceConfigRequest,
 	UpdateVoiceHubRequest,
+	VoiceConfigDto,
 	VoiceHubDto,
 	VoiceHubPlatformDto,
 	VoiceHubRankDto,
@@ -20,6 +22,14 @@ export class VoiceApi {
 
 	live(): Observable<LiveVoiceDto> {
 		return this.http.get<LiveVoiceDto>('/api/voice/live');
+	}
+
+	getConfig(): Observable<VoiceConfigDto> {
+		return this.http.get<VoiceConfigDto>('/api/voice/configuration');
+	}
+
+	updateConfig(request: UpdateVoiceConfigRequest): Observable<VoiceConfigDto> {
+		return this.http.patch<VoiceConfigDto>('/api/voice/configuration', request);
 	}
 
 	listHubs(): Observable<VoiceHubDto[]> {
