@@ -65,7 +65,7 @@ type StatusRow = {
 	quarantinedAt: Date;
 	acceptedAt: Date | null;
 	battlenetVerifiedAt: Date | null;
-	releasedById: string | null;
+	releasedAt: Date | null;
 	discordSyncedAt: Date | null;
 	user: {
 		username: string;
@@ -74,7 +74,14 @@ type StatusRow = {
 		battlenetAccount: { battletag: string } | null;
 	};
 	releasedBy: { displayName: string } | null;
+	releasedByDiscord: { username: string; globalName: string | null } | null;
 };
+
+const STATUS_INCLUDE = {
+	user: { include: { battlenetAccount: true } },
+	releasedBy: true,
+	releasedByDiscord: true,
+} as const;
 
 @Injectable()
 export class QuarantineService {
@@ -180,7 +187,11 @@ export class QuarantineService {
 			battletag: voitLeBattletag
 				? (row.user.battlenetAccount?.battletag ?? null)
 				: null,
-			releasedBy: row.releasedBy?.displayName ?? null,
+			releasedBy:
+				row.releasedBy?.displayName ??
+				(row.releasedByDiscord
+					? `${row.releasedByDiscord.globalName ?? row.releasedByDiscord.username} (Discord)`
+					: null),
 			active: !libere,
 			pendingSync: libere && row.discordSyncedAt === null,
 		};
@@ -190,10 +201,16 @@ export class QuarantineService {
 	 * Membres actuellement bloques, du plus ancien au plus recent : c'est celui
 	 * qui attend depuis le plus longtemps qui merite l'attention du staff.
 	 *
-	 * Le filtre ne peut plus se faire en base sur `acceptedAt: null` seul : avec
-	 * la verification Battle.net, un membre ayant accepte le reglement est
-	 * toujours bloque. La requete degrossit (une ligne acceptee **et**
-	 * synchronisee n'a plus rien a raconter), `quarantineStage` tranche ensuite.
+	 * La requete degrossit, `quarantineStage` tranche ensuite. Le degrossissage
+	 * doit garder **tout** ce qui peut encore etre bloque : il ecartait autrefois
+	 * toute ligne acceptee et synchronisee, ce qui faisait disparaitre de la liste
+	 * un membre ayant accepte le reglement sans s'etre verifie — bloque sur
+	 * Discord, invisible ici, donc impossible a debloquer.
+	 *
+	 * Un membre parti du serveur n'y figure plus : il n'y a rien a lever, le bot
+	 * ne peut pas toucher a ses roles. Le filtre porte sur le statut `LEFT` ou
+	 * `BANNED`, pas sur la presence d'une ligne `ACTIVE` — un membre que le
+	 * referentiel n'aurait pas encore enregistre doit rester visible.
 	 */
 	async listActive(actor: AuthenticatedUser): Promise<QuarantineStatusDto[]> {
 		const guildId = this.guild.guildId;
@@ -202,20 +219,30 @@ export class QuarantineService {
 			where: { guildId },
 			select: { battlenetRequired: true },
 		});
+		const battlenetRequired = config?.battlenetRequired ?? false;
 
 		const rows = await this.prisma.quarantineStatus.findMany({
 			where: {
 				guildId,
-				OR: [{ acceptedAt: null }, { discordSyncedAt: null }],
+				OR: [
+					{ discordSyncedAt: null },
+					{
+						releasedAt: null,
+						OR: battlenetRequired
+							? [{ acceptedAt: null }, { battlenetVerifiedAt: null }]
+							: [{ acceptedAt: null }],
+					},
+				],
+				user: {
+					memberships: {
+						none: { guildId, status: { in: ["LEFT", "BANNED"] } },
+					},
+				},
 			},
 			orderBy: { quarantinedAt: "asc" },
-			include: {
-				user: { include: { battlenetAccount: true } },
-				releasedBy: true,
-			},
+			include: STATUS_INCLUDE,
 		});
 
-		const battlenetRequired = config?.battlenetRequired ?? false;
 		const voitLeBattletag = actor.permissions.includes(Permission.BATTLENET_READ);
 
 		return rows
@@ -231,7 +258,7 @@ export class QuarantineService {
 	 * `RaidService.resolve` — relever une quarantaine deja levee ne doit pas
 	 * echouer ni reprogrammer un retrait de role.
 	 *
-	 * `releasedById` fait foi a lui seul : une levee prononcee a la main passe
+	 * `releasedAt` fait foi a lui seul : une levee prononcee a la main passe
 	 * outre la verification Battle.net, y compris quand elle est exigee. C'est
 	 * exactement ce que le bouton sert a faire — debloquer quelqu'un pour qui la
 	 * verification ne peut pas aboutir. `acceptedAt` est pose s'il manquait, pour
@@ -250,10 +277,7 @@ export class QuarantineService {
 		const battlenetRequired = config?.battlenetRequired ?? false;
 		const voitLeBattletag = actor.permissions.includes(Permission.BATTLENET_READ);
 
-		const include = {
-			user: { include: { battlenetAccount: true } },
-			releasedBy: true,
-		} as const;
+		const include = STATUS_INCLUDE;
 
 		const existing = await this.prisma.quarantineStatus.findUnique({
 			where: { guildId_userId: { guildId, userId } },
@@ -272,7 +296,9 @@ export class QuarantineService {
 			where: { guildId_userId: { guildId, userId } },
 			data: {
 				acceptedAt: existing.acceptedAt ?? new Date(),
+				releasedAt: new Date(),
 				releasedById: actor.id,
+				releasedByDiscordId: null,
 				discordSyncedAt: null,
 			},
 			include,

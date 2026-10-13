@@ -219,7 +219,7 @@ export class GuildConfigService {
 			[
 				MentionSettingKey.ALERT_ROLE,
 				dto.alertRoleKey,
-				"Rôle mentionné à l'ouverture d'un ticket.",
+				"Rôle mentionné à l'ouverture d'un ticket, à un signalement vocal et à un nouveau boost.",
 			],
 			[
 				MentionSettingKey.LOG_MEMBERS,

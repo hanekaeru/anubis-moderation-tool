@@ -13,6 +13,8 @@ import * as moderation from "../collectors/moderation";
 import { chercherAction, garantirAuteur } from "../collectors/discordAudit";
 import * as guildConfig from "../collectors/guildConfig";
 import * as shadowbanRole from "../collectors/shadowbanRole";
+import * as quarantine from "../collectors/quarantine";
+import * as welcome from "../collectors/welcome";
 
 const event: BotEvent<typeof Events.GuildMemberUpdate> = {
 	name: Events.GuildMemberUpdate,
@@ -36,13 +38,45 @@ const event: BotEvent<typeof Events.GuildMemberUpdate> = {
 				);
 			}
 
-			if (
-				ancien.premiumSince?.getTime() !==
-				nouveau.premiumSince?.getTime()
-			) {
+			// Un nouveau boost se lit en base, pas sur `ancien` : un membre absent
+			// du cache arrive partiel, sans `premiumSince`, et chaque mise a jour
+			// d'un booster passerait pour un nouveau boost. La date n'est posee
+			// que si elle manquait, et c'est le compte de lignes touchees qui dit
+			// si le boost est nouveau — une seule annonce, meme si deux
+			// evenements se croisent.
+			let nouveauBoost = false;
+
+			if (nouveau.premiumSince) {
+				nouveauBoost =
+					(
+						await prisma.member.updateMany({
+							where: { guildId, userId: nouveau.id, boostingSince: null },
+							data: { boostingSince: nouveau.premiumSince },
+						})
+					).count > 0;
+
+				if (
+					!nouveauBoost &&
+					ancien.premiumSince?.getTime() !== nouveau.premiumSince.getTime()
+				) {
+					await prisma.member.updateMany({
+						where: { guildId, userId: nouveau.id },
+						data: { boostingSince: nouveau.premiumSince },
+					});
+				}
+			} else if (ancien.partial || ancien.premiumSince) {
+				// Fin du boost. Effacee en base meme quand `ancien` est partiel :
+				// une date restee posee ferait passer le prochain boost du membre
+				// sous silence.
 				await prisma.member.updateMany({
-					where: { guildId, userId: nouveau.id },
-					data: { boostingSince: nouveau.premiumSince ?? null },
+					where: { guildId, userId: nouveau.id, boostingSince: { not: null } },
+					data: { boostingSince: null },
+				});
+			}
+
+			if (nouveauBoost) {
+				await welcome.annoncerBoost(nouveau).catch((err) => {
+					console.error("[Accueil] Annonce de boost échouée :", err);
 				});
 			}
 
@@ -60,6 +94,10 @@ const event: BotEvent<typeof Events.GuildMemberUpdate> = {
 
 			await suivreExclusionTemporaire(ancien, nouveau, client);
 			await suivreShadowbanManuel(nouveau, client, ajoutes, retires);
+
+			if (ajoutes.length || retires.length) {
+				await suivreQuarantaineManuelle(nouveau, client, ajoutes, retires);
+			}
 		} catch (err) {
 			console.error(
 				"[Référentiel] Mise à jour de membre non enregistrée :",
@@ -267,6 +305,85 @@ async function suivreShadowbanManuel(
 				err,
 			);
 		});
+}
+
+/**
+ * Fenetre pendant laquelle la pose du role de quarantaine est celle de
+ * l'arrivee. Un retour en quarantaine dans la premiere minute n'aurait de toute
+ * facon rien a defaire : le membre n'a encore rien valide.
+ */
+const ARRIVEE_RECENTE_MS = 60_000;
+
+/**
+ * Validation et retour en quarantaine faits a la main dans le client Discord.
+ *
+ * Retirer le role de quarantaine liberait le membre sur Discord sans que le
+ * dashboard le sache : il restait affiche comme bloque, et le rattrapage
+ * pouvait lui reposer le role a la prochaine etape. Le reposer, a l'inverse,
+ * ne demandait aucune nouvelle validation.
+ *
+ * Les changements faits par le bot lui-meme sont ecartes par l'audit log, comme
+ * pour le shadowban : il pose ce role a chaque arrivee et le retire a chaque
+ * levee. Le retrait a en plus un garde independant de l'audit log, qui peut
+ * manquer (permission absente) : `leverDepuisDiscord` relit le statut et ne
+ * fait rien pour un membre deja libere.
+ */
+async function suivreQuarantaineManuelle(
+	nouveau: GuildMember,
+	client: Client,
+	ajoutes: string[],
+	retires: string[],
+): Promise<void> {
+	const roleId = await quarantine.roleDeQuarantaine(nouveau.guild.id);
+	if (!roleId) return;
+
+	const roleAjoute = ajoutes.includes(roleId);
+	const roleRetire = retires.includes(roleId);
+	if (!roleAjoute && !roleRetire) return;
+
+	// Les deux cas courants se reconnaissent sans interroger l'audit log : le
+	// role pose a l'arrivee, et le role retire par une levee deja enregistree.
+	// Un raid de cinquante arrivees ferait sinon cinquante lectures du journal.
+	if (roleAjoute && Date.now() - (nouveau.joinedTimestamp ?? 0) < ARRIVEE_RECENTE_MS) {
+		return;
+	}
+	if (roleRetire && (await quarantine.estLibere(nouveau))) return;
+
+	const cle = roleAjoute ? "$add" : "$remove";
+	const action = await chercherAction(
+		nouveau.guild,
+		AuditLogEvent.MemberRoleUpdate,
+		nouveau.id,
+		(candidat) =>
+			candidat.changes.some(
+				(changement) =>
+					changement.key === cle &&
+					Array.isArray(changement.new) &&
+					(changement.new as { id: string }[]).some((role) => role.id === roleId),
+			),
+	);
+
+	if (action?.executorId && action.executorId === client.user?.id) return;
+
+	if (roleRetire) {
+		const auteurId = await garantirAuteur(client, action?.executorId ?? null);
+		const resultat = await quarantine.leverDepuisDiscord(nouveau, auteurId);
+
+		if (resultat === "levee") {
+			console.log(
+				`[Quarantaine] ${nouveau.user.tag} libéré depuis Discord` +
+					` (auteur : ${action?.executorTag ?? "inconnu"}).`,
+			);
+		}
+		return;
+	}
+
+	if (await quarantine.remettreEnQuarantaine(nouveau)) {
+		console.log(
+			`[Quarantaine] ${nouveau.user.tag} remis en quarantaine depuis Discord` +
+				` (auteur : ${action?.executorTag ?? "inconnu"}).`,
+		);
+	}
 }
 
 export = event;

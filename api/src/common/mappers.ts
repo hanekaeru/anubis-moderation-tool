@@ -91,6 +91,7 @@ export function toRoleSummary(role: {
 	position: number;
 	managed: boolean;
 	trackHistory: boolean;
+	isSeparator: boolean;
 }): RoleSummary {
 	return {
 		id: role.id,
@@ -99,6 +100,7 @@ export function toRoleSummary(role: {
 		position: role.position,
 		managed: role.managed,
 		trackHistory: role.trackHistory,
+		separator: role.isSeparator,
 	};
 }
 

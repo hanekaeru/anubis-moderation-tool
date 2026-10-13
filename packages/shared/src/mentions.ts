@@ -45,9 +45,10 @@ export const MentionSettingKey = {
 	/**
 	 * Cle de role interpelle quand le staff doit venir, vide pour aucune.
 	 *
-	 * Un seul reglage pour les deux usages — ouverture d'un ticket, signalement
-	 * dans un salon vocal — parce que c'est la meme equipe qu'on appelle. En
-	 * separer deux inviterait a n'en configurer qu'un.
+	 * Un seul reglage pour tous les usages — ouverture d'un ticket, signalement
+	 * dans un salon vocal, nouveau boost (`{moderation}`) — parce que c'est la
+	 * meme equipe qu'on appelle. En separer plusieurs inviterait a n'en
+	 * configurer qu'un.
 	 */
 	ALERT_ROLE: "ALERT_MENTION_ROLE",
 	/** `"true"` pour mentionner les membres dans les journaux. */

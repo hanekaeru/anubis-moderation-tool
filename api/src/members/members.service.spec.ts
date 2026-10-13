@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import type { AuditService } from "../audit/audit.service";
 import type { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
@@ -190,40 +190,37 @@ describe("MembersService.findOne", () => {
 	});
 });
 
-describe("MembersService.setRoleTracking", () => {
+describe("MembersService.updateRoleSettings", () => {
+	const STAFF = {
+		id: "role-1",
+		name: "Staff",
+		color: 0,
+		position: 5,
+		managed: false,
+		trackHistory: true,
+		isSeparator: false,
+	};
+
 	it("rejette un role introuvable sur ce serveur", async () => {
 		const { service } = makeService({
 			role: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn(), update: jest.fn() },
 		});
 
 		await expect(
-			service.setRoleTracking("role-1", true, ACTOR),
+			service.updateRoleSettings("role-1", { trackHistory: true }, ACTOR),
 		).rejects.toBeInstanceOf(NotFoundException);
 	});
 
 	it("bascule le suivi et ecrit l'audit avant/apres", async () => {
-		const update = jest.fn().mockResolvedValue({
-			id: "role-1",
-			name: "Staff",
-			color: 0,
-			position: 5,
-			managed: false,
-			trackHistory: false,
-		});
+		const update = jest.fn().mockResolvedValue({ ...STAFF, trackHistory: false });
 		const { service, audit } = makeService({
-			role: {
-				findFirst: jest.fn().mockResolvedValue({
-					id: "role-1",
-					name: "Staff",
-					trackHistory: true,
-				}),
-				findMany: jest.fn(),
-				update,
-			},
+			role: { findFirst: jest.fn().mockResolvedValue(STAFF), findMany: jest.fn(), update },
 		});
 
-		const result = await service.setRoleTracking("role-1", false, ACTOR);
+		const result = await service.updateRoleSettings("role-1", { trackHistory: false }, ACTOR);
 
+		// Seul le champ envoye est ecrit : basculer le suivi ne doit pas
+		// retirer au passage le marquage de separateur.
 		expect(update).toHaveBeenCalledWith({
 			where: { id: "role-1" },
 			data: { trackHistory: false },
@@ -231,11 +228,127 @@ describe("MembersService.setRoleTracking", () => {
 		expect(audit.record).toHaveBeenCalledWith(
 			expect.objectContaining({
 				action: "role.tracking",
-				before: { trackHistory: true },
-				after: { trackHistory: false, name: "Staff" },
+				before: { trackHistory: true, separator: false },
+				after: { trackHistory: false, separator: false, name: "Staff" },
 			}),
 		);
 		expect(result.trackHistory).toBe(false);
+	});
+
+	it("marque un role comme separateur", async () => {
+		const update = jest.fn().mockResolvedValue({ ...STAFF, isSeparator: true });
+		const { service } = makeService({
+			role: { findFirst: jest.fn().mockResolvedValue(STAFF), findMany: jest.fn(), update },
+		});
+
+		const result = await service.updateRoleSettings("role-1", { separator: true }, ACTOR);
+
+		expect(update).toHaveBeenCalledWith({
+			where: { id: "role-1" },
+			data: { isSeparator: true },
+		});
+		expect(result.separator).toBe(true);
+	});
+
+	// La fiche proposerait de l'ajouter, et Discord refuserait l'attribution.
+	it("refuse un role gere par une integration", async () => {
+		const update = jest.fn();
+		const { service } = makeService({
+			role: {
+				findFirst: jest.fn().mockResolvedValue({ ...STAFF, managed: true }),
+				findMany: jest.fn(),
+				update,
+			},
+		});
+
+		await expect(
+			service.updateRoleSettings("role-1", { separator: true }, ACTOR),
+		).rejects.toBeInstanceOf(BadRequestException);
+		expect(update).not.toHaveBeenCalled();
+	});
+});
+
+describe("MembersService.addSeparators", () => {
+	const SEP_A = "111111111111111111";
+	const SEP_B = "222222222222222222";
+
+	function serviceAvec(options: {
+		status?: string | null;
+		separateurs?: string[];
+		portes?: string[];
+	}) {
+		const create = jest.fn().mockImplementation(({ data }) =>
+			Promise.resolve({ id: "req-1", roleIds: data.roleIds, createdAt: new Date(0) }),
+		);
+		const built = makeService({
+			member: {
+				findUnique: jest
+					.fn()
+					.mockResolvedValue(
+						options.status === null ? null : { status: options.status ?? "ACTIVE" },
+					),
+			},
+			role: {
+				findFirst: jest.fn(),
+				update: jest.fn(),
+				findMany: jest
+					.fn()
+					.mockResolvedValue((options.separateurs ?? []).map((id) => ({ id }))),
+			},
+			memberRole: {
+				findMany: jest
+					.fn()
+					.mockResolvedValue((options.portes ?? []).map((roleId) => ({ roleId }))),
+			},
+			memberRoleRequest: { create },
+		});
+		return { ...built, create };
+	}
+
+	it("depose une demande sans les separateurs deja portes", async () => {
+		const { service, create, audit } = serviceAvec({
+			separateurs: [SEP_A, SEP_B],
+			portes: [SEP_A],
+		});
+
+		const result = await service.addSeparators(USER_ID, [SEP_A, SEP_B], ACTOR);
+
+		expect(create).toHaveBeenCalledWith({
+			data: { guildId: "guild-1", userId: USER_ID, roleIds: [SEP_B], requestedById: ACTOR.id },
+		});
+		expect(result.roleIds).toEqual([SEP_B]);
+		expect(audit.record).toHaveBeenCalledWith(
+			expect.objectContaining({ action: "member.separators.add" }),
+		);
+	});
+
+	// `member-roles:write` est ouverte aux moderateurs : la fiche ne doit pas
+	// devenir une porte d'attribution de roles quelconques.
+	it("refuse un role qui n'est pas marque separateur", async () => {
+		const { service, create } = serviceAvec({ separateurs: [SEP_A] });
+
+		await expect(
+			service.addSeparators(USER_ID, [SEP_A, SEP_B], ACTOR),
+		).rejects.toBeInstanceOf(BadRequestException);
+		expect(create).not.toHaveBeenCalled();
+	});
+
+	it("refuse un membre parti du serveur", async () => {
+		const { service, create } = serviceAvec({ status: "LEFT", separateurs: [SEP_A] });
+
+		await expect(service.addSeparators(USER_ID, [SEP_A], ACTOR)).rejects.toBeInstanceOf(
+			BadRequestException,
+		);
+		expect(create).not.toHaveBeenCalled();
+	});
+
+	it("refuse une demande vide une fois retires les roles deja portes", async () => {
+		const { service, create } = serviceAvec({ separateurs: [SEP_A], portes: [SEP_A] });
+
+		await expect(service.addSeparators(USER_ID, [SEP_A], ACTOR)).rejects.toBeInstanceOf(
+			BadRequestException,
+		);
+		expect(create).not.toHaveBeenCalled();
 	});
 });
 
@@ -246,14 +359,30 @@ describe("MembersService.listRoles", () => {
 				findFirst: jest.fn(),
 				update: jest.fn(),
 				findMany: jest.fn().mockResolvedValue([
-					{ id: "a", name: "A", color: 0, position: 2, managed: false, trackHistory: true },
+					{
+						id: "a",
+						name: "A",
+						color: 0,
+						position: 2,
+						managed: false,
+						trackHistory: true,
+						isSeparator: true,
+					},
 				]),
 			},
 		});
 
 		const roles = await service.listRoles();
 		expect(roles).toEqual([
-			{ id: "a", name: "A", color: 0, position: 2, managed: false, trackHistory: true },
+			{
+				id: "a",
+				name: "A",
+				color: 0,
+				position: 2,
+				managed: false,
+				trackHistory: true,
+				separator: true,
+			},
 		]);
 	});
 });

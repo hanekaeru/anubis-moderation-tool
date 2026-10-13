@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
 import {
 	Permission,
 	type MemberDetail,
 	type MemberListItem,
+	type MemberRoleRequestDto,
 	type Paginated,
 	type RoleSummary,
 	type TimelineEntry,
@@ -13,9 +14,10 @@ import { RequirePermissions } from "../common/decorators/require-permissions.dec
 import { SnowflakeParam } from "../common/pipes/snowflake.pipe";
 import type { AuthenticatedUser } from "../common/types";
 import {
+	AddMemberSeparatorsDto,
 	MemberQueryDto,
 	TimelineQueryDto,
-	UpdateRoleTrackingDto,
+	UpdateRoleSettingsDto,
 	VoiceSessionQueryDto,
 } from "./dto/member-query.dto";
 import { MembersService } from "./members.service";
@@ -37,20 +39,20 @@ export class MembersController {
 	}
 
 	/**
-	 * Choisit si les mouvements d'un role sont historises.
+	 * Reglages d'un role : historisation de ses mouvements, role separateur.
 	 *
 	 * `ROLES_MANAGE` remplace ici la permission de classe : decider ce qui entre
-	 * dans la chronologie releve de la configuration, pas de la lecture des
-	 * membres.
+	 * dans la chronologie, ou ce que la fiche membre permet d'ajouter, releve de
+	 * la configuration, pas de la lecture des membres.
 	 */
 	@Patch("roles/:roleId")
 	@RequirePermissions(Permission.ROLES_MANAGE)
-	setRoleTracking(
+	updateRoleSettings(
 		@Param("roleId", SnowflakeParam) roleId: string,
-		@Body() dto: UpdateRoleTrackingDto,
+		@Body() dto: UpdateRoleSettingsDto,
 		@CurrentUser() actor: AuthenticatedUser,
 	): Promise<RoleSummary> {
-		return this.members.setRoleTracking(roleId, dto.trackHistory, actor);
+		return this.members.updateRoleSettings(roleId, dto, actor);
 	}
 
 	@Get(":userId")
@@ -66,6 +68,17 @@ export class MembersController {
 		@Query() query: TimelineQueryDto,
 	): Promise<Paginated<TimelineEntry>> {
 		return this.members.timeline(userId, query);
+	}
+
+	/** Ajout de roles separateurs, applique par le bot au passage suivant. */
+	@Post(":userId/separators")
+	@RequirePermissions(Permission.MEMBER_ROLES_WRITE)
+	addSeparators(
+		@Param("userId", SnowflakeParam) userId: string,
+		@Body() dto: AddMemberSeparatorsDto,
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<MemberRoleRequestDto> {
+		return this.members.addSeparators(userId, dto.roleIds, actor);
 	}
 
 	@Get(":userId/voice-sessions")

@@ -48,6 +48,33 @@
     </div>
 
     <div class="header-actions">
+      @if (canWrite(Permission.MEMBER_ROLES_WRITE) && separators().length) {
+      <!-- Le bouton reste affiché même sans séparateur manquant : le voir
+           grisé dit que le profil est complet, le voir disparaître ne dit rien. -->
+      <span [matTooltip]="separatorsHint()">
+        <button matButton="outlined" [matMenuTriggerFor]="separatorMenu"
+          [disabled]="!missingSeparators().length || data.status !== 'ACTIVE' || addingSeparators()">
+          <mat-icon>playlist_add</mat-icon>
+          Séparateurs
+        </button>
+      </span>
+      <mat-menu #separatorMenu="matMenu">
+        @if (missingSeparators().length > 1) {
+        <button mat-menu-item (click)="addSeparators(missingSeparators())">
+          <mat-icon>done_all</mat-icon>
+          Tous les manquants ({{ missingSeparators().length }})
+        </button>
+        <mat-divider />
+        }
+        @for (role of missingSeparators(); track role.id) {
+        <button mat-menu-item (click)="addSeparators([role])">
+          <span class="menu-swatch" [style.background]="roleColor(role.color) ?? 'transparent'"
+            aria-hidden="true"></span>
+          {{ role.name }}
+        </button>
+        }
+      </mat-menu>
+      }
       <button matButton="outlined" *appHasPermission="Permission.WARNINGS_WRITE" (click)="openWarningDialog()">
         <mat-icon>flag</mat-icon>
         Avertir

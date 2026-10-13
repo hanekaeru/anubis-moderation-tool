@@ -137,6 +137,12 @@ export const routes: Routes = [
 				title: 'Logs — Anubis',
 			},
 			{
+				path: 'arrivees',
+				canActivate: [permissionGuard(Permission.LOGS_READ)],
+				loadComponent: () => import('./features/welcome/welcome').then((m) => m.WelcomePage),
+				title: 'Arrivées & départs — Anubis',
+			},
+			{
 				// Garde sur la permission d'ecriture : la page n'existe que pour
 				// changer qui le bot interpelle, il n'y a rien a y consulter.
 				path: 'mentions',

@@ -34,3 +34,4 @@ export * from "./dto/wiki";
 export * from "./dto/embed";
 export * from "./dto/session";
 export * from "./dto/xp";
+export * from "./dto/welcome";

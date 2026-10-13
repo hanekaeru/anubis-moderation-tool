@@ -30,6 +30,7 @@ function statusRow(overrides: Record<string, unknown> = {}) {
 		quarantinedAt: new Date("2026-08-15T10:00:00.000Z"),
 		acceptedAt: null,
 		battlenetVerifiedAt: null,
+		releasedAt: null,
 		releasedById: null,
 		discordSyncedAt: new Date("2026-08-15T10:00:00.000Z"),
 		user: {
@@ -39,6 +40,7 @@ function statusRow(overrides: Record<string, unknown> = {}) {
 			battlenetAccount: null,
 		},
 		releasedBy: null,
+		releasedByDiscord: null,
 		...overrides,
 	};
 }
@@ -165,6 +167,7 @@ describe("QuarantineService.release", () => {
 				update: jest.fn().mockResolvedValue(
 					statusRow({
 						acceptedAt: new Date(),
+						releasedAt: new Date(),
 						discordSyncedAt: null,
 						releasedBy: { displayName: "Moderatrice" },
 					}),
@@ -179,6 +182,7 @@ describe("QuarantineService.release", () => {
 		expect(prisma.quarantineStatus.update).toHaveBeenCalledWith(
 			expect.objectContaining({
 				data: expect.objectContaining({
+					releasedAt: expect.any(Date),
 					releasedById: ACTOR.id,
 					discordSyncedAt: null,
 				}),
@@ -266,6 +270,49 @@ describe("QuarantineService.listActive", () => {
 		expect(rows).toHaveLength(1);
 		expect(rows[0]!.active).toBe(true);
 		expect(rows[0]!.acceptedAt).not.toBeNull();
+	});
+
+	// Le test precedent ne voit que le tri fait en memoire : le mock renvoie la
+	// ligne quoi qu'il arrive. C'est le filtre envoye a la base qui l'ecartait
+	// en production — accepte et synchronise, donc « plus rien a raconter » —
+	// et le membre restait bloque sans apparaitre nulle part.
+	it("demande a la base les lignes acceptees mais pas encore verifiees", async () => {
+		const { service, prismaMock } = serviceAvecLignes([], true);
+
+		await service.listActive(ACTOR);
+
+		const { where } = prismaMock.quarantineStatus.findMany.mock.calls[0]![0];
+		expect(where.OR).toContainEqual({
+			releasedAt: null,
+			OR: [{ acceptedAt: null }, { battlenetVerifiedAt: null }],
+		});
+	});
+
+	it("ecarte en base les membres partis ou bannis", async () => {
+		const { service, prismaMock } = serviceAvecLignes([]);
+
+		await service.listActive(ACTOR);
+
+		const { where } = prismaMock.quarantineStatus.findMany.mock.calls[0]![0];
+		expect(where.user).toEqual({
+			memberships: {
+				none: { guildId: GUILD_ID, status: { in: ["LEFT", "BANNED"] } },
+			},
+		});
+	});
+
+	it("nomme le moderateur Discord qui a leve la quarantaine", async () => {
+		const { service } = serviceAvecLignes([
+			statusRow({
+				releasedAt: new Date("2026-08-15T11:00:00.000Z"),
+				discordSyncedAt: null,
+				releasedByDiscord: { username: "hane", globalName: "Hane" },
+			}),
+		]);
+
+		const rows = await service.listActive(ACTOR);
+
+		expect(rows[0]).toMatchObject({ active: false, releasedBy: "Hane (Discord)" });
 	});
 
 	// Le meme etat, verification non exigee : l'acceptation libere, comme avant

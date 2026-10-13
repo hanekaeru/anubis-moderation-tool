@@ -2,15 +2,17 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import type {
+	AddMemberSeparatorsRequest,
 	MemberDetail,
 	MemberListItem,
+	MemberRoleRequestDto,
 	MemberSearchQuery,
 	NoteDto,
 	Paginated,
 	RoleSummary,
 	TimelineEntry,
 	TimelineQuery,
-	UpdateRoleTrackingRequest,
+	UpdateRoleSettingsRequest,
 	VoiceSessionDto,
 	VoiceSessionQuery,
 } from '@anubis/shared';
@@ -46,9 +48,14 @@ export class MembersApi {
 		return this.http.get<RoleSummary[]>('/api/members/roles');
 	}
 
-	/** Active ou desactive l'historisation des mouvements d'un role. */
-	updateRoleTracking(roleId: string, request: UpdateRoleTrackingRequest): Observable<RoleSummary> {
+	/** Reglages d'un role : historisation de ses mouvements, role separateur. */
+	updateRoleSettings(roleId: string, request: UpdateRoleSettingsRequest): Observable<RoleSummary> {
 		return this.http.patch<RoleSummary>(`/api/members/roles/${roleId}`, request);
+	}
+
+	/** Demande l'ajout de separateurs ; le bot les pose au passage suivant. */
+	addSeparators(userId: string, request: AddMemberSeparatorsRequest): Observable<MemberRoleRequestDto> {
+		return this.http.post<MemberRoleRequestDto>(`/api/members/${userId}/separators`, request);
 	}
 
 	notes(userId: string): Observable<NoteDto[]> {

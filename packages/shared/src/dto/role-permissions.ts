@@ -10,6 +10,7 @@ import { IsoDateString } from "./common";
  */
 export const PERMISSION_LABELS: Record<Permission, string> = {
 	"members:read": "Consulter les membres et leurs fiches",
+	"member-roles:write": "Ajouter des rôles séparateurs à un membre",
 	"notes:read": "Lire les notes internes",
 	"notes:write": "Écrire des notes internes",
 	"notes:delete": "Supprimer des notes internes",
@@ -23,7 +24,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	"tickets:read": "Consulter les tickets",
 	"tickets:write": "Répondre et agir sur les tickets",
 	"stats:read": "Consulter les statistiques",
-	"roles:manage": "Choisir les rôles suivis dans l'historique",
+	"roles:manage": "Choisir les rôles suivis dans l'historique et les séparateurs",
 	"users:read": "Consulter les comptes du dashboard",
 	"users:write": "Créer et modifier les comptes du dashboard",
 	"audit:read": "Consulter le journal d'activité",
@@ -63,6 +64,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
 		label: "Membres",
 		permissions: [
 			Permission.MEMBERS_READ,
+			Permission.MEMBER_ROLES_WRITE,
 			Permission.STATS_READ,
 			Permission.NOTES_READ,
 			Permission.NOTES_WRITE,

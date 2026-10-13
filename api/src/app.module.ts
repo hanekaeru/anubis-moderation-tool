@@ -30,6 +30,7 @@ import { StatusModule } from "./status/status.module";
 import { TicketsModule } from "./tickets/tickets.module";
 import { VerificationModule } from "./verification/verification.module";
 import { VoiceModule } from "./voice/voice.module";
+import { WelcomeModule } from "./welcome/welcome.module";
 import { WikiModule } from "./wiki/wiki.module";
 import { XpModule } from "./xp/xp.module";
 
@@ -71,6 +72,7 @@ import { XpModule } from "./xp/xp.module";
 		SessionsModule,
 		EmbedsModule,
 		XpModule,
+		WelcomeModule,
 	],
 	providers: [
 		// L'ordre compte : on limite le debit, puis on authentifie, puis on

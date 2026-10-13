@@ -9,7 +9,7 @@ import { MemberStatus, SanctionType } from "@anubis/shared";
 import type { BotEvent } from "../types";
 import prisma from "../prisma";
 import * as moderation from "../collectors/moderation";
-import { chercherAction, garantirAuteur } from "../collectors/discordAudit";
+import * as welcome from "../collectors/welcome";import { chercherAction, garantirAuteur } from "../collectors/discordAudit";
 
 const event: BotEvent<typeof Events.GuildMemberRemove> = {
 	name: Events.GuildMemberRemove,
@@ -36,6 +36,9 @@ const event: BotEvent<typeof Events.GuildMemberRemove> = {
 				where: { guildId, userId: member.id },
 			});
 
+			await welcome.annoncerDepart(member).catch((err) => {
+				console.error("[Accueil] Message de départ non envoyé :", err);
+			});
 			await enregistrerExpulsionEventuelle(member, client);
 		} catch (err) {
 			console.error("[Référentiel] Départ non enregistré :", err);

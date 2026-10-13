@@ -157,6 +157,12 @@ const NAV_SECTIONS: NavSection[] = [
         icon: 'trending_up',
         permissions: [Permission.XP_READ],
       },
+      {
+        path: '/arrivees',
+        label: 'Arrivées & départs',
+        icon: 'waving_hand',
+        permissions: [Permission.LOGS_READ],
+      },
     ],
   },
   {

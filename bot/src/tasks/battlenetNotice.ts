@@ -92,7 +92,7 @@ async function journaliser(
 		.setTitle("Anubis - :white_check_mark: Compte Battle.net vérifié")
 		.setDescription(`<@${userId}> | \`${username}\` | \`${userId}\``)
 		.setFooter({
-			text: "Le BattleTag lié est consultable depuis le dashboard.",
+			text: "Le BattleTag lié n'est pas consultable depuis le dashboard pour des raisons de sécurité.",
 		})
 		.setTimestamp();
 

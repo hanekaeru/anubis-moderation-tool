@@ -17,10 +17,35 @@ export interface RoleSummary {
 	 * plus la chronologie.
 	 */
 	trackHistory: boolean;
+	/**
+	 * Role separateur (« ━━ Jeux ━━ ») : purement decoratif, il range les roles
+	 * en sections dans le profil Discord. Les separateurs sont les seuls roles
+	 * que la fiche membre permet d'ajouter.
+	 */
+	separator: boolean;
 }
 
-export interface UpdateRoleTrackingRequest {
-	trackHistory: boolean;
+/** Reglages d'un role ; un champ absent n'est pas modifie. */
+export interface UpdateRoleSettingsRequest {
+	trackHistory?: boolean;
+	separator?: boolean;
+}
+
+/**
+ * Ajout de roles separateurs a un membre.
+ *
+ * L'API depose la demande, le bot l'applique au passage suivant de sa
+ * synchronisation (cinq secondes au plus) : elle n'a aucun acces a Discord.
+ */
+export interface AddMemberSeparatorsRequest {
+	roleIds: Snowflake[];
+}
+
+export interface MemberRoleRequestDto {
+	id: string;
+	/** Roles reellement demandes : ceux que le membre portait deja sont ecartes. */
+	roleIds: Snowflake[];
+	createdAt: IsoDateString;
 }
 
 /** Ligne de la liste des membres : volontairement legere. */

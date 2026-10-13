@@ -9,7 +9,8 @@ import prisma from "../prisma";
  * **toutes** les etapes exigees sont franchies : l'acceptation du reglement
  * (bouton pose par `/quarantaine-message`) et, si `battlenetRequired` est a
  * `true`, la verification d'un compte Battle.net. Aucune expulsion automatique :
- * la quarantaine dure jusque-la, ou jusqu'a une levee manuelle depuis la webapp.
+ * la quarantaine dure jusque-la, ou jusqu'a une levee manuelle — depuis la
+ * webapp, ou en retirant le role dans le client Discord (`leverDepuisDiscord`).
  *
  * Chaque etape porte son propre jeu de roles, ce qui rend l'etat intermediaire
  * visible dans la liste des membres — sans quoi personne ne distinguerait « a
@@ -49,6 +50,20 @@ async function configActive(guildId: string) {
 	return config;
 }
 
+/** Ce qu'un retour en quarantaine efface : toutes les etapes, et la levee. */
+const REMISE_A_ZERO = {
+	acceptedAt: null,
+	battlenetVerifiedAt: null,
+	releasedAt: null,
+	releasedById: null,
+	releasedByDiscordId: null,
+};
+
+/** Role de quarantaine du serveur, `null` si la quarantaine est coupee. */
+export async function roleDeQuarantaine(guildId: string): Promise<string | null> {
+	return (await configActive(guildId))?.roleId ?? null;
+}
+
 /** Attribue le role de quarantaine a un membre qui vient d'arriver. */
 export async function quarantineNewMember(member: GuildMember): Promise<void> {
 	const config = await configActive(member.guild.id);
@@ -68,10 +83,8 @@ export async function quarantineNewMember(member: GuildMember): Promise<void> {
 			guildId_userId: { guildId: member.guild.id, userId: member.id },
 		},
 		update: {
+			...REMISE_A_ZERO,
 			quarantinedAt: new Date(),
-			acceptedAt: null,
-			battlenetVerifiedAt: null,
-			releasedById: null,
 			discordSyncedAt: new Date(),
 		},
 		create: {
@@ -210,7 +223,7 @@ async function appliquerEtape(
 	statut: {
 		acceptedAt: Date | null;
 		battlenetVerifiedAt: Date | null;
-		releasedById: string | null;
+		releasedAt: Date | null;
 	},
 	raison: string,
 ): Promise<QuarantineStage> {
@@ -260,7 +273,7 @@ export async function accepterReglement(
 		{
 			acceptedAt: maintenant,
 			battlenetVerifiedAt: statut?.battlenetVerifiedAt ?? null,
-			releasedById: statut?.releasedById ?? null,
+			releasedAt: statut?.releasedAt ?? null,
 		},
 		"Règlement accepté.",
 	);
@@ -331,6 +344,7 @@ async function rejouerEtape(
 		userId: string;
 		acceptedAt: Date | null;
 		battlenetVerifiedAt: Date | null;
+		releasedAt: Date | null;
 		releasedById: string | null;
 	},
 ): Promise<void> {
@@ -348,6 +362,116 @@ async function rejouerEtape(
 		statut,
 		statut.releasedById
 			? "Quarantaine levée depuis le dashboard."
-			: "Étape de quarantaine franchie.",
+			: statut.releasedAt
+				? "Quarantaine levée depuis Discord."
+				: "Étape de quarantaine franchie.",
 	);
+}
+
+export type ResultatLevee = "levee" | "deja-libere" | "hors-quarantaine";
+
+/** Le membre a-t-il deja franchi toutes les etapes, selon la base ? */
+export async function estLibere(member: GuildMember): Promise<boolean> {
+	const [config, statut] = await Promise.all([
+		configActive(member.guild.id),
+		prisma.quarantineStatus.findUnique({
+			where: { guildId_userId: { guildId: member.guild.id, userId: member.id } },
+		}),
+	]);
+	if (!config || !statut) return false;
+	return quarantineStage(statut, config.battlenetRequired) === QuarantineStage.CLEARED;
+}
+
+/**
+ * Levee prononcee dans le client Discord, en retirant le role de quarantaine
+ * a la main.
+ *
+ * Le membre etait libre sur Discord mais toujours bloque pour le dashboard —
+ * et `synchroniserQuarantaines` aurait pu lui reposer le role au passage
+ * suivant d'une etape. La levee est donc enregistree comme celle du bouton du
+ * dashboard : `releasedAt` passe outre toutes les etapes, et `discordSyncedAt`
+ * a `null` laisse le rattrapage appliquer les roles de levee (role « membre »,
+ * retrait des roles intermediaires). Le staff qui a deja donne le role membre
+ * n'y verra aucun changement ; celui qui l'a oublie n'aura rien a faire.
+ *
+ * Le statut est relu ici, pas avant l'appel : le bot retire lui-meme ce role a
+ * chaque levee, et l'acceptation par le bouton pose les roles **avant**
+ * d'ecrire en base. Relue apres la recherche dans l'audit log, la ligne a eu le
+ * temps de dire que ce retrait-la n'avait rien de manuel.
+ */
+export async function leverDepuisDiscord(
+	member: GuildMember,
+	auteurId: string | null,
+): Promise<ResultatLevee> {
+	const config = await configActive(member.guild.id);
+	if (!config) return "hors-quarantaine";
+
+	const cle = { guildId_userId: { guildId: member.guild.id, userId: member.id } };
+	const statut = await prisma.quarantineStatus.findUnique({ where: cle });
+	if (!statut) return "hors-quarantaine";
+
+	if (quarantineStage(statut, config.battlenetRequired) === QuarantineStage.CLEARED) {
+		return "deja-libere";
+	}
+
+	const maintenant = new Date();
+	await prisma.quarantineStatus.update({
+		where: cle,
+		data: {
+			acceptedAt: statut.acceptedAt ?? maintenant,
+			releasedAt: maintenant,
+			releasedById: null,
+			releasedByDiscordId: auteurId,
+			discordSyncedAt: null,
+		},
+	});
+
+	return "levee";
+}
+
+/**
+ * Retour en quarantaine prononce dans le client Discord, en reposant le role
+ * de quarantaine a la main.
+ *
+ * Toutes les etapes repartent de zero, comme pour un membre qui revient sur le
+ * serveur : le staff demande une nouvelle validation, une acceptation du
+ * reglement d'il y a six mois ne la remplace pas. Le lien Battle.net survit,
+ * comme au retour : revalider le meme compte ne demande qu'un clic.
+ *
+ * Les roles que la quarantaine a elle-meme donnes (levee, etapes
+ * intermediaires) sont retires. Sans cela le role « membre » continuerait
+ * d'ouvrir le serveur — entre roles, l'autorisation l'emporte sur le refus —
+ * et le role de quarantaine ne bloquerait rien. Les autres roles du membre ne
+ * sont pas touches : ils ne viennent pas de la quarantaine.
+ */
+export async function remettreEnQuarantaine(member: GuildMember): Promise<boolean> {
+	const config = await configActive(member.guild.id);
+	if (!config?.roleId) return false;
+
+	const maintenant = new Date();
+	await prisma.quarantineStatus.upsert({
+		where: { guildId_userId: { guildId: member.guild.id, userId: member.id } },
+		update: { ...REMISE_A_ZERO, quarantinedAt: maintenant, discordSyncedAt: maintenant },
+		create: {
+			guildId: member.guild.id,
+			userId: member.id,
+			discordSyncedAt: maintenant,
+		},
+	});
+
+	const aRetirer = [
+		...config.releaseAddRoleIds,
+		...config.acceptAddRoleIds,
+		...config.verifyAddRoleIds,
+	].filter((id) => id !== config.roleId && member.roles.cache.has(id));
+
+	if (aRetirer.length) {
+		await appliquerRoles(
+			member,
+			{ addRoleIds: [], removeRoleIds: aRetirer },
+			"Remise en quarantaine depuis Discord.",
+		);
+	}
+
+	return true;
 }

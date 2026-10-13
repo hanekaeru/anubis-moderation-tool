@@ -1,5 +1,8 @@
 import { Type } from "class-transformer";
 import {
+	ArrayMaxSize,
+	ArrayNotEmpty,
+	IsArray,
 	IsBoolean,
 	IsDateString,
 	IsIn,
@@ -69,9 +72,29 @@ export class MemberQueryDto extends PaginationDto {
 	sortDir: "asc" | "desc" = "asc";
 }
 
-export class UpdateRoleTrackingDto {
+export class UpdateRoleSettingsDto {
+	@IsOptional()
 	@IsBoolean()
-	trackHistory!: boolean;
+	trackHistory?: boolean;
+
+	@IsOptional()
+	@IsBoolean()
+	separator?: boolean;
+}
+
+/**
+ * Plafond d'une demande : Discord n'impose rien de tel, mais un serveur n'a
+ * guere plus d'une dizaine de separateurs, et la borne evite qu'une requete
+ * forgee n'envoie au bot une liste sans fin.
+ */
+const MAX_SEPARATORS_PER_REQUEST = 25;
+
+export class AddMemberSeparatorsDto {
+	@IsArray()
+	@ArrayNotEmpty({ message: "Choisissez au moins un séparateur." })
+	@ArrayMaxSize(MAX_SEPARATORS_PER_REQUEST)
+	@Matches(/^\d{17,20}$/, { each: true, message: "Identifiant de rôle invalide." })
+	roleIds!: string[];
 }
 
 /** Aucun filtre pour l'instant : seule la pagination compte. */

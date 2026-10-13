@@ -8,6 +8,13 @@ import { AppUserRole } from "./enums";
  */
 export const Permission = {
 	MEMBERS_READ: "members:read",
+	/**
+	 * Ajouter des roles separateurs a un membre depuis sa fiche.
+	 *
+	 * Limitee aux roles marques separateurs : ils ne portent aucun droit, ils
+	 * rangent le profil. Choisir lesquels le sont releve de `roles:manage`.
+	 */
+	MEMBER_ROLES_WRITE: "member-roles:write",
 	NOTES_READ: "notes:read",
 	NOTES_WRITE: "notes:write",
 	NOTES_DELETE: "notes:delete",
@@ -93,6 +100,9 @@ const VIEWER_PERMISSIONS: Permission[] = [
 
 const MODERATOR_PERMISSIONS: Permission[] = [
 	...VIEWER_PERMISSIONS,
+	// Un separateur n'ouvre aucun salon et ne donne aucun droit : le poser
+	// releve du soin des profils, pas de la configuration du serveur.
+	Permission.MEMBER_ROLES_WRITE,
 	Permission.NOTES_WRITE,
 	Permission.WARNINGS_WRITE,
 	Permission.WARNINGS_REVOKE,

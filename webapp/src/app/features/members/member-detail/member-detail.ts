@@ -1,14 +1,17 @@
 import {
 	ChangeDetectionStrategy,
 	Component,
+	DestroyRef,
 	computed,
 	effect,
 	inject,
 	input,
 	signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { MatDialog } from '@angular/material/dialog';
@@ -21,7 +24,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
-import { forkJoin, map, of } from 'rxjs';
+import { forkJoin, map, of, timer } from 'rxjs';
 import {
 	ACCOUNT_FLAG_TYPE_LABELS,
 	MEMBER_STATUS_LABELS,
@@ -39,6 +42,7 @@ import {
 	type MemberDetail,
 	type ModerationScoreDto,
 	type NoteDto,
+	type RoleSummary,
 	type SanctionDto,
 	type StatsPeriod,
 	type TimelineEntry,
@@ -74,6 +78,13 @@ import { WarningDialog } from '../../moderation/dialogs/warning-dialog';
 /** Liste blanche partagee avec l'API, comme dans `AttachmentPicker`. */
 const ATTACHMENT_ACCEPT = MODERATION_ATTACHMENT_CONTENT_TYPES.join(',');
 
+/**
+ * Delai avant de relire la fiche apres une demande de separateurs : un peu plus
+ * que le cycle de synchronisation du bot (5 s), le temps qu'il pose les roles
+ * et que l'evenement Discord revienne mettre la base a jour.
+ */
+const SEPARATOR_RELOAD_DELAY_MS = 7_000;
+
 const TIMELINE_ICONS: Record<string, string | undefined> = {
 	WARNING: 'flag',
 	SANCTION: 'gavel',
@@ -99,6 +110,7 @@ const TIMELINE_ICONS: Record<string, string | undefined> = {
 		MatFormFieldModule,
 		MatIconModule,
 		MatInputModule,
+		MatMenuModule,
 		MatProgressBarModule,
 		MatSlideToggleModule,
 		MatTabsModule,
@@ -124,6 +136,7 @@ export class MemberDetailPage {
 	private readonly notifications = inject(NotificationService);
 	private readonly palette = inject(ChartPalette);
 	private readonly formBuilder = inject(FormBuilder);
+	private readonly destroyRef = inject(DestroyRef);
 
 	/** Injecte depuis la route grace a `withComponentInputBinding`. */
 	readonly userId = input.required<string>();
@@ -212,6 +225,21 @@ export class MemberDetailPage {
 		return heatmapOptions(this.palette.tokens(), stats.heatmap, WEEKDAY_LABELS);
 	});
 
+	/** Roles marques separateurs, charges seulement pour qui peut les ajouter. */
+	readonly separators = signal<RoleSummary[]>([]);
+	readonly addingSeparators = signal(false);
+
+	readonly missingSeparators = computed(() => {
+		const porte = new Set(this.member()?.roles.map((role) => role.id) ?? []);
+		return this.separators().filter((role) => !porte.has(role.id));
+	});
+
+	readonly separatorsHint = computed(() => {
+		if (this.member()?.status !== 'ACTIVE') return 'Le membre n’est plus sur le serveur.';
+		if (!this.missingSeparators().length) return 'Le membre porte déjà tous les séparateurs.';
+		return '';
+	});
+
 	readonly hasActivity = computed(() => (this.activity()?.totals.messages ?? 0) > 0);
 	readonly hasVoice = computed(() => (this.activity()?.totals.voiceMinutes ?? 0) > 0);
 	readonly hasHeatmap = computed(() => (this.activity()?.heatmap.length ?? 0) > 0);
@@ -223,6 +251,40 @@ export class MemberDetailPage {
 			const userId = this.userId();
 			this.loadMember(userId);
 			this.loadActivity(userId);
+		});
+
+		if (this.canWrite(Permission.MEMBER_ROLES_WRITE)) {
+			this.membersApi.listRoles().subscribe({
+				next: (roles) => this.separators.set(roles.filter((role) => role.separator)),
+			});
+		}
+	}
+
+	/**
+	 * Demande l'ajout de separateurs.
+	 *
+	 * L'API ne fait que deposer la demande : c'est le bot qui pose les roles, a
+	 * son passage suivant (cinq secondes au plus). La fiche est relue un peu
+	 * apres, sans quoi le moderateur verrait le bouton toujours actif et
+	 * recliquerait.
+	 */
+	addSeparators(roles: RoleSummary[]): void {
+		const userId = this.userId();
+		this.addingSeparators.set(true);
+
+		this.membersApi.addSeparators(userId, { roleIds: roles.map((role) => role.id) }).subscribe({
+			next: (request) => {
+				this.notifications.success(
+					`${request.roleIds.length} séparateur(s) demandé(s) : le bot les ajoute dans quelques secondes.`,
+				);
+				timer(SEPARATOR_RELOAD_DELAY_MS)
+					.pipe(takeUntilDestroyed(this.destroyRef))
+					.subscribe(() => {
+						this.addingSeparators.set(false);
+						if (this.userId() === userId) this.loadMember(userId);
+					});
+			},
+			error: () => this.addingSeparators.set(false),
 		});
 	}
 

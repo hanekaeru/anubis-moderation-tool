@@ -61,9 +61,9 @@ describe("toActorRef", () => {
 describe("sortRoles", () => {
 	it("trie du plus haut au plus bas, comme Discord", () => {
 		const roles = [
-			{ id: "1", name: "Low", color: 0, position: 1, managed: false, trackHistory: true },
-			{ id: "2", name: "High", color: 0, position: 10, managed: false, trackHistory: true },
-			{ id: "3", name: "Mid", color: 0, position: 5, managed: false, trackHistory: true },
+			{ id: "1", name: "Low", color: 0, position: 1, managed: false, trackHistory: true, separator: false },
+			{ id: "2", name: "High", color: 0, position: 10, managed: false, trackHistory: true, separator: false },
+			{ id: "3", name: "Mid", color: 0, position: 5, managed: false, trackHistory: true, separator: false },
 		];
 
 		expect(sortRoles(roles).map((r) => r.id)).toEqual(["2", "3", "1"]);
@@ -71,8 +71,8 @@ describe("sortRoles", () => {
 
 	it("ne modifie pas le tableau d'origine", () => {
 		const roles = [
-			{ id: "1", name: "Low", color: 0, position: 1, managed: false, trackHistory: true },
-			{ id: "2", name: "High", color: 0, position: 10, managed: false, trackHistory: true },
+			{ id: "1", name: "Low", color: 0, position: 1, managed: false, trackHistory: true, separator: false },
+			{ id: "2", name: "High", color: 0, position: 10, managed: false, trackHistory: true, separator: false },
 		];
 		const original = [...roles];
 
