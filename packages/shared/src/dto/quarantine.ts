@@ -100,7 +100,10 @@ export interface QuarantineStatusDto {
 	 * toute l'equipe.
 	 */
 	battletag: string | null;
-	/** Compte dashboard ayant leve la quarantaine a la main, le cas echeant. */
+	/**
+	 * Auteur d'une levee manuelle : compte du dashboard, ou moderateur ayant
+	 * retire le role de quarantaine dans le client Discord.
+	 */
 	releasedBy: string | null;
 	/** Une etape exigee manque encore : le membre est toujours bloque. */
 	active: boolean;
@@ -150,8 +153,11 @@ export function quarantineStage(
 	progress: {
 		acceptedAt: Date | string | null;
 		battlenetVerifiedAt: Date | string | null;
-		/** Levee prononcee a la main depuis le dashboard. */
-		releasedById?: string | null;
+		/**
+		 * Levee prononcee a la main, depuis le dashboard ou en retirant le role
+		 * de quarantaine dans le client Discord.
+		 */
+		releasedAt?: Date | string | null;
 	},
 	battlenetRequired: boolean,
 ): QuarantineStage {
@@ -159,7 +165,10 @@ export function quarantineStage(
 	// le bot doit ouvrir l'acces sans attendre une verification qui n'arrivera
 	// jamais — c'est precisement pour les cas ou elle ne peut pas aboutir que le
 	// bouton existe.
-	if (progress.releasedById) return QuarantineStage.CLEARED;
+	//
+	// La date fait foi, pas l'auteur : l'auteur passe a `null` quand son compte
+	// est supprime, et l'audit log Discord ne le livre pas toujours.
+	if (progress.releasedAt) return QuarantineStage.CLEARED;
 
 	const accepted = progress.acceptedAt !== null;
 	const verified = progress.battlenetVerifiedAt !== null;

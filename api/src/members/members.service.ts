@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+	BadRequestException,
+	Injectable,
+	NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@anubis/shared/prisma";
 import {
 	moderationRisk,
@@ -7,6 +11,7 @@ import {
 	type MemberCounters,
 	type MemberDetail,
 	type MemberListItem,
+	type MemberRoleRequestDto,
 	type MemberSortField,
 	type ModerationScoreDto,
 	type Paginated,
@@ -648,15 +653,18 @@ export class MembersService {
 	}
 
 	/**
-	 * Active ou desactive l'historisation d'un role.
+	 * Reglages d'un role : historisation de ses mouvements, role separateur.
 	 *
-	 * Le changement est retroactif : les evenements deja enregistres pour ce role
-	 * disparaissent des chronologies, et reapparaissent si on le reactive. Rien
-	 * n'est supprime en base, seule la lecture est filtree.
+	 * L'historisation est retroactive : les evenements deja enregistres pour ce
+	 * role disparaissent des chronologies, et reapparaissent si on la reactive.
+	 * Rien n'est supprime en base, seule la lecture est filtree.
+	 *
+	 * Un role gere par une integration ne peut pas devenir separateur : la fiche
+	 * proposerait de l'ajouter, et Discord refuserait l'attribution.
 	 */
-	async setRoleTracking(
+	async updateRoleSettings(
 		roleId: string,
-		trackHistory: boolean,
+		settings: { trackHistory?: boolean; separator?: boolean },
 		actor: AuthenticatedUser,
 	): Promise<RoleSummary> {
 		const role = await this.prisma.role.findFirst({
@@ -666,20 +674,127 @@ export class MembersService {
 		if (!role)
 			throw new NotFoundException("Rôle introuvable sur ce serveur.");
 
+		if (settings.trackHistory === undefined && settings.separator === undefined) {
+			throw new BadRequestException("Aucun réglage à modifier.");
+		}
+
+		if (settings.separator && role.managed) {
+			throw new BadRequestException(
+				"Un rôle géré par une intégration Discord ne peut pas être un séparateur.",
+			);
+		}
+
+		const data: Prisma.RoleUpdateInput = {};
+		if (settings.trackHistory !== undefined) data.trackHistory = settings.trackHistory;
+		if (settings.separator !== undefined) data.isSeparator = settings.separator;
+
 		const updated = await this.prisma.role.update({
 			where: { id: roleId },
-			data: { trackHistory },
+			data,
 		});
 
 		await this.audit.record({
 			appUserId: actor.id,
-			action: "role.tracking",
+			action: settings.separator !== undefined ? "role.settings" : "role.tracking",
 			entityType: "role",
 			entityId: roleId,
-			before: { trackHistory: role.trackHistory },
-			after: { trackHistory, name: role.name },
+			before: { trackHistory: role.trackHistory, separator: role.isSeparator },
+			after: {
+				trackHistory: updated.trackHistory,
+				separator: updated.isSeparator,
+				name: role.name,
+			},
 		});
 
 		return toRoleSummary(updated);
+	}
+
+	/**
+	 * Demande l'ajout de roles separateurs a un membre.
+	 *
+	 * Trois refus, chacun pour une raison :
+	 * - un role qui n'est pas marque separateur : la fiche ne doit pas devenir
+	 *   une porte d'attribution de roles quelconques, `member-roles:write` est
+	 *   ouverte aux moderateurs ;
+	 * - un membre absent du serveur : Discord n'attribue rien a qui n'est pas la,
+	 *   et la demande resterait en echec sans que le dashboard l'explique ;
+	 * - une demande vide une fois retires les roles deja portes : rien a faire.
+	 *
+	 * Le bot revalide le tout a l'application : un role peut avoir cesse d'etre
+	 * separateur entre-temps.
+	 */
+	async addSeparators(
+		userId: string,
+		roleIds: string[],
+		actor: AuthenticatedUser,
+	): Promise<MemberRoleRequestDto> {
+		const guildId = this.guild.guildId;
+		const demandes = [...new Set(roleIds)];
+
+		const member = await this.prisma.member.findUnique({
+			where: { guildId_userId: { guildId, userId } },
+			select: { status: true },
+		});
+
+		if (!member) {
+			throw new NotFoundException(`Membre ${userId} introuvable sur ce serveur.`);
+		}
+		if (member.status !== "ACTIVE") {
+			throw new BadRequestException("Ce membre n'est plus sur le serveur.");
+		}
+
+		const [separateurs, portes] = await Promise.all([
+			this.prisma.role.findMany({
+				where: {
+					guildId,
+					id: { in: demandes },
+					isSeparator: true,
+					managed: false,
+					deletedAt: null,
+				},
+				select: { id: true },
+			}),
+			this.prisma.memberRole.findMany({
+				where: { guildId, userId, roleId: { in: demandes } },
+				select: { roleId: true },
+			}),
+		]);
+
+		const valides = new Set(separateurs.map((role) => role.id));
+		const refuses = demandes.filter((id) => !valides.has(id));
+		if (refuses.length) {
+			throw new BadRequestException(
+				`Ce rôle n'est pas un séparateur : ${refuses[0]}.`,
+			);
+		}
+
+		const dejaPortes = new Set(portes.map((row) => row.roleId));
+		const aAjouter = demandes.filter((id) => !dejaPortes.has(id));
+		if (!aAjouter.length) {
+			throw new BadRequestException("Le membre porte déjà ces séparateurs.");
+		}
+
+		const request = await this.prisma.memberRoleRequest.create({
+			data: {
+				guildId,
+				userId,
+				roleIds: aAjouter,
+				requestedById: actor.id,
+			},
+		});
+
+		await this.audit.record({
+			appUserId: actor.id,
+			action: "member.separators.add",
+			entityType: "member",
+			entityId: userId,
+			after: { roleIds: aAjouter },
+		});
+
+		return {
+			id: request.id,
+			roleIds: request.roleIds,
+			createdAt: request.createdAt.toISOString(),
+		};
 	}
 }

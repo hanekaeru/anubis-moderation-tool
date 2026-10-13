@@ -203,6 +203,7 @@ model Guild {
   accountFlags           AccountFlag[]
   quarantineConfig       QuarantineConfig?
   quarantineStatuses     QuarantineStatus[]
+  memberRoleRequests     MemberRoleRequest[]
   battlenetAccounts      BattlenetAccount[]
   battlenetStates        BattlenetVerificationState[]
   shadowbanRoleBackups   ShadowbanRoleBackup[]
@@ -214,6 +215,7 @@ model Guild {
   embedMessages          EmbedMessage[]
   xpRewardRoles          XpRewardRole[]
   xpConfig               XpConfig?
+  welcomeConfig          WelcomeConfig?
   moderationPoints       ModerationPointsConfig?
   staffReminders         StaffReminder[]
 
@@ -254,7 +256,9 @@ model DiscordUser {
   activityTargets         ModerationActivity[]    @relation("ActivityTarget")
   automodIncidents        AutomodIncident[]
   accountFlags            AccountFlag[]
-  quarantineStatuses      QuarantineStatus[]
+  quarantineStatuses      QuarantineStatus[]      @relation("QuarantineMember")
+  quarantineReleases      QuarantineStatus[]      @relation("QuarantineDiscordReleaser")
+  memberRoleRequests      MemberRoleRequest[]
   battlenetAccount        BattlenetAccount?
   battlenetStates         BattlenetVerificationState[]
   shadowbanRoleBackups    ShadowbanRoleBackup[]
@@ -305,6 +309,10 @@ model Role {
   /// Le role reste affiche sur la fiche et reste filtrable : seul l'historique
   /// est concerne.
   trackHistory Boolean   @default(true) @map("track_history")
+  /// Role separateur (« ━━ Jeux ━━ ») : decoratif, il range les roles du
+  /// membre en sections dans son profil. Reglage du dashboard, comme
+  /// `trackHistory` : absent du bloc `update` de `upsertRole`.
+  isSeparator  Boolean   @default(false) @map("is_separator")
   deletedAt    DateTime? @map("deleted_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
@@ -986,9 +994,18 @@ model QuarantineStatus {
   userId          String    @map("user_id") @db.VarChar(20)
   quarantinedAt   DateTime  @default(now()) @map("quarantined_at")
   acceptedAt      DateTime? @map("accepted_at")
-  /// Pose depuis la webapp lors d'une levee manuelle : `null` en attendant
-  /// que le bot retire le role au prochain passage de synchronisation.
+  /// Levee manuelle : c'est **elle** qui fait foi, pas l'auteur. Les deux
+  /// colonnes d'auteur passent a `null` quand le compte disparait
+  /// (`SetNull`), et une levee ne doit pas s'annuler parce qu'un compte du
+  /// dashboard a ete supprime. Elle reste aussi posee quand l'audit log
+  /// Discord ne dit pas qui a retire le role.
+  releasedAt      DateTime? @map("released_at")
+  /// Auteur d'une levee depuis la webapp.
   releasedById    String?   @map("released_by_id") @db.Uuid
+  /// Auteur d'une levee depuis le client Discord (role de quarantaine retire
+  /// a la main). Exclusif de `releasedById`, meme couple que
+  /// `Sanction.revokedById` / `revokedByDiscordId`.
+  releasedByDiscordId String? @map("released_by_discord_id") @db.VarChar(20)
   /// Verification Battle.net reussie. `null` tant qu'elle manque — la levee
   /// complete n'a lieu que lorsque `acceptedAt` et celle-ci sont toutes deux
   /// posees, ou que `QuarantineConfig.battlenetRequired` est a `false`.
@@ -998,12 +1015,69 @@ model QuarantineStatus {
   /// `RaidIncident.discordSyncedAt` pour une levee demandee depuis la webapp.
   discordSyncedAt DateTime? @map("discord_synced_at")
 
-  guild      Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  user       DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  releasedBy AppUser?    @relation("QuarantineReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull)
+  guild             Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user              DiscordUser  @relation("QuarantineMember", fields: [userId], references: [id], onDelete: Cascade)
+  releasedBy        AppUser?     @relation("QuarantineReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull)
+  releasedByDiscord DiscordUser? @relation("QuarantineDiscordReleaser", fields: [releasedByDiscordId], references: [id], onDelete: SetNull)
 
   @@id([guildId, userId])
   @@map("quarantine_status")
+}
+
+/// Messages automatiques d'arrivee, de depart et de boost, une ligne par serveur.
+///
+/// Pas de `discordSyncedAt` : comme `XpConfig`, le reglage ne decrit rien a
+/// rejouer sur Discord, seulement la facon d'ecrire le prochain message. Le bot
+/// le relit a chaque evenement (cache court).
+///
+/// Tout est coupe par defaut et la migration ne pre-remplit rien : un serveur
+/// qui n'ouvre jamais la page ne voit aucun message apparaitre.
+model WelcomeConfig {
+  guildId        String   @id @map("guild_id") @db.VarChar(20)
+  /// Salon des arrivees et des departs.
+  channelId      String?  @map("channel_id") @db.VarChar(20)
+  joinEnabled    Boolean  @default(false) @map("join_enabled")
+  /// Gabarit personnalise ; `null` pour le texte par defaut.
+  joinMessage    String?  @map("join_message") @db.Text
+  leaveEnabled   Boolean  @default(false) @map("leave_enabled")
+  leaveMessage   String?  @map("leave_message") @db.Text
+  boostEnabled   Boolean  @default(false) @map("boost_enabled")
+  /// Salon des annonces de boost ; `null` pour celui des arrivees. Separable
+  /// parce que l'annonce interpelle la moderation, que le staff peut preferer
+  /// recevoir dans un salon a lui.
+  boostChannelId String?  @map("boost_channel_id") @db.VarChar(20)
+  boostMessage   String?  @map("boost_message") @db.Text
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("welcome_config")
+}
+
+/// Roles a ajouter a un membre, demandes depuis la fiche du dashboard.
+///
+/// L'API n'a aucun acces a Discord : elle depose la demande, le bot l'applique
+/// au passage suivant de sa synchronisation — meme patron `discordSyncedAt`
+/// que les sanctions. Aujourd'hui limite aux roles separateurs
+/// (`Role.isSeparator`), que l'API et le bot verifient chacun.
+model MemberRoleRequest {
+  id              String    @id @default(uuid()) @db.Uuid
+  guildId         String    @map("guild_id") @db.VarChar(20)
+  userId          String    @map("user_id") @db.VarChar(20)
+  roleIds         String[]  @map("role_ids")
+  requestedById   String?   @map("requested_by_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  /// Pose meme en cas d'echec (avec `lastError`) : sans cela une demande
+  /// refusee par Discord serait rejouee toutes les cinq secondes.
+  discordSyncedAt DateTime? @map("discord_synced_at")
+  lastError       String?   @map("last_error")
+
+  guild       Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user        DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestedBy AppUser?    @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@index([discordSyncedAt])
+  @@map("member_role_requests")
 }
 
 /// Compte Battle.net verifie, lie a un compte Discord.
@@ -1456,6 +1530,7 @@ model AppUser {
   raidIncidentsResolved RaidIncident[]
   accountFlagsReviewed  AccountFlag[]
   quarantineReleases    QuarantineStatus[]      @relation("QuarantineReleasedBy")
+  memberRoleRequests    MemberRoleRequest[]
   discordLinkCode       AccountLinkCode?
   wikiArticlesCreated   WikiArticle[]           @relation("WikiAuthor")
   wikiArticlesUpdated   WikiArticle[]           @relation("WikiEditor")

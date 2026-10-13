@@ -1,0 +1,113 @@
+<div class="page" [formGroup]="form">
+	<header class="page-header">
+		<div>
+			<h1>Arrivées &amp; départs</h1>
+			<p class="subtitle">
+				Messages envoyés automatiquement par le bot quand un membre arrive, part ou booste le
+				serveur. Tout est désactivé tant que vous ne l'activez pas ici.
+			</p>
+		</div>
+	</header>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Salon</mat-card-title>
+			<mat-card-subtitle>
+				Identifiant du salon où écrire les arrivées et les départs. Pour le copier : clic droit
+				sur le salon, « Copier l'identifiant » (mode développeur activé).
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<mat-form-field class="channel">
+				<mat-label>Salon des arrivées et des départs</mat-label>
+				<input matInput formControlName="channelId" inputmode="numeric" placeholder="123456789012345678" />
+				@if (form.controls.channelId.hasError('pattern')) {
+					<mat-error>Un identifiant Discord est fait de 17 à 20 chiffres.</mat-error>
+				} @else if (form.controls.channelId.hasError('salon')) {
+					<mat-error>Requis pour envoyer les messages activés.</mat-error>
+				}
+			</mat-form-field>
+		</mat-card-content>
+	</mat-card>
+
+	@for (section of sections; track section.event) {
+		<mat-card appearance="outlined">
+			<mat-card-header>
+				<mat-card-title>{{ section.title }}</mat-card-title>
+				<mat-card-subtitle>{{ section.subtitle }}</mat-card-subtitle>
+			</mat-card-header>
+
+			<mat-card-content class="section">
+				<mat-slide-toggle [formControlName]="section.toggle">
+					Envoyer ce message
+				</mat-slide-toggle>
+
+				@if (section.event === Event.BOOST) {
+					<mat-form-field class="channel">
+						<mat-label>Salon des annonces de boost (facultatif)</mat-label>
+						<input
+							matInput
+							formControlName="boostChannelId"
+							inputmode="numeric"
+							placeholder="Vide : salon des arrivées"
+						/>
+						<mat-hint>Un salon du staff, si l'équipe préfère ne pas être appelée en public.</mat-hint>
+						@if (form.controls.boostChannelId.hasError('pattern')) {
+							<mat-error>Un identifiant Discord est fait de 17 à 20 chiffres.</mat-error>
+						}
+					</mat-form-field>
+				}
+
+				<mat-form-field class="message">
+					<mat-label>Message</mat-label>
+					<textarea
+						matInput
+						rows="3"
+						[formControlName]="section.message"
+						[maxlength]="maxLength"
+						[placeholder]="defaults[section.event]"
+					></textarea>
+					<mat-hint>Vide : le texte par défaut, affiché en grisé.</mat-hint>
+					@if (form.get(section.message)?.hasError('maxlength')) {
+						<mat-error>{{ maxLength }} caractères au maximum.</mat-error>
+					}
+				</mat-form-field>
+
+				<ul class="tokens">
+					@for (placeholder of placeholders[section.event]; track placeholder.token) {
+						<li><code>{{ placeholder.token }}</code> {{ placeholder.label }}</li>
+					}
+				</ul>
+
+				<div class="apercu">
+					<span class="apercu-label">Aperçu</span>
+					<p>{{ previews()[section.event] }}</p>
+				</div>
+
+				@if (section.event === Event.BOOST && boostSansMention()) {
+					<p class="warning">
+						<mat-icon>notifications_off</mat-icon>
+						@if (!alertRoleId()) {
+							Aucun rôle n'est choisi dans
+							<a routerLink="/mentions">Rôles &amp; mentions</a> : l'annonce ne préviendra
+							personne.
+						} @else {
+							Le message ne contient pas <code>{{ '{' }}moderation{{ '}' }}</code> : l'équipe ne
+							sera pas notifiée.
+						}
+					</p>
+				}
+			</mat-card-content>
+		</mat-card>
+	}
+
+	<div class="actions" *appHasPermission="Permission.LOGS_WRITE">
+		@if (raisonDuBlocage(); as raison) {
+			<p class="blocage">{{ raison }}</p>
+		}
+		<button matButton="filled" [disabled]="saving() || loading()" (click)="save()">
+			Enregistrer
+		</button>
+	</div>
+</div>

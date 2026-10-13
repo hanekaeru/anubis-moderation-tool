@@ -6,6 +6,7 @@ import * as accountSurveillance from "../collectors/accountSurveillance";
 import * as quarantine from "../collectors/quarantine";
 import * as raid from "../collectors/raid";
 import * as referentiel from "../collectors/referentiel";
+import * as welcome from "../collectors/welcome";
 
 const event: BotEvent<typeof Events.GuildMemberAdd> = {
 	name: Events.GuildMemberAdd,
@@ -37,6 +38,9 @@ const event: BotEvent<typeof Events.GuildMemberAdd> = {
 					joinedAt: member.joinedAt,
 					leftAt: null,
 					nickname: member.nickname ?? null,
+					// Un boost s'arrete au depart : la date d'un ancien passage
+					// ferait passer le prochain boost du membre sous silence.
+					boostingSince: member.premiumSince ?? null,
 					// Un membre deja connu qui revient : on compte l'arrivee
 					// supplementaire plutot que d'ecraser l'historique.
 					joinCount: { increment: 1 },
@@ -58,6 +62,10 @@ const event: BotEvent<typeof Events.GuildMemberAdd> = {
 
 			await referentiel.synchroniserRoles(member);
 			console.log(`[Référentiel] Arrivée de ${member.user.tag}.`);
+
+			await welcome.annoncerArrivee(member).catch((err) => {
+				console.error("[Accueil] Message d'arrivée non envoyé :", err);
+			});
 		} catch (err) {
 			console.error("[Référentiel] Arrivée non enregistrée :", err);
 		}

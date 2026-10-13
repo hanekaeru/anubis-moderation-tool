@@ -5,7 +5,7 @@ import {
 	recordHeartbeat,
 } from "../collectors/heartbeat";
 import * as giveaway from "../collectors/giveaway";
-import * as quarantine from "../collectors/quarantine";
+import * as quarantine from "../collectors/quarantine";import { appliquerDemandesDeRoles } from "../tasks/memberRoleRequests";
 import { checkPendingAccountFlagAlerts } from "../tasks/accountFlagAlerts";
 import { checkPendingBattlenetNotices } from "../tasks/battlenetNotice";
 import { lienVerificationBattlenet } from "../utils/verificationLink";
@@ -98,8 +98,7 @@ const event: BotEvent<typeof Events.ClientReady> = {
 				await voiceHubs.reconcilierSalons(guild);
 			} catch (err) {
 				console.error(`[Vocaux] Réconciliation échouée sur ${guild.name} :`, err);
-			}
-		}
+			}		}
 
 		// Premier battement immediat : sans lui, la page de statut affiche le bot
 		// hors ligne pendant les premieres secondes suivant un redemarrage.
@@ -146,6 +145,9 @@ const event: BotEvent<typeof Events.ClientReady> = {
 			});
 			quarantine.synchroniserQuarantaines(client).catch((err) => {
 				console.error("[Quarantaine] Mise à jour des rôles échouée :", err);
+			});
+			appliquerDemandesDeRoles(client).catch((err) => {
+				console.error("[Rôles] Application des séparateurs échouée :", err);
 			});
 			checkPendingAccountFlagAlerts(client).catch((err) => {
 				console.error("[Signalements] Alerte au staff échouée :", err);

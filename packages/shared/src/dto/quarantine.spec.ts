@@ -37,7 +37,7 @@ describe("quarantineStage", () => {
 	// viderait le bouton de son sens.
 	it("libere sur une levee manuelle, quelles que soient les etapes", () => {
 		expect(
-			quarantineStage({ ...jamais, releasedById: "uuid" }, true),
+			quarantineStage({ ...jamais, releasedAt: new Date() }, true),
 		).toBe(QuarantineStage.CLEARED);
 	});
 });

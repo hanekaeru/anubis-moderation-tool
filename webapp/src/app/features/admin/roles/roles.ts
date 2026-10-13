@@ -15,12 +15,16 @@ import { MembersApi } from '../../../core/api/members.api';
 import { NotificationService } from '../../../core/notification.service';
 
 /**
- * Reglage de l'historisation des roles.
+ * Reglages des roles : historisation et separateurs.
  *
  * Sur un serveur avec des roles de couleur ou des badges auto-attribues, les
  * mouvements de ces roles representent l'essentiel des evenements et rendent la
  * chronologie d'un membre illisible. Les exclure ici les fait disparaitre des
  * fiches, sans rien supprimer et sans les retirer des filtres.
+ *
+ * Marquer un role separateur est ce qui permet de l'ajouter depuis la fiche
+ * d'un membre : c'est la seule attribution de role que le dashboard propose,
+ * et elle est volontairement bornee a ces roles decoratifs.
  */
 @Component({
 	selector: 'app-roles',
@@ -61,6 +65,7 @@ export class RolesPage {
 	});
 
 	readonly trackedCount = computed(() => this.roles().filter((role) => role.trackHistory).length);
+	readonly separatorCount = computed(() => this.roles().filter((role) => role.separator).length);
 
 	constructor() {
 		this.search.valueChanges
@@ -74,20 +79,40 @@ export class RolesPage {
 		return this.pending().has(roleId);
 	}
 
-	toggle(role: RoleSummary, trackHistory: boolean): void {
+	toggleTracking(role: RoleSummary, trackHistory: boolean): void {
+		this.save(
+			role,
+			{ trackHistory },
+			trackHistory
+				? `Les mouvements de « ${role.name} » sont de nouveau historisés.`
+				: `« ${role.name} » n'apparaîtra plus dans les chronologies.`,
+		);
+	}
+
+	toggleSeparator(role: RoleSummary, separator: boolean): void {
+		this.save(
+			role,
+			{ separator },
+			separator
+				? `« ${role.name} » peut désormais être ajouté depuis la fiche d'un membre.`
+				: `« ${role.name} » n'est plus un séparateur.`,
+		);
+	}
+
+	private save(
+		role: RoleSummary,
+		request: { trackHistory?: boolean; separator?: boolean },
+		message: string,
+	): void {
 		this.setPending(role.id, true);
 
-		this.membersApi.updateRoleTracking(role.id, { trackHistory }).subscribe({
+		this.membersApi.updateRoleSettings(role.id, request).subscribe({
 			next: (updated) => {
 				this.roles.update((roles) =>
 					roles.map((item) => (item.id === updated.id ? updated : item)),
 				);
 				this.setPending(role.id, false);
-				this.notifications.success(
-					trackHistory
-						? `Les mouvements de « ${role.name} » sont de nouveau historisés.`
-						: `« ${role.name} » n'apparaîtra plus dans les chronologies.`,
-				);
+				this.notifications.success(message);
 			},
 			// L'interrupteur reste sur son ancienne valeur puisque la liste n'a
 			// pas ete modifiee : l'echec est deja signale par l'intercepteur.

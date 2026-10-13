@@ -13,10 +13,31 @@
 
 	p {
 		margin: 0;
+		max-width: var(--measure);
 		font-size: 0.88rem;
 		line-height: 1.5;
 		color: var(--mat-sys-on-surface-variant);
 	}
+}
+
+.explain-text {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+.toggles {
+	display: flex;
+	align-items: center;
+	gap: var(--space-5);
+	flex-wrap: wrap;
+}
+
+/* Largeur fixe : « Historisé » et « Ignoré » n'ont pas la meme longueur, et
+   l'interrupteur de droite sautait d'une ligne a l'autre. */
+.toggles mat-slide-toggle:last-child .toggle-label {
+	display: inline-block;
+	min-width: 9ch;
 }
 
 .search {

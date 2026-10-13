@@ -2,19 +2,28 @@
 	<header class="page-header">
 		<div>
 			<h1>Rôles suivis</h1>
-			<p class="subtitle">{{ trackedCount() }} rôle(s) historisé(s) sur {{ roles().length }}</p>
+			<p class="subtitle">
+				{{ trackedCount() }} rôle(s) historisé(s) · {{ separatorCount() }} séparateur(s) sur
+				{{ roles().length }}
+			</p>
 		</div>
 	</header>
 
 	<mat-card appearance="outlined" class="explain">
 		<mat-card-content>
 			<mat-icon>info</mat-icon>
-			<p>
-				Un rôle décoché continue d'apparaître sur la fiche des membres et reste utilisable comme
-				filtre : seuls ses ajouts et retraits cessent d'alimenter la chronologie. Le réglage est
-				rétroactif et réversible — rien n'est supprimé, et recocher un rôle fait réapparaître son
-				historique.
-			</p>
+			<div class="explain-text">
+				<p>
+					<strong>Historisé</strong> — un rôle décoché continue d'apparaître sur la fiche des membres
+					et reste utilisable comme filtre : seuls ses ajouts et retraits cessent d'alimenter la
+					chronologie. Le réglage est rétroactif et réversible — rien n'est supprimé, et recocher un
+					rôle fait réapparaître son historique.
+				</p>
+				<p>
+					<strong>Séparateur</strong> — un rôle décoratif qui range les autres en sections dans le
+					profil Discord. Seuls les séparateurs peuvent être ajoutés depuis la fiche d'un membre.
+				</p>
+			</div>
 		</mat-card-content>
 	</mat-card>
 
@@ -54,15 +63,28 @@
 							</span>
 						</div>
 
-						<mat-slide-toggle
-							[checked]="role.trackHistory"
-							[disabled]="isPending(role.id)"
-							(change)="toggle(role, $event.checked)"
-						>
-							<span class="toggle-label">
-								{{ role.trackHistory ? 'Historisé' : 'Ignoré' }}
-							</span>
-						</mat-slide-toggle>
+						<div class="toggles">
+							<mat-slide-toggle
+								[checked]="role.separator"
+								[disabled]="isPending(role.id) || role.managed"
+								[matTooltip]="
+									role.managed ? 'Un rôle géré par Discord ne peut pas être attribué' : ''
+								"
+								(change)="toggleSeparator(role, $event.checked)"
+							>
+								<span class="toggle-label">Séparateur</span>
+							</mat-slide-toggle>
+
+							<mat-slide-toggle
+								[checked]="role.trackHistory"
+								[disabled]="isPending(role.id)"
+								(change)="toggleTracking(role, $event.checked)"
+							>
+								<span class="toggle-label">
+									{{ role.trackHistory ? 'Historisé' : 'Ignoré' }}
+								</span>
+							</mat-slide-toggle>
+						</div>
 					</li>
 				}
 			</ul>

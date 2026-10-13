@@ -349,7 +349,14 @@ le dev avec rechargement).
   stocke) et a la lecture dans `MembersService.timeline` (ce qui rend le
   reglage retroactif et reversible). `member_roles`, qui porte l'etat courant,
   n'est jamais filtre : un role decoratif doit rester visible sur la fiche et
-  utilisable comme filtre de recherche.
+  utilisable comme filtre de recherche. `roles.is_separator` suit la meme
+  regle (absent de l'`update` de `upsertRole`) : il marque les roles
+  separateurs, **seuls roles que la fiche membre permet d'ajouter**
+  (`POST /members/:userId/separators`, `member-roles:write`, appliques par
+  `src/tasks/memberRoleRequests.ts`). La borne n'est pas cosmetique : la
+  permission est ouverte aux moderateurs, et sans elle la fiche deviendrait une
+  porte d'attribution de n'importe quel role. L'API et le bot la verifient
+  chacun.
 - **Tickets** (`src/collectors/tickets.ts`, `src/utils/ticketChannel.ts`,
   `src/handlers/ticketInteractions.ts`) : l'acces aux salons de ticket est
   accorde a tout role portant `ModerateMembers`, la meme permission deja
@@ -641,9 +648,12 @@ le dev avec rechargement).
   - `battlenetRequired` a `false` rend **exactement** le comportement d'avant :
     l'acceptation libere, et une verification faite quand elle etait encore
     exigee ne libere personne toute seule.
-  - une **levee manuelle** (`releasedById`) passe outre toutes les etapes. Le
+  - une **levee manuelle** (`releasedAt`) passe outre toutes les etapes. Le
     bouton existe pour les cas ou la verification ne peut pas aboutir ; l'y
-    soumettre le viderait de son sens.
+    soumettre le viderait de son sens. **La date fait foi, pas l'auteur** :
+    `releasedById` et `releasedByDiscordId` passent a `null` quand le compte
+    disparait, et une levee ne doit pas s'annuler parce qu'un compte du
+    dashboard a ete supprime.
   - la levee complete **retire les roles intermediaires** en plus de poser les
     siens : les laisser ferait cohabiter « en attente de verification » et
     l'acces complet sur la meme fiche.
@@ -652,6 +662,56 @@ le dev avec rechargement).
   faite avant l'acceptation laisse `acceptedAt` a `null` et doit remonter
   malgre tout. Rien n'y echappe — l'arrivee et les clics posent la date
   eux-memes.
+
+  **La liste du dashboard (`listActive`) degrossit en base, et ce filtre doit
+  garder tout ce qui peut encore etre bloque.** Il ecartait autrefois toute
+  ligne acceptee et synchronisee : un membre ayant accepte le reglement sans
+  s'etre verifie restait bloque sur Discord, invisible sur le dashboard, et
+  personne ne pouvait le debloquer. Le test unitaire ne l'avait pas vu, son
+  mock renvoyant la ligne quel que soit le `where` — d'ou un test qui verifie
+  le `where` lui-meme.
+
+  **Le role de quarantaine se manipule aussi a la main dans le client**
+  (`suivreQuarantaineManuelle`, `src/events/guildMemberUpdate.ts`). Le retirer
+  enregistre une levee (`releasedByDiscordId`, `discordSyncedAt: null` pour que
+  le rattrapage pose les roles de levee) ; le reposer remet toutes les etapes a
+  zero et retire les roles que la quarantaine avait donnes — sans quoi le role
+  « membre » continuerait d'ouvrir le serveur. Le bot pose ce role a chaque
+  arrivee et le retire a chaque levee : ses propres changements sont ecartes
+  par l'audit log, et deux gardes evitent de le lire dans les cas courants
+  (arrivee de moins d'une minute, membre deja libere en base).
+
+  **Un role gere par Discord passe outre la quarantaine, et c'est assume.**
+  Entre roles, Discord fait toujours passer l'autorisation avant le refus : un
+  salon ouvert au role de boost l'est aussi a un arrivant qui boost. Le bot ne
+  le corrige pas — un verrouillage par permissions de membre a ete ecrit puis
+  retire a la demande du proprietaire. La parade retenue est cote serveur : le
+  role de boost n'ouvre **rien**, c'est un role bonus pose a la main qui donne
+  acces aux salons reserves, et l'annonce de boost (`{moderation}`, voir
+  « Arrivees, departs et boosts ») previent l'equipe qu'elle a ce role a
+  donner. Ne pas reintroduire le verrouillage sans le lui demander.
+
+- **Arrivees, departs et boosts** (`src/collectors/welcome.ts`,
+  `welcome_config`) : meme fonctionnement que l'annonce des montees de niveau —
+  reglage par serveur relu avec un cache de 30s, rendu par
+  `renderWelcomeMessage` (`@anubis/shared`) que l'apercu du dashboard emploie
+  aussi. Quatre points a garder :
+  - **tout est coupe par defaut** et la migration ne pre-remplit rien. Un
+    message active sans salon est refuse par l'API.
+  - **un nouveau boost se lit en base**, pas sur l'ancien etat du membre : un
+    membre hors cache arrive partiel, sans `premiumSince`, et chaque mise a jour
+    d'un booster passerait pour un nouveau boost. `boostingSince` n'est pose que
+    s'il manquait, et c'est le compte de lignes touchees qui decide de
+    l'annonce. Corollaire : la date est **effacee** a la fin du boost et au
+    retour du membre (`guildMemberAdd`), sinon son boost suivant passerait sous
+    silence. Un boost survenu bot eteint est absorbe sans annonce par la
+    synchronisation du demarrage.
+  - **pas de bienvenue pendant un confinement anti-raid** (incident sans
+    `resolvedAt`) : cinquante comptes arrives en une minute feraient cinquante
+    messages. Departs et boosts continuent.
+  - `{moderation}` mentionne le role d'alerte de « Rôles & mentions », le meme
+    que pour les tickets et les signalements vocaux. Sans role choisi, le jeton
+    rend vide et la page le signale en rouge.
 - **Ce qui n'est PAS rattrape automatiquement.** Le patron `discordSyncedAt`
   couvre sanctions, avertissements (message prive), tickets, anti-raid,
   quarantine (etapes et levees), signalements de compte, concours et messages

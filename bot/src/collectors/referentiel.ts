@@ -80,9 +80,10 @@ export async function upsertRole(role: Role): Promise<void> {
 		deletedAt: null,
 	};
 
-	// `trackHistory` est volontairement absent : c'est un reglage du dashboard,
-	// pas une donnee Discord. L'ajouter ici le remettrait a sa valeur par
-	// defaut a chaque renommage de role et a chaque synchronisation complete.
+	// `trackHistory` et `isSeparator` sont volontairement absents : ce sont des
+	// reglages du dashboard, pas des donnees Discord. Les ajouter ici les
+	// remettrait a leur valeur par defaut a chaque renommage de role et a chaque
+	// synchronisation complete.
 	await prisma.role.upsert({
 		where: { id: role.id },
 		update: data,
