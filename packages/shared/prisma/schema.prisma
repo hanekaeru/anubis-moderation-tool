@@ -216,6 +216,9 @@ model Guild {
   xpRewardRoles          XpRewardRole[]
   xpConfig               XpConfig?
   welcomeConfig          WelcomeConfig?
+  esportConfig           EsportConfig?
+  esportTeams            EsportTeam[]
+  esportWeeks            EsportWeek[]
   moderationPoints       ModerationPointsConfig?
   staffReminders         StaffReminder[]
 
@@ -1054,6 +1057,126 @@ model WelcomeConfig {
   @@map("welcome_config")
 }
 
+/// Reglages du recapitulatif esport, une ligne par serveur.
+model EsportConfig {
+  guildId          String   @id @map("guild_id") @db.VarChar(20)
+  /// Salon des recapitulatifs de la semaine.
+  channelId        String?  @map("channel_id") @db.VarChar(20)
+  /// Salon des annonces de resultat ; `null` pour celui des recapitulatifs.
+  resultsChannelId String?  @map("results_channel_id") @db.VarChar(20)
+  /// Role interpelle (un role « Esport » auquel on s'inscrit, jamais
+  /// `@everyone`). `null` pour n'interpeller personne.
+  mentionRoleId    String?  @map("mention_role_id") @db.VarChar(20)
+  mentionOnPublish Boolean  @default(true) @map("mention_on_publish")
+  mentionOnResult  Boolean  @default(false) @map("mention_on_result")
+  /// Scores en spoiler par defaut ; chaque match peut faire exception.
+  spoilerScores    Boolean  @default(true) @map("spoiler_scores")
+  color            Int      @default(5793266)
+  title            String   @default("🎮 Matchs esport de la semaine") @db.VarChar(200)
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("esport_config")
+}
+
+/// Equipe esport, reutilisee de semaine en semaine.
+///
+/// Une equipe deja utilisee n'est jamais supprimee, seulement archivee
+/// (`archivedAt`) : les semaines passees doivent continuer de l'afficher.
+model EsportTeam {
+  id          String    @id @default(uuid()) @db.Uuid
+  guildId     String    @map("guild_id") @db.VarChar(20)
+  name        String    @db.VarChar(80)
+  /// Emoji tel que Discord l'ecrit : unicode, ou `<:nom:id>` pour un emoji
+  /// du serveur.
+  emoji       String?   @db.VarChar(100)
+  logoUrl     String?   @map("logo_url") @db.VarChar(500)
+  /// Equipe suivie par le serveur : mise en gras dans les recapitulatifs.
+  highlighted Boolean   @default(false)
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  guild    Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  matchesA EsportMatch[] @relation("EsportMatchTeamA")
+  matchesB EsportMatch[] @relation("EsportMatchTeamB")
+
+  @@index([guildId])
+  @@map("esport_teams")
+}
+
+/// Semaine de matchs : un recapitulatif publie, modifiable ensuite.
+///
+/// Meme patron `discordSyncedAt` que les messages composes : `messageId` a
+/// `null` signifie « publie », renseigne « corrige l'existant ». Supprimer la
+/// ligne ne touche pas a Discord ; seul `removalRequestedAt` (administrateur)
+/// retire le message.
+model EsportWeek {
+  id                 String    @id @default(uuid()) @db.Uuid
+  guildId            String    @map("guild_id") @db.VarChar(20)
+  /// Lundi de la semaine, heure de Paris.
+  weekStart          DateTime  @map("week_start") @db.Date
+  /// Titre propre a la semaine ; `null` pour celui des reglages.
+  title              String?   @db.VarChar(200)
+  /// Texte d'introduction, au-dessus des matchs.
+  description        String?   @db.Text
+  /// Envoi demande depuis le dashboard ; `null` tant que c'est un brouillon.
+  publishRequestedAt DateTime? @map("publish_requested_at")
+  channelId          String?   @map("channel_id") @db.VarChar(20)
+  messageId          String?   @map("message_id") @db.VarChar(20)
+  publishedAt        DateTime? @map("published_at")
+  discordSyncedAt    DateTime? @map("discord_synced_at")
+  lastError          String?   @map("last_error")
+  removalRequestedAt DateTime? @map("removal_requested_at")
+  createdById        String?   @map("created_by_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  guild     Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  createdBy AppUser?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  matches   EsportMatch[]
+
+  @@unique([guildId, weekStart])
+  @@map("esport_weeks")
+}
+
+/// Match d'une semaine. Termine des que `finishedAt` est pose.
+///
+/// Le resultat a son propre message, distinct du recapitulatif, et son propre
+/// cycle de synchronisation (`resultSyncedAt`).
+model EsportMatch {
+  id                       String    @id @default(uuid()) @db.Uuid
+  weekId                   String    @map("week_id") @db.Uuid
+  /// `null` : adversaire encore a determiner.
+  teamAId                  String?   @map("team_a_id") @db.Uuid
+  teamBId                  String?   @map("team_b_id") @db.Uuid
+  competition              String?   @db.VarChar(120)
+  scheduledAt              DateTime  @map("scheduled_at")
+  bestOf                   Int?      @map("best_of")
+  streamUrl                String?   @map("stream_url") @db.VarChar(500)
+  scoreA                   Int?      @map("score_a")
+  scoreB                   Int?      @map("score_b")
+  /// Score en spoiler ; `null` pour le reglage du serveur.
+  spoiler                  Boolean?
+  finishedAt               DateTime? @map("finished_at")
+  resultChannelId          String?   @map("result_channel_id") @db.VarChar(20)
+  resultMessageId          String?   @map("result_message_id") @db.VarChar(20)
+  resultSyncedAt           DateTime? @map("result_synced_at")
+  resultError              String?   @map("result_error")
+  resultRemovalRequestedAt DateTime? @map("result_removal_requested_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  week  EsportWeek  @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  teamA EsportTeam? @relation("EsportMatchTeamA", fields: [teamAId], references: [id], onDelete: SetNull)
+  teamB EsportTeam? @relation("EsportMatchTeamB", fields: [teamBId], references: [id], onDelete: SetNull)
+
+  @@index([weekId, scheduledAt])
+  @@index([finishedAt, resultSyncedAt])
+  @@map("esport_matches")
+}
+
 /// Roles a ajouter a un membre, demandes depuis la fiche du dashboard.
 ///
 /// L'API n'a aucun acces a Discord : elle depose la demande, le bot l'applique
@@ -1531,6 +1654,7 @@ model AppUser {
   accountFlagsReviewed  AccountFlag[]
   quarantineReleases    QuarantineStatus[]      @relation("QuarantineReleasedBy")
   memberRoleRequests    MemberRoleRequest[]
+  esportWeeks           EsportWeek[]
   discordLinkCode       AccountLinkCode?
   wikiArticlesCreated   WikiArticle[]           @relation("WikiAuthor")
   wikiArticlesUpdated   WikiArticle[]           @relation("WikiEditor")

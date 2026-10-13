@@ -158,6 +158,12 @@ const NAV_SECTIONS: NavSection[] = [
         permissions: [Permission.XP_READ],
       },
       {
+        path: '/esport',
+        label: 'Esport',
+        icon: 'sports_esports',
+        permissions: [Permission.ESPORT_READ],
+      },
+      {
         path: '/arrivees',
         label: 'Arrivées & départs',
         icon: 'waving_hand',
