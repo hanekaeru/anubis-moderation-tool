@@ -16,6 +16,7 @@ import * as voice from "../collectors/voice";
 import * as voiceHubs from "../collectors/voiceHubs";
 import * as xpRewards from "../collectors/xpRewards";
 import { checkPendingEmbeds } from "../tasks/embedSync";
+import { synchroniserEsport } from "../tasks/esportSync";
 import {
 	checkAppliedSanctions,
 	checkExpiredShadowbans,
@@ -172,6 +173,9 @@ const event: BotEvent<typeof Events.ClientReady> = {
 			});
 			checkPendingEmbeds(client).catch((err) => {
 				console.error("[Embeds] Envoi des messages échoué :", err);
+			});
+			synchroniserEsport(client).catch((err) => {
+				console.error("[Esport] Synchronisation échouée :", err);
 			});
 			// Un salon de creation ajoute depuis le dashboard n'existe pas encore
 			// sur Discord : sans ce rattrapage, il fallait lancer `/create_parties`

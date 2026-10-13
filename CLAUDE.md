@@ -712,6 +712,39 @@ le dev avec rechargement).
   - `{moderation}` mentionne le role d'alerte de « Rôles & mentions », le meme
     que pour les tickets et les signalements vocaux. Sans role choisi, le jeton
     rend vide et la page le signale en rouge.
+- **Esport** (`src/tasks/esportSync.ts`, `api/src/esport/`,
+  `features/esport/`) : le staff compose une semaine de matchs, l'envoie, la
+  corrige ; chaque match termine produit en plus une **annonce de resultat**,
+  un message distinct. Meme patron que les messages composes — `messageId` a
+  `null` publie, renseigne corrige, introuvable republie — mais avec deux
+  cycles : `EsportWeek.discordSyncedAt` pour le recapitulatif,
+  `EsportMatch.resultSyncedAt` pour le resultat. Cinq points a garder :
+  - **les deux embeds sont rendus dans `@anubis/shared`**
+    (`buildEsportWeekEmbed`, `buildEsportResultEmbed`) : le bot les envoie, le
+    dashboard les previsualise, l'API mesure leur taille **dans la
+    transaction**, apres l'ecriture, et refuse un match qui ferait deborder les
+    6000 caracteres plutot que de laisser le bot echouer a la publication.
+  - **tout se raisonne a l'heure de Paris** (`ESPORT_TIME_ZONE`,
+    `src/timezone.ts`) : la saisie, le regroupement par jour et l'appartenance
+    d'un match a sa semaine. Un match du dimanche 23 h 30 n'est pas de la
+    semaine suivante, meme s'il l'est en UTC. Sur Discord, les heures partent
+    en horodatage `<t:…:t>` et chacun les lit dans son fuseau.
+  - **le spoiler se resout match par match** : `EsportMatch.spoiler` a `null`
+    suit `EsportConfig.spoilerScores`. Sous spoiler, le vainqueur l'est aussi
+    et le logo du gagnant n'est pas affiche — il trahirait le resultat avant le
+    clic.
+  - **seul un administrateur retire un message** (`esport:manage`,
+    `removalRequestedAt` / `resultRemovalRequestedAt`). Supprimer une semaine,
+    un match ou rouvrir un match depuis le dashboard ne touche jamais a
+    Discord ; un match rouvert puis termine de nouveau **corrige** son annonce
+    au lieu d'en poster une seconde.
+  - une equipe deja utilisee est **archivee**, jamais supprimee : les semaines
+    passees doivent continuer de l'afficher. Modifier une equipe remet en file
+    les recapitulatifs publies de la semaine en cours et des suivantes, pas
+    ceux du passe.
+  Le remplissage automatique (Liquipedia, PandaScore) est volontairement
+  remis a plus tard : la saisie manuelle doit rester le chemin qui marche le
+  jour ou une source externe tombe.
 - **Ce qui n'est PAS rattrape automatiquement.** Le patron `discordSyncedAt`
   couvre sanctions, avertissements (message prive), tickets, anti-raid,
   quarantine (etapes et levees), signalements de compte, concours et messages

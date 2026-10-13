@@ -29,6 +29,7 @@ import { StatsModule } from "./stats/stats.module";
 import { StatusModule } from "./status/status.module";
 import { TicketsModule } from "./tickets/tickets.module";
 import { VerificationModule } from "./verification/verification.module";
+import { EsportModule } from "./esport/esport.module";
 import { VoiceModule } from "./voice/voice.module";
 import { WelcomeModule } from "./welcome/welcome.module";
 import { WikiModule } from "./wiki/wiki.module";
@@ -73,6 +74,7 @@ import { XpModule } from "./xp/xp.module";
 		EmbedsModule,
 		XpModule,
 		WelcomeModule,
+		EsportModule,
 	],
 	providers: [
 		// L'ordre compte : on limite le debit, puis on authentifie, puis on

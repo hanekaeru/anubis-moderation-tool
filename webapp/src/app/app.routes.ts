@@ -137,6 +137,12 @@ export const routes: Routes = [
 				title: 'Logs — Anubis',
 			},
 			{
+				path: 'esport',
+				canActivate: [permissionGuard(Permission.ESPORT_READ)],
+				loadComponent: () => import('./features/esport/esport').then((m) => m.EsportPage),
+				title: 'Esport — Anubis',
+			},
+			{
 				path: 'arrivees',
 				canActivate: [permissionGuard(Permission.LOGS_READ)],
 				loadComponent: () => import('./features/welcome/welcome').then((m) => m.WelcomePage),

@@ -1,0 +1,352 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Esport</h1>
+			<p class="subtitle">
+				Composez les matchs de la semaine, envoyez le récapitulatif, puis annoncez chaque
+				résultat. Une semaine déjà envoyée se corrige ici : le bot met le message publié à jour.
+			</p>
+		</div>
+		<button matButton="outlined" *appHasPermission="Permission.ESPORT_MANAGE" (click)="openConfig()">
+			<mat-icon>settings</mat-icon>
+			Réglages
+		</button>
+	</header>
+
+	@if (missingChannel()) {
+		<mat-card appearance="outlined" class="warning-card">
+			<mat-card-content>
+				<mat-icon>warning</mat-icon>
+				<p>
+					Aucun salon de publication n'est réglé : rien ne peut être envoyé.
+					@if (canManage) {
+						Ouvrez les <button matButton class="inline" (click)="openConfig()">réglages</button>.
+					} @else {
+						Un administrateur doit le choisir.
+					}
+				</p>
+			</mat-card-content>
+		</mat-card>
+	}
+
+	<mat-card appearance="outlined" class="navigator">
+		<mat-card-content>
+			<button matIconButton aria-label="Semaine précédente" matTooltip="Semaine précédente" (click)="shiftWeek(-1)">
+				<mat-icon>chevron_left</mat-icon>
+			</button>
+			<div class="week-label">
+				<strong>{{ weekLabel() }}</strong>
+				@if (isCurrentWeek()) {
+					<span class="tag">Cette semaine</span>
+				}
+			</div>
+			<button matIconButton aria-label="Semaine suivante" matTooltip="Semaine suivante" (click)="shiftWeek(1)">
+				<mat-icon>chevron_right</mat-icon>
+			</button>
+			@if (!isCurrentWeek()) {
+				<button matButton (click)="goToCurrent()">Revenir à cette semaine</button>
+			}
+			<span class="spacer"></span>
+			@if (history().length) {
+				<mat-form-field class="history" subscriptSizing="dynamic">
+					<mat-label>Semaines enregistrées</mat-label>
+					<mat-select [value]="weekStart()" (selectionChange)="goTo($event.value)">
+						@for (summary of history(); track summary.id) {
+							<mat-option [value]="summary.weekStart">{{ historyLabel(summary) }}</mat-option>
+						}
+					</mat-select>
+				</mat-form-field>
+			}
+		</mat-card-content>
+	</mat-card>
+
+	@if (loading() || busy()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (!loading() && !week()) {
+		<mat-card appearance="outlined">
+			<mat-card-content class="empty-state">
+				<mat-icon>event_busy</mat-icon>
+				<p>Aucun match n'est encore enregistré pour cette semaine.</p>
+				<button matButton="filled" *appHasPermission="Permission.ESPORT_WRITE" [disabled]="busy()" (click)="createWeek()">
+					<mat-icon>add</mat-icon>
+					Créer la semaine
+				</button>
+			</mat-card-content>
+		</mat-card>
+	}
+
+	@if (week(); as w) {
+		<div class="composer">
+			<div class="column">
+				<mat-card appearance="outlined">
+					<mat-card-header>
+						<mat-card-title>
+							Récapitulatif
+							<span class="tag" [attr.data-status]="w.status">{{ statusLabels[w.status] }}</span>
+						</mat-card-title>
+						<mat-card-subtitle>
+							@if (w.publishedAt) {
+								Publié une première fois le {{ w.publishedAt | frDate }}.
+							} @else {
+								Pas encore envoyé.
+							}
+						</mat-card-subtitle>
+					</mat-card-header>
+
+					<mat-card-content class="stack">
+						@if (w.status === 'FAILED' && w.lastError) {
+							<p class="failure">Discord a refusé l'envoi : {{ w.lastError }}</p>
+						}
+
+						<form [formGroup]="details" class="stack" (ngSubmit)="saveDetails()">
+							<mat-form-field>
+								<mat-label>Titre de la semaine</mat-label>
+								<input matInput formControlName="title" maxlength="200" [placeholder]="config()?.title ?? ''" />
+								<mat-hint>Vide : le titre des réglages.</mat-hint>
+							</mat-form-field>
+							<mat-form-field>
+								<mat-label>Introduction</mat-label>
+								<textarea matInput rows="2" formControlName="description" maxlength="1000"
+									placeholder="Une phrase d'accroche, un rappel du format…"></textarea>
+							</mat-form-field>
+							@if (canWrite && details.dirty) {
+								<div class="actions">
+									<button matButton="outlined" type="submit" [disabled]="busy()">Enregistrer le texte</button>
+								</div>
+							}
+						</form>
+
+						<div class="actions" *appHasPermission="Permission.ESPORT_WRITE">
+							@if (w.status !== 'PENDING' && w.status !== 'REMOVING') {
+								<button matButton="filled" [disabled]="busy() || !w.matches.length || missingChannel()" (click)="publish()">
+									<mat-icon>send</mat-icon>
+									{{ w.status === 'DRAFT' ? 'Envoyer sur Discord' : w.status === 'FAILED' ? 'Réessayer l’envoi' : 'Republier les corrections' }}
+								</button>
+							}
+							@if (canManage && w.messageId && w.status !== 'REMOVING') {
+								<button matButton class="danger-text" [disabled]="busy()" (click)="removeWeekMessage()">
+									<mat-icon>delete_sweep</mat-icon>
+									Retirer de Discord
+								</button>
+							}
+							<span class="spacer"></span>
+							@if (canManage) {
+								<button matButton class="danger-text" [disabled]="busy()" (click)="deleteWeek()">
+									<mat-icon>delete</mat-icon>
+									Supprimer la semaine
+								</button>
+							}
+						</div>
+						@if (w.status === 'PUBLISHED') {
+							<p class="note">Chaque modification ci-dessous corrige automatiquement le message publié.</p>
+						}
+					</mat-card-content>
+				</mat-card>
+
+				<mat-card appearance="outlined">
+					<mat-card-header>
+						<mat-card-title>Matchs ({{ w.matches.length }})</mat-card-title>
+						<mat-card-subtitle>Heures de Paris. Sur Discord, chacun les lit dans son fuseau.</mat-card-subtitle>
+					</mat-card-header>
+
+					<mat-card-content>
+						@if (!w.matches.length) {
+							<p class="empty-inline">Aucun match pour l'instant.</p>
+						}
+
+						<ul class="matches">
+							@for (match of w.matches; track match.id) {
+								<li [class.finished]="match.finished">
+									<div class="when">
+										<span class="day">{{ matchDay(match) }}</span>
+										<span class="time">{{ matchTime(match) }}</span>
+									</div>
+
+									<div class="teams">
+										<span class="team" [class.highlighted]="match.teamA?.highlighted">
+											@if (emojiUrl(match.teamA?.emoji ?? null); as url) {
+												<img class="emoji" [src]="url" alt="" />
+											} @else if (match.teamA?.emoji) {
+												<span>{{ match.teamA?.emoji }}</span>
+											}
+											{{ match.teamA?.name ?? 'À déterminer' }}
+										</span>
+
+										@if (match.finished) {
+											<span class="score" [matTooltip]="isSpoiler(match) ? 'Affiché en spoiler sur Discord' : 'Affiché en clair sur Discord'">
+												{{ match.scoreA }} – {{ match.scoreB }}
+												@if (isSpoiler(match)) {
+													<mat-icon>visibility_off</mat-icon>
+												}
+											</span>
+										} @else {
+											<span class="vs">vs</span>
+										}
+
+										<span class="team" [class.highlighted]="match.teamB?.highlighted">
+											@if (emojiUrl(match.teamB?.emoji ?? null); as url) {
+												<img class="emoji" [src]="url" alt="" />
+											} @else if (match.teamB?.emoji) {
+												<span>{{ match.teamB?.emoji }}</span>
+											}
+											{{ match.teamB?.name ?? 'À déterminer' }}
+										</span>
+									</div>
+
+									<div class="meta">
+										@if (match.competition) {
+											<span>{{ match.competition }}</span>
+										}
+										@if (match.bestOf) {
+											<span>BO{{ match.bestOf }}</span>
+										}
+										@if (match.streamUrl) {
+											<a [href]="match.streamUrl" target="_blank" rel="noopener">Stream</a>
+										}
+										@if (match.result; as result) {
+											<span class="tag" [attr.data-status]="result.status">
+												Résultat : {{ statusLabels[result.status] }}
+											</span>
+										}
+									</div>
+
+									@if (match.result?.status === 'FAILED' && match.result?.error) {
+										<p class="failure">Annonce refusée par Discord : {{ match.result?.error }}</p>
+									}
+
+									@if (canWrite) {
+										<div class="row-actions">
+											@if (match.finished) {
+												<button matButton (click)="openResult(match)">
+													<mat-icon>scoreboard</mat-icon>
+													Corriger le score
+												</button>
+											} @else {
+												<button matButton="tonal" (click)="openResult(match)">
+													<mat-icon>flag</mat-icon>
+													Terminer
+												</button>
+											}
+											<button matIconButton aria-label="Plus d'actions" [matMenuTriggerFor]="menu">
+												<mat-icon>more_vert</mat-icon>
+											</button>
+											<mat-menu #menu="matMenu">
+												<button mat-menu-item (click)="openMatch(match)">
+													<mat-icon>edit</mat-icon>
+													Modifier
+												</button>
+												@if (match.finished) {
+													<button mat-menu-item (click)="reopen(match)">
+														<mat-icon>undo</mat-icon>
+														Rouvrir le match
+													</button>
+												}
+												@if (canManage && match.result?.messageId && match.result?.status !== 'REMOVING') {
+													<button mat-menu-item (click)="removeResult(match)">
+														<mat-icon>delete_sweep</mat-icon>
+														Retirer l'annonce de résultat
+													</button>
+												}
+												<button mat-menu-item class="danger-text" (click)="deleteMatch(match)">
+													<mat-icon>delete</mat-icon>
+													Supprimer
+												</button>
+											</mat-menu>
+										</div>
+									}
+								</li>
+							}
+						</ul>
+
+						<div class="actions" *appHasPermission="Permission.ESPORT_WRITE">
+							<button matButton="outlined" [disabled]="busy()" (click)="openMatch()">
+								<mat-icon>add</mat-icon>
+								Ajouter un match
+							</button>
+						</div>
+					</mat-card-content>
+				</mat-card>
+			</div>
+
+			<mat-card appearance="outlined" class="preview-card">
+				<mat-card-header>
+					<mat-card-title>Aperçu</mat-card-title>
+					<mat-card-subtitle>Rendu approché ; les heures s'affichent dans votre fuseau.</mat-card-subtitle>
+				</mat-card-header>
+				<mat-card-content>
+					@if (preview(); as embed) {
+						<app-esport-embed-preview [embed]="embed" [content]="w.status === 'DRAFT' ? previewContent() : null" />
+					}
+				</mat-card-content>
+			</mat-card>
+		</div>
+	}
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Équipes ({{ activeTeams().length }})</mat-card-title>
+			<mat-card-subtitle>
+				Réutilisées d'une semaine à l'autre. Une équipe suivie apparaît en gras dans les récapitulatifs.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content class="stack">
+			@if (!visibleTeams().length) {
+				<p class="empty-inline">Aucune équipe enregistrée.</p>
+			}
+
+			<ul class="teams-list">
+				@for (team of visibleTeams(); track team.id) {
+					<li [class.archived]="team.archived">
+						@if (team.logoUrl) {
+							<img class="logo" [src]="team.logoUrl" alt="" />
+						} @else {
+							<span class="logo placeholder" aria-hidden="true"><mat-icon>shield</mat-icon></span>
+						}
+						<span class="team-name">
+							@if (emojiUrl(team.emoji); as url) {
+								<img class="emoji" [src]="url" alt="" />
+							} @else if (team.emoji) {
+								{{ team.emoji }}
+							}
+							{{ team.name }}
+						</span>
+						@if (team.highlighted) {
+							<mat-icon class="star" matTooltip="Équipe suivie">star</mat-icon>
+						}
+						@if (team.archived) {
+							<span class="tag">Archivée</span>
+						}
+						<span class="spacer"></span>
+						@if (canWrite) {
+							@if (team.archived) {
+								<button matButton (click)="restoreTeam(team)">Restaurer</button>
+							} @else {
+								<button matIconButton aria-label="Modifier" matTooltip="Modifier" (click)="openTeam(team)">
+									<mat-icon>edit</mat-icon>
+								</button>
+								<button matIconButton aria-label="Retirer" matTooltip="Retirer" (click)="removeTeam(team)">
+									<mat-icon>delete</mat-icon>
+								</button>
+							}
+						}
+					</li>
+				}
+			</ul>
+
+			<div class="actions">
+				<button matButton="outlined" *appHasPermission="Permission.ESPORT_WRITE" (click)="openTeam()">
+					<mat-icon>add</mat-icon>
+					Ajouter une équipe
+				</button>
+				@if (archivedCount()) {
+					<mat-slide-toggle [checked]="showArchived()" (change)="showArchived.set($event.checked)">
+						Afficher les archivées ({{ archivedCount() }})
+					</mat-slide-toggle>
+				}
+			</div>
+		</mat-card-content>
+	</mat-card>
+</div>

@@ -71,6 +71,15 @@ export const Permission = {
 	EMBEDS_WRITE: "embeds:write",
 	XP_READ: "xp:read",
 	XP_MANAGE: "xp:manage",
+	ESPORT_READ: "esport:read",
+	/** Composer les semaines, gerer les equipes, envoyer, saisir les scores. */
+	ESPORT_WRITE: "esport:write",
+	/**
+	 * Regler les salons et le role interpelle, et **retirer un message publie**
+	 * de Discord. Ce qui a ete lu par le serveur ne se reprend pas d'un clic de
+	 * moderateur.
+	 */
+	ESPORT_MANAGE: "esport:manage",
 	SESSIONS_READ: "sessions:read",
 	SESSIONS_REVOKE: "sessions:revoke",
 } as const;
@@ -96,6 +105,7 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	// Le classement d'experience ne dit rien de sensible : c'est la meme
 	// information que `/rank` rend deja publique sur le serveur.
 	Permission.XP_READ,
+	Permission.ESPORT_READ,
 ];
 
 const MODERATOR_PERMISSIONS: Permission[] = [
@@ -118,6 +128,9 @@ const MODERATOR_PERMISSIONS: Permission[] = [
 	// Animer le serveur fait partie du quotidien de l'equipe, pas de sa
 	// configuration : un concours n'ouvre aucun droit sur les membres.
 	Permission.GIVEAWAY_WRITE,
+	// Meme raison que les concours : tenir le calendrier des matchs fait partie
+	// de l'animation, pas de la configuration.
+	Permission.ESPORT_WRITE,
 	// Lire les messages composes par l'equipe : savoir ce qui a ete annonce
 	// fait partie du contexte d'une moderation.
 	Permission.EMBEDS_READ,
@@ -162,6 +175,7 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	// Les paliers de recompense modifient les roles de tout le serveur des que
 	// le bot repasse : un reglage structurant, au meme titre que l'automod.
 	Permission.XP_MANAGE,
+	Permission.ESPORT_MANAGE,
 ];
 
 /**

@@ -54,6 +54,9 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	"embeds:write": "Composer et envoyer un message sur Discord",
 	"xp:read": "Consulter le classement d'expérience",
 	"xp:manage": "Régler les paliers de récompense",
+	"esport:read": "Consulter les matchs esport",
+	"esport:write": "Composer et envoyer les matchs esport, saisir les scores",
+	"esport:manage": "Régler l'esport et retirer un message publié",
 	"sessions:read": "Consulter les sessions ouvertes de l'équipe",
 	"sessions:revoke": "Fermer la session d'un compte",
 };
@@ -118,6 +121,9 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
 			Permission.EMBEDS_WRITE,
 			Permission.XP_READ,
 			Permission.XP_MANAGE,
+			Permission.ESPORT_READ,
+			Permission.ESPORT_WRITE,
+			Permission.ESPORT_MANAGE,
 		],
 	},
 	{
