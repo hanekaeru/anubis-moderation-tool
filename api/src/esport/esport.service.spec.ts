@@ -229,7 +229,7 @@ describe("EsportService.setResult", () => {
 			week: WEEK,
 		});
 
-		await service.setResult("match-1", { scoreA: 3, scoreB: 2, spoiler: null }, ACTOR);
+		await service.setResult("match-1", { scoreA: 3, scoreB: 2, spoiler: null, announce: true }, ACTOR);
 
 		expect(prisma.esportMatch.update).toHaveBeenCalledWith({
 			where: { id: "match-1" },
@@ -237,8 +237,29 @@ describe("EsportService.setResult", () => {
 				scoreA: 3,
 				scoreB: 2,
 				finishedAt,
+				announceResult: true,
 				resultSyncedAt: null,
 			}),
 		});
+	});
+
+	// Le recapitulatif suffit le plus souvent : l'annonce a part est un choix.
+	it("termine sans annonce quand la case n'est pas cochee", async () => {
+		const { service, prisma } = makeService();
+		prisma.esportMatch.findFirst.mockResolvedValue({
+			id: "match-1",
+			weekId: "week-1",
+			finishedAt: null,
+			week: WEEK,
+		});
+
+		await service.setResult("match-1", { scoreA: 3, scoreB: 0, spoiler: null, announce: false }, ACTOR);
+
+		expect(prisma.esportMatch.update).toHaveBeenCalledWith({
+			where: { id: "match-1" },
+			data: expect.objectContaining({ announceResult: false }),
+		});
+		// Le recapitulatif, lui, est toujours remis en file.
+		expect(prisma.esportWeek.updateMany).toHaveBeenCalled();
 	});
 });

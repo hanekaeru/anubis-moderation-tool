@@ -205,4 +205,7 @@ export class EsportResultDtoIn {
 	@ValidateIf((_, value) => value !== null)
 	@IsBoolean()
 	spoiler!: boolean | null;
+
+	@IsBoolean()
+	announce!: boolean;
 }

@@ -714,8 +714,13 @@ le dev avec rechargement).
     rend vide et la page le signale en rouge.
 - **Esport** (`src/tasks/esportSync.ts`, `api/src/esport/`,
   `features/esport/`) : le staff compose une semaine de matchs, l'envoie, la
-  corrige ; chaque match termine produit en plus une **annonce de resultat**,
-  un message distinct. Meme patron que les messages composes — `messageId` a
+  corrige ; le score d'un match termine s'affiche dans le recapitulatif, corrige
+  en place. L'**annonce de resultat**, un message distinct, est **facultative**
+  (`EsportMatch.announceResult`, case decochee par defaut dans « Terminer ») :
+  le proprietaire ne voulait pas d'un nouveau message a chaque score saisi. Le
+  bot ne ramasse que les matchs coches ou deja annonces — un message deja
+  publie reste corrige si la case est decochee ensuite, le retirer restant une
+  decision d'administrateur. Meme patron que les messages composes — `messageId` a
   `null` publie, renseigne corrige, introuvable republie — mais avec deux
   cycles : `EsportWeek.discordSyncedAt` pour le recapitulatif,
   `EsportMatch.resultSyncedAt` pour le resultat. Cinq points a garder :
