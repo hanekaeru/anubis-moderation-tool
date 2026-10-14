@@ -22,15 +22,17 @@ import { forkJoin, timer, type Subscription } from 'rxjs';
 import {
 	addDaysToKey,
 	buildEsportWeekEmbed,
+	esportDayKey,
 	esportDayLabel,
 	esportFormatLabel,
+	esportRegionLabel,
+	esportWeekStart,
+	isEsportNight,
 	esportScoreSpoiler,
 	ESPORT_PUBLICATION_STATUS_LABELS,
 	ESPORT_TIME_ZONE,
 	Permission,
-	zonedDateKey,
 	zonedTimeOfDay,
-	zonedWeekStart,
 	type EsportConfigDto,
 	type EsportMatchDto,
 	type EsportPublicationStatus,
@@ -104,7 +106,7 @@ export class EsportPage {
 	readonly canWrite = this.auth.hasPermission(Permission.ESPORT_WRITE);
 	readonly canManage = this.auth.hasPermission(Permission.ESPORT_MANAGE);
 
-	readonly weekStart = signal(zonedWeekStart(new Date(), ESPORT_TIME_ZONE));
+	readonly weekStart = signal(esportWeekStart(new Date()));
 	readonly week = signal<EsportWeekDto | null>(null);
 	readonly config = signal<EsportConfigDto | null>(null);
 	readonly teams = signal<EsportTeamDto[]>([]);
@@ -129,7 +131,7 @@ export class EsportPage {
 	);
 
 	readonly isCurrentWeek = computed(
-		() => this.weekStart() === zonedWeekStart(new Date(), ESPORT_TIME_ZONE),
+		() => this.weekStart() === esportWeekStart(new Date()),
 	);
 
 	readonly activeTeams = computed(() => this.teams().filter((team) => !team.archived));
@@ -189,7 +191,7 @@ export class EsportPage {
 	}
 
 	goToCurrent(): void {
-		this.goTo(zonedWeekStart(new Date(), ESPORT_TIME_ZONE));
+		this.goTo(esportWeekStart(new Date()));
 	}
 
 	goTo(weekStart: string): void {
@@ -341,6 +343,10 @@ export class EsportPage {
 			});
 	}
 
+	regionLabel(match: EsportMatchDto): string | null {
+		return esportRegionLabel(match.region);
+	}
+
 	formatLabel(match: EsportMatchDto): string | null {
 		return esportFormatLabel(match.format, match.bestOf);
 	}
@@ -393,11 +399,12 @@ export class EsportPage {
 	}
 
 	matchDay(match: EsportMatchDto): string {
-		return esportDayLabel(zonedDateKey(new Date(match.scheduledAt), ESPORT_TIME_ZONE));
+		return esportDayLabel(esportDayKey(new Date(match.scheduledAt)));
 	}
 
 	matchTime(match: EsportMatchDto): string {
-		return zonedTimeOfDay(new Date(match.scheduledAt), ESPORT_TIME_ZONE);
+		const instant = new Date(match.scheduledAt);
+		return (isEsportNight(instant) ? '🌙 ' : '') + zonedTimeOfDay(instant, ESPORT_TIME_ZONE);
 	}
 
 	isSpoiler(match: EsportMatchDto): boolean {

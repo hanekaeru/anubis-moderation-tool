@@ -1,4 +1,4 @@
-import type { EsportMatchFormat, PandascoreTeamDto } from "@anubis/shared";
+import { detectEsportRegion, type EsportMatchFormat, type PandascoreTeamDto } from "@anubis/shared";
 
 /**
  * Appels a PandaScore et lecture de leurs reponses, isoles du reste : le
@@ -71,6 +71,8 @@ export interface PandascoreMatch {
 	rescheduled: boolean;
 	status: string;
 	competition: string;
+	/** Code de `ESPORT_REGIONS`, reconnu dans l'intitule de la serie. */
+	region: string | null;
 	serie: string | null;
 	tournament: string | null;
 	format: EsportMatchFormat;
@@ -185,6 +187,7 @@ export function readPandascoreMatch(raw: PandascoreRawMatch): PandascoreMatch | 
 	const finished = status === "finished";
 	const ligue = LEAGUE_LABELS[raw.league_id] ?? raw.league?.name?.trim() ?? null;
 	const serie = raw.serie?.name?.trim() || raw.serie?.full_name?.trim() || null;
+	const competition = ([ligue, serie].filter(Boolean).join(" ") || "Esport").slice(0, 120);
 
 	const scores = new Map<number, number>();
 	if (finished) {
@@ -201,7 +204,8 @@ export function readPandascoreMatch(raw: PandascoreRawMatch): PandascoreMatch | 
 		scheduledAt,
 		rescheduled: raw.rescheduled === true,
 		status,
-		competition: ([ligue, serie].filter(Boolean).join(" ") || "Esport").slice(0, 120),
+		competition,
+		region: detectEsportRegion(`${competition} ${raw.tournament?.name ?? ""}`),
 		serie: raw.serie?.full_name?.trim() || serie,
 		tournament: raw.tournament?.name?.trim() || null,
 		// « first_to » : premier a N manches (l'OWCS). Les autres formats

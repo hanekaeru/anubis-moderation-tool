@@ -18,7 +18,12 @@ import {
 	MinLength,
 	ValidateIf,
 } from "class-validator";
-import { EsportMatchFormat, MAX_ESPORT_MATCHES_PER_WEEK, MAX_ESPORT_SCORE } from "@anubis/shared";
+import {
+	ESPORT_REGION_CODES,
+	EsportMatchFormat,
+	MAX_ESPORT_MATCHES_PER_WEEK,
+	MAX_ESPORT_SCORE,
+} from "@anubis/shared";
 
 const SNOWFLAKE = /^\d{17,20}$/;
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
@@ -158,6 +163,12 @@ export class EsportMatchDtoIn {
 	@IsOptional()
 	@IsIn(Object.values(EsportMatchFormat))
 	format?: EsportMatchFormat;
+
+	/** Code de `ESPORT_REGIONS` ; `null` pour un match sans region. */
+	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
+	@IsIn(ESPORT_REGION_CODES, { message: "Région inconnue." })
+	region?: string | null;
 
 	@IsOptional()
 	@ValidateIf((_, value) => value !== null)

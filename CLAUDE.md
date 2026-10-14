@@ -729,6 +729,21 @@ le dev avec rechargement).
     d'un match a sa semaine. Un match du dimanche 23 h 30 n'est pas de la
     semaine suivante, meme s'il l'est en UTC. Sur Discord, les heures partent
     en horodatage `<t:…:t>` et chacun les lit dans son fuseau.
+  - **une journee esport finit a 06:00** (`ESPORT_DAY_START`,
+    `esportDayKey`/`esportWeekStart`) : les matchs nord-americains du dimanche
+    se jouent a 1 h lundi, heure de Paris, et doivent rester dans la journee du
+    dimanche et dans sa semaine — une semaine va donc du lundi 06:00 au lundi
+    suivant 05:59, appel PandaScore compris. Ces matchs portent un 🌙. La
+    saisie suit la meme logique : on choisit une journee puis une heure, et
+    « dimanche, 01:00 » est converti en lundi 01:00 (`esportCalendarDay`). Le
+    calcul se fait sur l'heure **locale**, jamais en retranchant six heures a
+    l'instant : la nuit du changement d'heure tomberait du mauvais cote.
+  - **chaque journee se groupe par region** (`EsportMatch.region`, codes de
+    `ESPORT_REGIONS`), sous un intertitre, les regions dans l'ordre de leur
+    premier match. Sans aucune region dans la semaine, pas d'intertitre ; un
+    match sans region a cote d'autres va sous « 🎮 Autres ». Un champ
+    « (suite) » repete l'intertitre en cours. A l'import, la region est
+    reconnue dans l'intitule de la serie (`detectEsportRegion`).
   - **le spoiler se resout match par match** : `EsportMatch.spoiler` a `null`
     suit `EsportConfig.spoilerScores`. Sous spoiler, le vainqueur l'est aussi
     et le logo du gagnant n'est pas affiche — il trahirait le resultat avant le

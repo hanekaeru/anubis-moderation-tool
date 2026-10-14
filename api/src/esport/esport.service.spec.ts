@@ -89,12 +89,22 @@ describe("EsportService.addMatch", () => {
 		expect(prisma.esportMatch.create).toHaveBeenCalled();
 	});
 
-	// 22 h 30 UTC le dimanche, c'est deja lundi a Paris : semaine suivante.
+	// Les matchs nord-americains du dimanche se jouent apres minuit a Paris.
+	it("accepte la nuit du dimanche au lundi, jusqu'a 06:00", async () => {
+		const { service, prisma } = makeService();
+
+		// Lundi 19 octobre, 5 h 30 a Paris.
+		await service.addMatch("week-1", match("2026-10-19T03:30:00.000Z"), ACTOR);
+
+		expect(prisma.esportMatch.create).toHaveBeenCalled();
+	});
+
 	it("refuse un match qui tombe dans une autre semaine", async () => {
 		const { service, prisma } = makeService();
 
+		// Lundi 19 octobre, 6 h a Paris : premiere journee de la semaine suivante.
 		await expect(
-			service.addMatch("week-1", match("2026-10-18T22:30:00.000Z"), ACTOR),
+			service.addMatch("week-1", match("2026-10-19T04:00:00.000Z"), ACTOR),
 		).rejects.toBeInstanceOf(BadRequestException);
 		expect(prisma.esportMatch.create).not.toHaveBeenCalled();
 	});

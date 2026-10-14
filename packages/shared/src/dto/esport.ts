@@ -1,5 +1,5 @@
 import { EsportMatchFormat } from "../enums";
-import { addDaysToKey, zonedDateKey } from "../timezone";
+import { addDaysToKey, mondayOfKey, zonedDateKey, zonedTimeOfDay } from "../timezone";
 import { IsoDateString, Snowflake } from "./common";
 
 /**
@@ -16,6 +16,71 @@ import { IsoDateString, Snowflake } from "./common";
 
 /** Fuseau de saisie et de regroupement par jour. */
 export const ESPORT_TIME_ZONE = "Europe/Paris";
+
+/**
+ * Heure de Paris a laquelle une journee esport commence.
+ *
+ * Les matchs nord-americains du dimanche se jouent a 1 h du matin lundi, heure
+ * de Paris : ils font partie de la journee du dimanche, et donc de sa semaine.
+ * Une journee va ainsi de 06:00 a 05:59 le lendemain, et une semaine du lundi
+ * 06:00 au lundi suivant 05:59. Les matchs d'avant 06:00 portent un 🌙.
+ */
+export const ESPORT_DAY_START = "06:00";
+
+/** Journee esport (`AAAA-MM-JJ`) d'un instant : la veille avant 06:00. */
+export function esportDayKey(instant: Date): string {
+	const jour = zonedDateKey(instant, ESPORT_TIME_ZONE);
+	return isEsportNight(instant) ? addDaysToKey(jour, -1) : jour;
+}
+
+/** Lundi de la semaine esport qui contient cet instant. */
+export function esportWeekStart(instant: Date): string {
+	return mondayOfKey(esportDayKey(instant));
+}
+
+/** Match de nuit : rattache a la journee de la veille. */
+export function isEsportNight(instant: Date): boolean {
+	return zonedTimeOfDay(instant, ESPORT_TIME_ZONE) < ESPORT_DAY_START;
+}
+
+/** Calendrier reel d'une saisie « journee + heure » : avant 06:00, le lendemain. */
+export function esportCalendarDay(dayKey: string, time: string): string {
+	return time < ESPORT_DAY_START ? addDaysToKey(dayKey, 1) : dayKey;
+}
+
+/**
+ * Regions des circuits, dans l'ordre ou le dashboard les propose. Les
+ * mots-cles reconnaissent la region dans les intitules de PandaScore
+ * (« EMEA Stage 3 », « North America Stage 3 »…) a l'import.
+ */
+export const ESPORT_REGIONS = [
+	{ code: "EMEA", label: "EMEA", emoji: "🇪🇺", keywords: ["emea", "europe"] },
+	{ code: "NA", label: "Amérique du Nord", emoji: "🇺🇸", keywords: ["north america", "americas"] },
+	{ code: "KR", label: "Corée", emoji: "🇰🇷", keywords: ["korea"] },
+	{ code: "CN", label: "Chine", emoji: "🇨🇳", keywords: ["china"] },
+	{ code: "JP", label: "Japon", emoji: "🇯🇵", keywords: ["japan"] },
+	{ code: "PAC", label: "Pacifique", emoji: "🌏", keywords: ["pacific", "asia", "oceania"] },
+	{ code: "INTL", label: "International", emoji: "🌍", keywords: ["world", "midseason", "international", "finals", "clash", "ewc"] },
+] as const;
+
+export type EsportRegion = (typeof ESPORT_REGIONS)[number]["code"];
+export const ESPORT_REGION_CODES = ESPORT_REGIONS.map((region) => region.code) as EsportRegion[];
+
+export function esportRegion(code: string | null | undefined) {
+	return ESPORT_REGIONS.find((region) => region.code === code) ?? null;
+}
+
+/** « 🇪🇺 EMEA » ; `null` sans region. */
+export function esportRegionLabel(code: string | null | undefined): string | null {
+	const region = esportRegion(code);
+	return region ? `${region.emoji} ${region.label}` : null;
+}
+
+/** Region reconnue dans un intitule ; la premiere qui correspond l'emporte. */
+export function detectEsportRegion(text: string): EsportRegion | null {
+	const texte = text.toLowerCase();
+	return ESPORT_REGIONS.find((region) => region.keywords.some((motCle) => texte.includes(motCle)))?.code ?? null;
+}
 
 /** Au-dela, le recapitulatif deborderait des 6000 caracteres d'un embed. */
 export const MAX_ESPORT_MATCHES_PER_WEEK = 40;
@@ -136,6 +201,8 @@ export interface EsportMatchDto {
 	teamA: EsportTeamDto | null;
 	teamB: EsportTeamDto | null;
 	competition: string | null;
+	/** Code de ESPORT_REGIONS : l'intertitre sous lequel le match se range. */
+	region: string | null;
 	scheduledAt: IsoDateString;
 	format: EsportMatchFormat;
 	bestOf: number | null;
@@ -159,6 +226,7 @@ export interface EsportMatchPayload {
 	teamAId: string | null;
 	teamBId: string | null;
 	competition?: string | null;
+	region?: string | null;
 	scheduledAt: IsoDateString;
 	format?: EsportMatchFormat;
 	bestOf?: number | null;
@@ -224,6 +292,8 @@ export interface PandascoreMatchDto {
 	status: string;
 	/** Intitule que portera le match importe (« OWCS EMEA Stage 3 »). */
 	competition: string;
+	/** Region reconnue dans l'intitule de la serie. */
+	region: string | null;
 	serie: string | null;
 	tournament: string | null;
 	format: EsportMatchFormat;
@@ -287,6 +357,7 @@ export interface EsportEmbedMatch {
 	teamA: EsportEmbedTeam | null;
 	teamB: EsportEmbedTeam | null;
 	competition: string | null;
+	region: string | null;
 	scheduledAt: Date | string;
 	format: EsportMatchFormat;
 	bestOf: number | null;
@@ -371,18 +442,50 @@ function matchLine(match: EsportEmbedMatch, settings: EsportEmbedSettings): stri
 		return [line, ...details].join(" · ");
 	}
 
-	// Horodatage Discord : chaque membre lit l'heure dans son propre fuseau.
-	const line = `<t:${unix(match.scheduledAt)}:t> ${teamLabel(match.teamA)} vs ${teamLabel(match.teamB)}`;
+	// Horodatage Discord : chaque membre lit l'heure dans son propre fuseau. La
+	// lune signale un match d'apres minuit range sous la journee de la veille.
+	const nuit = isEsportNight(new Date(match.scheduledAt)) ? "🌙 " : "";
+	const line = `${nuit}<t:${unix(match.scheduledAt)}:t> ${teamLabel(match.teamA)} vs ${teamLabel(match.teamB)}`;
 	if (match.streamUrl) details.push(`[Stream](${match.streamUrl})`);
 	return [line, ...details].join(" · ");
 }
 
+/** Intertitre des matchs sans region, quand d'autres en ont une. */
+const OTHER_REGION_HEADER = "🎮 Autres";
+
 /**
- * Recapitulatif de la semaine : un champ par jour, les matchs dans l'ordre.
+ * Lignes d'une journee, groupees par region sous un intertitre. Les regions
+ * se suivent dans l'ordre de leur premier match : la journee se lit toujours
+ * du matin a la nuit. Sans aucune region dans la semaine, pas d'intertitre —
+ * le rendu d'avant les regions.
+ */
+function dayBlocks(
+	matches: readonly EsportEmbedMatch[],
+	settings: EsportEmbedSettings,
+	withHeaders: boolean,
+): { header: string | null; lines: string[] }[] {
+	if (!withHeaders) {
+		return [{ header: null, lines: matches.map((match) => matchLine(match, settings)) }];
+	}
+
+	const groupes = new Map<string, { header: string; lines: string[] }>();
+	for (const match of matches) {
+		const header = esportRegionLabel(match.region) ?? OTHER_REGION_HEADER;
+		const groupe = groupes.get(header) ?? { header, lines: [] };
+		groupe.lines.push(matchLine(match, settings));
+		groupes.set(header, groupe);
+	}
+	return [...groupes.values()];
+}
+
+/**
+ * Recapitulatif de la semaine : un champ par journee, les matchs dans l'ordre,
+ * groupes par region.
  *
- * Les jours se forment a l'heure de Paris. Un jour trop charge pour un seul
- * champ (1024 caracteres) se poursuit dans un champ « (suite) » plutot que de
- * faire refuser l'embed entier.
+ * Les journees se forment a l'heure de Paris et finissent a 06:00 (voir
+ * `ESPORT_DAY_START`). Une journee trop chargee pour un seul champ (1024
+ * caracteres) se poursuit dans un champ « (suite) », qui repete l'intertitre
+ * de la region en cours, plutot que de faire refuser l'embed entier.
  */
 export function buildEsportWeekEmbed(
 	week: {
@@ -402,34 +505,39 @@ export function buildEsportWeekEmbed(
 		.concat(week.matches.length ? [] : ["Aucun match prévu cette semaine."])
 		.join("\n\n");
 
-	const parJour = new Map<string, string[]>();
+	const parJour = new Map<string, EsportEmbedMatch[]>();
 	const tries = [...week.matches].sort(
 		(a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
 	);
 	for (const match of tries) {
-		const jour = zonedDateKey(new Date(match.scheduledAt), ESPORT_TIME_ZONE);
-		const lignes = parJour.get(jour) ?? [];
-		lignes.push(matchLine(match, settings));
-		parJour.set(jour, lignes);
+		const jour = esportDayKey(new Date(match.scheduledAt));
+		parJour.set(jour, [...(parJour.get(jour) ?? []), match]);
 	}
 
+	const withHeaders = week.matches.some((match) => esportRegion(match.region) !== null);
+
 	const fields: EsportEmbed["fields"] = [];
-	for (const [jour, lignes] of parJour) {
+	for (const [jour, matchs] of parJour) {
 		let valeur = "";
 		let suite = false;
-		for (const ligne of lignes) {
-			const candidate = valeur ? `${valeur}\n${ligne}` : ligne;
-			if (candidate.length > FIELD_VALUE_LIMIT && valeur) {
-				fields.push({
-					name: esportDayLabel(jour) + (suite ? " (suite)" : ""),
-					value: valeur,
-					inline: false,
-				});
-				valeur = ligne;
-				suite = true;
-			} else {
-				valeur = candidate;
-			}
+		for (const bloc of dayBlocks(matchs, settings, withHeaders)) {
+			const intertitre = bloc.header ? `**${bloc.header}**` : null;
+			bloc.lines.forEach((ligne, index) => {
+				// L'intertitre ouvre son groupe, et rouvre un champ « (suite) ».
+				const avecTitre = intertitre && index === 0 ? `${intertitre}\n${ligne}` : ligne;
+				const candidate = valeur ? `${valeur}\n${avecTitre}` : avecTitre;
+				if (candidate.length > FIELD_VALUE_LIMIT && valeur) {
+					fields.push({
+						name: esportDayLabel(jour) + (suite ? " (suite)" : ""),
+						value: valeur,
+						inline: false,
+					});
+					valeur = intertitre ? `${intertitre}\n${ligne}` : ligne;
+					suite = true;
+				} else {
+					valeur = candidate;
+				}
+			});
 		}
 		if (valeur) {
 			fields.push({
@@ -478,8 +586,9 @@ export function buildEsportResultEmbed(
 				? `🏆 Vainqueur : ||**${nomGagnant}**||`
 				: `🏆 Victoire de **${nomGagnant}**`;
 
-	const jour = esportDayLabel(zonedDateKey(new Date(match.scheduledAt), ESPORT_TIME_ZONE));
+	const jour = esportDayLabel(esportDayKey(new Date(match.scheduledAt)));
 	const pied = [
+		esportRegionLabel(match.region),
 		jour,
 		esportFormatLabel(match.format, match.bestOf),
 		match.pandascoreId !== null ? PANDASCORE_SOURCE_LABEL : null,

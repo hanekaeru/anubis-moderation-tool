@@ -47,6 +47,7 @@ function embedMatch(row: MatchRow): EsportEmbedMatch {
 		teamA: row.teamA,
 		teamB: row.teamB,
 		competition: row.competition,
+		region: row.region,
 		scheduledAt: row.scheduledAt,
 		format: row.format,
 		bestOf: row.bestOf,

@@ -1,7 +1,11 @@
 import {
 	buildEsportResultEmbed,
 	buildEsportWeekEmbed,
+	detectEsportRegion,
+	esportCalendarDay,
+	esportDayKey,
 	esportDayLabel,
+	esportWeekStart,
 	type EsportEmbedMatch,
 } from "./esport";
 
@@ -15,6 +19,7 @@ function match(overrides: Partial<EsportEmbedMatch> = {}): EsportEmbedMatch {
 		teamA: FALCONS,
 		teamB: LIQUID,
 		competition: "OWCS EMEA",
+		region: null,
 		// Mardi 13 octobre 2026, 20 h a Paris.
 		scheduledAt: "2026-10-13T18:00:00.000Z",
 		format: "BEST_OF",
@@ -79,6 +84,55 @@ describe("buildEsportWeekEmbed", () => {
 		expect(semaine([]).description).toContain("Aucun match prévu");
 	});
 
+	// Les matchs nord-americains du dimanche se jouent apres minuit a Paris.
+	it("range un match d'avant 06:00 sous la journee de la veille, avec une lune", () => {
+		const embed = semaine([
+			match({ scheduledAt: "2026-10-18T17:00:00.000Z" }),
+			// Lundi 19 octobre, 1 h a Paris.
+			match({ scheduledAt: "2026-10-18T23:00:00.000Z" }),
+		]);
+
+		expect(embed.fields.map((field) => field.name)).toEqual(["Dimanche 18 octobre"]);
+		expect(embed.fields[0]!.value).toContain("🌙 <t:");
+		expect(embed.fields[0]!.value.split("\n")[0]).not.toContain("🌙");
+	});
+
+	it("groupe une journee par region, dans l'ordre du premier match", () => {
+		const embed = semaine([
+			match({ region: "EMEA", scheduledAt: "2026-10-17T17:00:00.000Z" }),
+			match({ region: "KR", scheduledAt: "2026-10-17T06:00:00.000Z" }),
+			match({ region: "NA", scheduledAt: "2026-10-17T23:00:00.000Z" }),
+			match({ region: "EMEA", scheduledAt: "2026-10-17T18:30:00.000Z" }),
+		]);
+		const lignes = embed.fields[0]!.value.split("\n");
+
+		expect(lignes.filter((ligne) => ligne.startsWith("**"))).toEqual([
+			"**🇰🇷 Corée**",
+			"**🇪🇺 EMEA**",
+			"**🇺🇸 Amérique du Nord**",
+		]);
+		expect(lignes[3]).toContain("<t:");
+		expect(lignes[4]).toContain("<t:");
+	});
+
+	it("n'ajoute aucun intertitre sans region dans la semaine", () => {
+		expect(semaine([match(), match()]).fields[0]!.value).not.toContain("**🎮");
+	});
+
+	it("range sous « Autres » un match sans region quand d'autres en ont", () => {
+		expect(semaine([match({ region: "EMEA" }), match()]).fields[0]!.value).toContain("**🎮 Autres**");
+	});
+
+	it("repete l'intertitre de la region dans un champ « (suite) »", () => {
+		const longs = Array.from({ length: 12 }, () =>
+			match({ region: "EMEA", streamUrl: `https://twitch.tv/${"x".repeat(60)}` }),
+		);
+		const embed = semaine(longs);
+
+		expect(embed.fields[1]!.name).toBe("Mardi 13 octobre (suite)");
+		expect(embed.fields[1]!.value.startsWith("**🇪🇺 EMEA**\n")).toBe(true);
+	});
+
 	it("distingue un FT3 d'un BO3", () => {
 		const [field] = semaine([match({ format: "FIRST_TO", bestOf: 3 })]).fields;
 
@@ -117,6 +171,32 @@ describe("buildEsportResultEmbed", () => {
 		const embed = buildEsportResultEmbed({ ...fini, pandascoreId: 1713048 }, SETTINGS);
 
 		expect(embed.footer!.text).toContain("Source : PandaScore");
+	});
+});
+
+describe("journee esport", () => {
+	it("rattache la nuit du dimanche au lundi a la semaine du dimanche", () => {
+		// Lundi 19 octobre, 5 h 59 puis 6 h a Paris.
+		expect(esportWeekStart(new Date("2026-10-19T03:59:00.000Z"))).toBe("2026-10-12");
+		expect(esportWeekStart(new Date("2026-10-19T04:00:00.000Z"))).toBe("2026-10-19");
+	});
+
+	// Nuit du changement d'heure (25 octobre 2026) : on raisonne en heure locale.
+	it("tient compte du changement d'heure", () => {
+		// Dimanche 25 octobre, 5 h 30 a Paris (heure d'hiver) : journee du samedi.
+		expect(esportDayKey(new Date("2026-10-25T04:30:00.000Z"))).toBe("2026-10-24");
+	});
+
+	it("convertit une saisie de nuit vers le lendemain calendaire", () => {
+		expect(esportCalendarDay("2026-10-18", "01:00")).toBe("2026-10-19");
+		expect(esportCalendarDay("2026-10-18", "19:00")).toBe("2026-10-18");
+	});
+
+	it("reconnait la region dans un intitule PandaScore", () => {
+		expect(detectEsportRegion("OWCS North America Stage 3")).toBe("NA");
+		expect(detectEsportRegion("OWCS EMEA Stage 3")).toBe("EMEA");
+		expect(detectEsportRegion("OWCS World Finals")).toBe("INTL");
+		expect(detectEsportRegion("Coupe locale")).toBeNull();
 	});
 });
 

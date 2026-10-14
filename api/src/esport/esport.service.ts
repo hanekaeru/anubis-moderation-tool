@@ -16,10 +16,10 @@ import {
 	EMBED_LIMITS,
 	EMBED_TOTAL_LIMIT,
 	EsportMatchFormat,
+	esportWeekStart,
 	isDateKey,
 	MAX_ESPORT_MATCHES_PER_WEEK,
 	mondayOfKey,
-	zonedWeekStart,
 	type EsportConfigDto,
 	type EsportMatchDto,
 	type EsportPublicationStatus,
@@ -225,7 +225,7 @@ export class EsportService {
 				},
 			});
 
-			const depuis = fromKey(addDaysToKey(zonedWeekStart(new Date(), ESPORT_TIME_ZONE), -7));
+			const depuis = fromKey(addDaysToKey(esportWeekStart(new Date()), -7));
 			await tx.esportWeek.updateMany({
 				where: {
 					guildId: this.guild.guildId,
@@ -782,9 +782,9 @@ export class EsportService {
 		}
 
 		const scheduledAt = new Date(dto.scheduledAt);
-		if (zonedWeekStart(scheduledAt, ESPORT_TIME_ZONE) !== toKey(week.weekStart)) {
+		if (esportWeekStart(scheduledAt) !== toKey(week.weekStart)) {
 			throw new BadRequestException(
-				"Ce match ne tombe pas dans cette semaine (du lundi au dimanche, heure de Paris).",
+				"Ce match ne tombe pas dans cette semaine (du lundi 06:00 au lundi suivant 05:59, heure de Paris).",
 			);
 		}
 
@@ -792,6 +792,7 @@ export class EsportService {
 			teamAId: dto.teamAId,
 			teamBId: dto.teamBId,
 			competition: dto.competition?.trim() || null,
+			region: dto.region ?? null,
 			scheduledAt,
 			format: dto.format ?? existing?.format ?? EsportMatchFormat.BEST_OF,
 			bestOf: dto.bestOf ?? null,
@@ -835,6 +836,7 @@ export class EsportService {
 			teamA: row.teamA ? this.toTeamDto(row.teamA) : null,
 			teamB: row.teamB ? this.toTeamDto(row.teamB) : null,
 			competition: row.competition,
+			region: row.region,
 			scheduledAt: row.scheduledAt.toISOString(),
 			format: row.format,
 			bestOf: row.bestOf,
@@ -865,6 +867,7 @@ export class EsportService {
 			teamA: row.teamA,
 			teamB: row.teamB,
 			competition: row.competition,
+			region: row.region,
 			scheduledAt: row.scheduledAt,
 			format: row.format,
 			bestOf: row.bestOf,
