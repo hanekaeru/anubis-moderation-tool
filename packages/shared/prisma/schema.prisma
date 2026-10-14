@@ -1183,6 +1183,10 @@ model EsportMatch {
   /// Score en spoiler ; `null` pour le reglage du serveur.
   spoiler                  Boolean?
   finishedAt               DateTime?         @map("finished_at")
+  /// Le resultat a son propre message d'annonce. Decoche (defaut) : le score
+  /// ne vit que dans le recapitulatif, corrige en place. Un message deja
+  /// publie reste corrige meme si la case est decochee ensuite.
+  announceResult           Boolean           @default(false) @map("announce_result")
   resultChannelId          String?           @map("result_channel_id") @db.VarChar(20)
   resultMessageId          String?           @map("result_message_id") @db.VarChar(20)
   resultSyncedAt           DateTime?         @map("result_synced_at")

@@ -686,9 +686,11 @@ export class EsportService {
 	/**
 	 * Termine un match, ou corrige son score.
 	 *
-	 * Le resultat est annonce par un message a part ; une correction modifie ce
-	 * message plutot que d'en poster un second. Le recapitulatif de la semaine,
-	 * s'il est publie, affiche le score lui aussi.
+	 * Le score part toujours dans le recapitulatif de la semaine, corrige en
+	 * place. Une annonce a part n'est publiee que si elle est demandee
+	 * (`announce`) ; une annonce deja publiee est corrigee plutot que doublee,
+	 * meme si la case a ete decochee depuis — la retirer reste une decision
+	 * d'administrateur.
 	 */
 	async setResult(
 		id: string,
@@ -704,7 +706,10 @@ export class EsportService {
 					scoreA: dto.scoreA,
 					scoreB: dto.scoreB,
 					spoiler: dto.spoiler,
+					announceResult: dto.announce,
 					finishedAt: match.finishedAt ?? new Date(),
+					// Sans annonce ni message existant, le bot ne ramasse pas la ligne
+					// (filtre de `publierResultats`) : la remettre a `null` est sans effet.
 					resultSyncedAt: null,
 					resultError: null,
 					resultRemovalRequestedAt: null,
@@ -720,7 +725,7 @@ export class EsportService {
 			entityType: "esport_match",
 			entityId: id,
 			before: match.finishedAt ? { scoreA: match.scoreA, scoreB: match.scoreB } : undefined,
-			after: { scoreA: dto.scoreA, scoreB: dto.scoreB, spoiler: dto.spoiler },
+			after: { scoreA: dto.scoreA, scoreB: dto.scoreB, spoiler: dto.spoiler, announce: dto.announce },
 		});
 
 		return this.findWeek(match.weekId);
@@ -880,8 +885,11 @@ export class EsportService {
 			scoreA: row.scoreA,
 			scoreB: row.scoreB,
 			spoiler: row.spoiler,
+			announceResult: row.announceResult,
+			// Sans annonce demandee ni message publie, il n'y a rien a suivre :
+			// le score vit dans le recapitulatif.
 			result:
-				finished || row.resultMessageId
+				(finished && row.announceResult) || row.resultMessageId
 					? {
 							status: publicationStatus({
 								requested: true,

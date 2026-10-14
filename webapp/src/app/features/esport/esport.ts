@@ -364,8 +364,13 @@ export class EsportPage {
 			.subscribe((updated) => {
 				if (!updated) return;
 				this.applyWeek(updated);
+				const annonce = updated.matches.find((entry) => entry.id === match.id)?.result;
 				this.notifications.success(
-					match.finished ? 'Score corrigé.' : 'Match terminé : le résultat va être annoncé.',
+					match.finished
+						? 'Score corrigé.'
+						: annonce
+							? 'Match terminé : le résultat va être annoncé.'
+							: 'Match terminé : le score apparaît dans le récapitulatif.',
 				);
 			});
 	}

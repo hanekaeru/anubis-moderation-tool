@@ -11,7 +11,9 @@ import type { EsportConfig, EsportMatch, EsportTeam } from "@anubis/shared/prism
 import prisma from "../prisma";
 
 /**
- * Publication des recapitulatifs esport et des annonces de resultat.
+ * Publication des recapitulatifs esport et des annonces de resultat, ces
+ * dernieres seulement pour les matchs ou le staff l'a demande
+ * (`announceResult`).
  *
  * Meme patron que les messages composes (`embedSync.ts`) : l'API met en file
  * (`discordSyncedAt` / `resultSyncedAt` a `null`), ce passage applique.
@@ -248,6 +250,10 @@ async function publierResultats(client: Client): Promise<void> {
 			finishedAt: { not: null },
 			resultSyncedAt: null,
 			resultRemovalRequestedAt: null,
+			// L'annonce est facultative : sans elle, le score ne vit que dans le
+			// recapitulatif. Un message deja publie reste corrige, case decochee
+			// ou non — le retirer est une decision d'administrateur.
+			OR: [{ announceResult: true }, { resultMessageId: { not: null } }],
 		},
 		include: { ...MATCH_INCLUDE, week: { select: { guildId: true } } },
 		orderBy: { finishedAt: "asc" },

@@ -238,7 +238,11 @@ export interface EsportMatchDto {
 	scoreB: number | null;
 	/** Exception au reglage du serveur ; `null` pour le suivre. */
 	spoiler: boolean | null;
-	/** Message de resultat ; `null` tant que le match n'est pas termine. */
+	/** Le resultat a son propre message, en plus du score dans le recapitulatif. */
+	announceResult: boolean;
+	/**
+	 * Message de resultat ; `null` sans annonce demandee ni message publie.
+	 */
 	result: {
 		status: EsportPublicationStatus;
 		messageId: Snowflake | null;
@@ -262,6 +266,12 @@ export interface EsportResultRequest {
 	scoreB: number;
 	/** `null` pour suivre le reglage du serveur. */
 	spoiler: boolean | null;
+	/**
+	 * Publier une annonce de resultat dans le salon des resultats. Sans elle,
+	 * seul le recapitulatif montre le score. Une annonce deja publiee est
+	 * corrigee quoi qu'il arrive : la decocher ne la retire pas.
+	 */
+	announce: boolean;
 }
 
 export interface EsportWeekDto {

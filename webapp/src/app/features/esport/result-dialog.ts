@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import {
@@ -47,6 +48,7 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 		MatDialogModule,
 		MatFormFieldModule,
 		MatInputModule,
+		MatCheckboxModule,
 		MatSelectModule,
 		ReactiveFormsModule,
 	],
@@ -117,12 +119,27 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 				@if (form.invalid && form.touched) {
 					<p class="error">Deux scores entiers entre 0 et {{ max }} sont attendus.</p>
 				}
+
+				@if (alreadyAnnounced) {
+					<p class="hint">
+						Une annonce de résultat est déjà publiée : elle sera corrigée avec ce score.
+					</p>
+				} @else {
+					<mat-checkbox formControlName="announce">
+						Annoncer le résultat dans le salon des résultats
+					</mat-checkbox>
+					@if (!announce()) {
+						<p class="hint">Le score apparaîtra seulement dans le récapitulatif de la semaine.</p>
+					}
+				}
 			</form>
 
-			<p class="preview-label">
-				{{ data.match.finished ? 'Annonce corrigée' : 'Annonce envoyée dans le salon des résultats' }}
-			</p>
-			<app-esport-embed-preview [embeds]="[preview()]" />
+			@if (announce()) {
+				<p class="preview-label">
+					{{ alreadyAnnounced ? 'Annonce corrigée' : 'Annonce envoyée dans le salon des résultats' }}
+				</p>
+				<app-esport-embed-preview [embeds]="[preview()]" />
+			}
 
 			@if (error(); as message) {
 				<p class="error" role="alert">{{ message }}</p>
@@ -132,7 +149,7 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 		<mat-dialog-actions align="end">
 			<button matButton mat-dialog-close>Annuler</button>
 			<button matButton="filled" [disabled]="saving()" (click)="save()">
-				{{ data.match.finished ? 'Corriger' : 'Terminer et annoncer' }}
+				{{ data.match.finished ? 'Corriger' : announce() && !alreadyAnnounced ? 'Terminer et annoncer' : 'Terminer' }}
 			</button>
 		</mat-dialog-actions>
 	`,
@@ -185,6 +202,12 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 			color: var(--mat-sys-on-surface-variant);
 		}
 
+		.hint {
+			margin: 0;
+			font-size: 0.85rem;
+			color: var(--mat-sys-on-surface-variant);
+		}
+
 		.preview-label {
 			margin: var(--space-4) 0 var(--space-2);
 			font-size: 0.75rem;
@@ -231,11 +254,18 @@ export class EsportResultDialog {
 		scoreA: [this.data.match.scoreA ?? 0, this.scoreValidators],
 		scoreB: [this.data.match.scoreB ?? 0, this.scoreValidators],
 		spoiler: [this.toChoice(this.data.match.spoiler)],
+		// Decochee par defaut : le recapitulatif suffit le plus souvent.
+		announce: [this.data.match.announceResult],
 	});
+
+	/** Un message de resultat existe : il sera corrige, quoi qu'on coche. */
+	readonly alreadyAnnounced = !!this.data.match.result?.messageId;
 
 	private readonly value = toSignal(this.form.valueChanges, {
 		initialValue: this.form.getRawValue(),
 	});
+
+	readonly announce = computed(() => this.alreadyAnnounced || !!this.value().announce);
 
 	readonly preview = computed(() => {
 		const raw = this.value();
@@ -332,6 +362,7 @@ export class EsportResultDialog {
 				scoreA: Number(raw.scoreA),
 				scoreB: Number(raw.scoreB),
 				spoiler: this.fromChoice(raw.spoiler),
+				announce: this.alreadyAnnounced || raw.announce,
 			})
 			.subscribe({
 				next: (week) => this.dialogRef.close(week),
