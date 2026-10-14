@@ -1,7 +1,7 @@
 import type { Client, Guild, GuildTextBasedChannel, Message } from "discord.js";
 import {
 	buildEsportResultEmbed,
-	buildEsportWeekEmbed,
+	buildEsportWeekEmbeds,
 	DEFAULT_ESPORT_COLOR,
 	DEFAULT_ESPORT_TITLE,
 	type EsportEmbedMatch,
@@ -39,6 +39,7 @@ function settings(config: EsportConfig | null): EsportEmbedSettings {
 		title: config?.title ?? DEFAULT_ESPORT_TITLE,
 		color: config?.color ?? DEFAULT_ESPORT_COLOR,
 		spoilerScores: config?.spoilerScores ?? true,
+		regionColors: (config?.regionColors ?? {}) as Record<string, number>,
 	};
 }
 
@@ -189,7 +190,9 @@ async function publierRecapitulatifs(client: Client): Promise<void> {
 
 		try {
 			const config = await prisma.esportConfig.findUnique({ where: { guildId: guild.id } });
-			const embed = buildEsportWeekEmbed(
+			// Un embed par region, tous dans ce meme message : une correction
+			// remplace la liste entiere, regions ajoutees ou retirees comprises.
+			const embeds = buildEsportWeekEmbeds(
 				{
 					weekStart: semaine.weekStart.toISOString().slice(0, 10),
 					title: semaine.title,
@@ -201,7 +204,7 @@ async function publierRecapitulatifs(client: Client): Promise<void> {
 
 			const existant = await messageExistant(guild, semaine.channelId, semaine.messageId);
 			if (existant) {
-				await existant.edit({ embeds: [embed] });
+				await existant.edit({ embeds });
 				await prisma.esportWeek.update({
 					where: { id: semaine.id },
 					data: { discordSyncedAt: new Date(), lastError: null },
@@ -214,7 +217,7 @@ async function publierRecapitulatifs(client: Client): Promise<void> {
 
 			const message = await cible.send({
 				...mention(config?.mentionRoleId ?? null, config?.mentionOnPublish ?? true),
-				embeds: [embed],
+				embeds,
 			});
 
 			await prisma.esportWeek.update({

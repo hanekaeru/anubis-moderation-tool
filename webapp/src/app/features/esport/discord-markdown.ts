@@ -1,7 +1,7 @@
 /**
  * Sous-ensemble du Markdown de Discord, pour l'apercu des embeds esport.
  *
- * Juste ce que produisent `buildEsportWeekEmbed` et `buildEsportResultEmbed` :
+ * Juste ce que produisent `buildEsportWeekEmbeds` et `buildEsportResultEmbed` :
  * gras, italique, spoiler, lien, horodatage, emoji du serveur, mention de role.
  * Le rendu se fait en segments affiches par le template — jamais par
  * `innerHTML`, puisque les noms d'equipe sont saisis librement.

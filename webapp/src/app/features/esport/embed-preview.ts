@@ -4,11 +4,12 @@ import type { EsportEmbed } from '@anubis/shared';
 import { parseDiscordMarkdown, type DiscordSegment } from './discord-markdown';
 
 /**
- * Apercu d'un embed esport, sur le fond sombre de Discord dans les deux themes
- * du dashboard — meme choix que la page Messages : un apercu qui change de
- * couleur avec le theme mentirait sur ce que verra le serveur.
+ * Apercu d'un message esport, sur le fond sombre de Discord dans les deux
+ * themes du dashboard — meme choix que la page Messages : un apercu qui change
+ * de couleur avec le theme mentirait sur ce que verra le serveur.
  *
- * Les spoilers se devoilent au clic, comme dans Discord.
+ * Un message peut porter plusieurs embeds (un par region), empiles comme
+ * Discord les affiche. Les spoilers se devoilent au clic, comme dans Discord.
  */
 @Component({
 	selector: 'app-esport-embed-preview',
@@ -37,40 +38,48 @@ import { parseDiscordMarkdown, type DiscordSegment } from './discord-markdown';
 				</p>
 			}
 
-			<div class="embed" [style.border-left-color]="color()">
-				<div class="body">
-					<div class="text-block">
-						<p class="title">{{ embed().title }}</p>
+			@for (embed of views(); track $index) {
+				<div class="embed" [style.border-left-color]="embed.color">
+					<div class="body">
+						<div class="text-block">
+							@if (embed.author) {
+								<p class="author">{{ embed.author }}</p>
+							}
+							<p class="title">{{ embed.title }}</p>
 
-						@if (description().length) {
-							<p class="description">
-								<ng-container *ngTemplateOutlet="segments; context: { $implicit: description() }" />
-							</p>
-						}
-
-						@for (field of fields(); track $index) {
-							<div class="field">
-								<p class="field-name">{{ field.name }}</p>
-								<p class="field-value">
-									<ng-container *ngTemplateOutlet="segments; context: { $implicit: field.segments }" />
+							@if (embed.description.length) {
+								<p class="description">
+									<ng-container *ngTemplateOutlet="segments; context: { $implicit: embed.description }" />
 								</p>
-							</div>
+							}
+
+							@for (field of embed.fields; track $index) {
+								<div class="field">
+									<p class="field-name">{{ field.name }}</p>
+									<p class="field-value">
+										<ng-container *ngTemplateOutlet="segments; context: { $implicit: field.segments }" />
+									</p>
+								</div>
+							}
+						</div>
+
+						@if (embed.thumbnail; as thumbnail) {
+							<img class="thumbnail" [src]="thumbnail" alt="" />
 						}
 					</div>
 
-					@if (embed().thumbnail; as thumbnail) {
-						<img class="thumbnail" [src]="thumbnail.url" alt="" />
+					@if (embed.footer; as footer) {
+						<p class="footer">{{ footer }}</p>
 					}
 				</div>
-
-				@if (embed().footer; as footer) {
-					<p class="footer">{{ footer.text }}</p>
-				}
-			</div>
+			}
 		</div>
 	`,
 	styles: `
 		.discord {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
 			padding: 12px;
 			border-radius: 12px;
 			background: #313338;
@@ -80,7 +89,7 @@ import { parseDiscordMarkdown, type DiscordSegment } from './discord-markdown';
 		}
 
 		.content {
-			margin: 0 0 8px;
+			margin: 0;
 		}
 
 		.embed {
@@ -106,6 +115,13 @@ import { parseDiscordMarkdown, type DiscordSegment } from './discord-markdown';
 			margin: 0;
 			white-space: pre-wrap;
 			overflow-wrap: anywhere;
+		}
+
+		.author {
+			margin-bottom: 4px;
+			font-size: 0.8rem;
+			font-weight: 600;
+			color: #f2f3f5;
 		}
 
 		.title {
@@ -195,17 +211,24 @@ import { parseDiscordMarkdown, type DiscordSegment } from './discord-markdown';
 	`,
 })
 export class EsportEmbedPreview {
-	readonly embed = input.required<EsportEmbed>();
+	readonly embeds = input.required<readonly EsportEmbed[]>();
 	/** Texte hors embed (mention de role), tel qu'il sera envoye. */
 	readonly content = input<string | null>(null);
 
-	readonly color = computed(() => `#${this.embed().color.toString(16).padStart(6, '0')}`);
-	readonly description = computed(() => parseDiscordMarkdown(this.embed().description ?? ''));
 	readonly contentSegments = computed(() => parseDiscordMarkdown(this.content() ?? ''));
-	readonly fields = computed(() =>
-		this.embed().fields.map((field) => ({
-			name: field.name,
-			segments: parseDiscordMarkdown(field.value) as DiscordSegment[],
+
+	readonly views = computed(() =>
+		this.embeds().map((embed) => ({
+			author: embed.author?.name ?? null,
+			title: embed.title,
+			color: `#${embed.color.toString(16).padStart(6, '0')}`,
+			description: parseDiscordMarkdown(embed.description ?? '') as DiscordSegment[],
+			fields: embed.fields.map((field) => ({
+				name: field.name,
+				segments: parseDiscordMarkdown(field.value) as DiscordSegment[],
+			})),
+			thumbnail: embed.thumbnail?.url ?? null,
+			footer: embed.footer?.text ?? null,
 		})),
 	);
 

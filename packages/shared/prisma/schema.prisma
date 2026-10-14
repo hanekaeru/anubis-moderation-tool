@@ -1073,6 +1073,9 @@ model EsportConfig {
   spoilerScores       Boolean  @default(true) @map("spoiler_scores")
   color               Int      @default(5793266)
   title               String   @default("🎮 Matchs esport de la semaine") @db.VarChar(200)
+  /// Couleur de l'embed de chaque region (`{ "EMEA": 3900150 }`). Une region
+  /// absente garde sa couleur par defaut (`ESPORT_REGIONS`).
+  regionColors        Json     @default("{}") @map("region_colors")
   /// Ligues PandaScore interrogees a l'import (5223 : Overwatch Champions
   /// Series). Toutes partent dans le meme appel.
   pandascoreLeagueIds Int[]    @default([5223]) @map("pandascore_league_ids")

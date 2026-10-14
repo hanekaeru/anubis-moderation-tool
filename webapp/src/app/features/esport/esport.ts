@@ -21,7 +21,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { forkJoin, timer, type Subscription } from 'rxjs';
 import {
 	addDaysToKey,
-	buildEsportWeekEmbed,
+	buildEsportWeekEmbeds,
 	esportDayKey,
 	esportDayLabel,
 	esportFormatLabel,
@@ -69,7 +69,7 @@ const EN_COURS: EsportPublicationStatus[] = ['PENDING', 'REMOVING'];
  * bot sur le message publie. Terminer un match publie en plus une annonce de
  * resultat, distincte du recapitulatif.
  *
- * L'apercu passe par `buildEsportWeekEmbed`, la fonction du bot.
+ * L'apercu passe par `buildEsportWeekEmbeds`, la fonction du bot.
  */
 @Component({
 	selector: 'app-esport',
@@ -145,7 +145,7 @@ export class EsportPage {
 		const config = this.config();
 		if (!week || !config) return null;
 
-		return buildEsportWeekEmbed(
+		return buildEsportWeekEmbeds(
 			{
 				weekStart: week.weekStart,
 				title: week.title,

@@ -8,10 +8,12 @@ import { ConfigService } from "@nestjs/config";
 import type { EsportConfig, EsportMatch, EsportTeam, EsportWeek, Prisma } from "@anubis/shared/prisma";
 import {
 	addDaysToKey,
-	buildEsportWeekEmbed,
+	buildEsportWeekEmbeds,
 	DEFAULT_ESPORT_COLOR,
 	DEFAULT_ESPORT_TITLE,
-	esportEmbedSize,
+	esportEmbedsSize,
+	esportRegion,
+	resolveEsportRegionColors,
 	ESPORT_TIME_ZONE,
 	EMBED_LIMITS,
 	EMBED_TOTAL_LIMIT,
@@ -52,7 +54,11 @@ const CONFIG_DEFAULTS = {
 	title: DEFAULT_ESPORT_TITLE,
 	pandascoreLeagueIds: [5223] as number[],
 	pandascoreSeries: [] as string[],
+	regionColors: {} as Record<string, number>,
 };
+
+/** Limite de Discord : un recapitulatif compte un embed par region, « Autres » compris. */
+const MAX_EMBEDS_PER_MESSAGE = 10;
 
 const MATCH_INCLUDE = { teamA: true, teamB: true } as const;
 const WEEK_INCLUDE = {
@@ -122,6 +128,9 @@ export class EsportService {
 				...new Set(data.pandascoreSeries.map((motCle) => motCle.trim()).filter(Boolean)),
 			];
 		}
+		if (data.regionColors !== undefined) {
+			data.regionColors = this.validerCouleurs(data.regionColors);
+		}
 
 		const saved = await this.prisma.esportConfig.upsert({
 			where: { guildId },
@@ -140,6 +149,24 @@ export class EsportService {
 		return this.toConfigDto(saved);
 	}
 
+	/**
+	 * Couleurs des regions : codes connus et couleurs RGB seulement. On ne garde
+	 * que ce qui s'ecarte du defaut, pour qu'une region jamais retouchee suive
+	 * un changement de sa couleur par defaut.
+	 */
+	private validerCouleurs(couleurs: Record<string, number>): Record<string, number> {
+		const gardees: Record<string, number> = {};
+		for (const [code, couleur] of Object.entries(couleurs)) {
+			const region = esportRegion(code);
+			if (!region) throw new BadRequestException(`Région inconnue : ${code}.`);
+			if (!Number.isInteger(couleur) || couleur < 0 || couleur > 0xffffff) {
+				throw new BadRequestException(`Couleur invalide pour ${region.label}.`);
+			}
+			if (couleur !== region.color) gardees[region.code] = couleur;
+		}
+		return gardees;
+	}
+
 	private toConfigDto(row: EsportConfig | null): EsportConfigDto {
 		const valeurs = row ?? CONFIG_DEFAULTS;
 		return {
@@ -150,6 +177,7 @@ export class EsportService {
 			mentionOnResult: valeurs.mentionOnResult,
 			spoilerScores: valeurs.spoilerScores,
 			color: valeurs.color,
+			regionColors: resolveEsportRegionColors(valeurs.regionColors as Record<string, number>),
 			title: valeurs.title,
 			pandascore: {
 				available: this.appConfig.get("app", { infer: true }).pandascore.available,
@@ -534,7 +562,7 @@ export class EsportService {
 			tx.esportConfig.findUnique({ where: { guildId: this.guild.guildId } }),
 		]);
 
-		const embed = buildEsportWeekEmbed(
+		const embeds = buildEsportWeekEmbeds(
 			{
 				weekStart: toKey(week.weekStart),
 				title: week.title,
@@ -545,16 +573,22 @@ export class EsportService {
 				title: config?.title ?? DEFAULT_ESPORT_TITLE,
 				color: config?.color ?? DEFAULT_ESPORT_COLOR,
 				spoilerScores: config?.spoilerScores ?? true,
+				regionColors: (config?.regionColors ?? {}) as Record<string, number>,
 			},
 		);
 
+		// Les 6000 caracteres portent sur l'ensemble des embeds du message.
 		if (
-			esportEmbedSize(embed) > EMBED_TOTAL_LIMIT ||
-			embed.fields.length > EMBED_LIMITS.fields ||
-			(embed.description?.length ?? 0) > EMBED_LIMITS.description
+			esportEmbedsSize(embeds) > EMBED_TOTAL_LIMIT ||
+			embeds.length > MAX_EMBEDS_PER_MESSAGE ||
+			embeds.some(
+				(embed) =>
+					embed.fields.length > EMBED_LIMITS.fields ||
+					(embed.description?.length ?? 0) > EMBED_LIMITS.description,
+			)
 		) {
 			throw new BadRequestException(
-				"Le récapitulatif dépasserait la taille maximale d'un embed Discord : raccourcissez des noms ou retirez des matchs.",
+				"Le récapitulatif dépasserait la taille maximale d'un message Discord : raccourcissez des noms ou retirez des matchs.",
 			);
 		}
 	}
