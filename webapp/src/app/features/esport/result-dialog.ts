@@ -6,15 +6,21 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatIconModule } from '@angular/material/icon';
 import {
 	buildEsportResultEmbed,
+	ESPORT_TIME_ZONE,
 	MAX_ESPORT_SCORE,
+	PANDASCORE_STATUS_LABELS,
+	zonedTimeOfDay,
 	type EsportConfigDto,
 	type EsportMatchDto,
 	type EsportWeekDto,
+	type PandascoreResultSuggestionDto,
 } from '@anubis/shared';
 import { EsportApi } from '../../core/api/esport.api';
 import { readApiError } from '../../core/error.interceptor';
+import { FrDatePipe } from '../../shared/pipes/format.pipes';
 import { EsportEmbedPreview } from './embed-preview';
 
 export interface ResultDialogData {
@@ -35,7 +41,9 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 	selector: 'app-esport-result-dialog',
 	imports: [
 		EsportEmbedPreview,
+		FrDatePipe,
 		MatButtonModule,
+		MatIconModule,
 		MatDialogModule,
 		MatFormFieldModule,
 		MatInputModule,
@@ -47,6 +55,41 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 		<h2 mat-dialog-title>{{ data.match.finished ? 'Corriger le score' : 'Terminer le match' }}</h2>
 
 		<mat-dialog-content>
+			@if (data.match.pandascoreId) {
+				<div class="pandascore">
+					@if (suggestion(); as s) {
+						@if (s.score) {
+							<p>
+								PandaScore : <strong>{{ s.score.a }} – {{ s.score.b }}</strong>
+								@if (s.forfeit) {
+									(forfait)
+								}
+								@if (s.fetchedAt) {
+									<span class="muted">· données du {{ s.fetchedAt | frDate }}</span>
+								}
+							</p>
+							<button matButton type="button" (click)="useSuggestion()">Utiliser ce score</button>
+						} @else {
+							<p>
+								PandaScore : {{ s.status ? statusLabel(s.status) : 'match introuvable dans la semaine' }}
+								@if (s.fetchedAt) {
+									<span class="muted">· données du {{ s.fetchedAt | frDate }}</span>
+								}
+							</p>
+							<button matButton type="button" [disabled]="refreshing() || !canRefresh()" (click)="refreshSuggestion()">
+								<mat-icon>refresh</mat-icon>
+								{{ canRefresh() ? 'Actualiser' : 'Actualisable à ' + refreshTime() }}
+							</button>
+						}
+					} @else {
+						<p class="muted">Lecture du score PandaScore…</p>
+					}
+				</div>
+				@if (suggestionError(); as message) {
+					<p class="error" role="alert">{{ message }}</p>
+				}
+			}
+
 			<form [formGroup]="form" class="form">
 				<div class="scores">
 					<mat-form-field>
@@ -117,6 +160,31 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 			font-size: 1.2rem;
 		}
 
+		.pandascore {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: var(--space-2);
+			margin-bottom: var(--space-3);
+			padding: 8px 12px;
+			border-radius: 8px;
+			background: var(--mat-sys-surface-container-high);
+
+			p {
+				flex: 1;
+				margin: 0;
+			}
+
+			.muted {
+				margin-left: var(--space-1);
+			}
+		}
+
+		.muted {
+			font-size: 0.85rem;
+			color: var(--mat-sys-on-surface-variant);
+		}
+
 		.preview-label {
 			margin: var(--space-4) 0 var(--space-2);
 			font-size: 0.75rem;
@@ -148,6 +216,9 @@ export class EsportResultDialog {
 	readonly max = MAX_ESPORT_SCORE;
 	readonly saving = signal(false);
 	readonly error = signal<string | null>(null);
+	readonly suggestion = signal<PandascoreResultSuggestionDto | null>(null);
+	readonly suggestionError = signal<string | null>(null);
+	readonly refreshing = signal(false);
 
 	private readonly scoreValidators = [
 		Validators.required,
@@ -175,8 +246,10 @@ export class EsportResultDialog {
 				teamB: match.teamB,
 				competition: match.competition,
 				scheduledAt: match.scheduledAt,
+				format: match.format,
 				bestOf: match.bestOf,
 				streamUrl: match.streamUrl,
+				pandascoreId: match.pandascoreId,
 				finished: true,
 				scoreA: Number(raw.scoreA ?? 0),
 				scoreB: Number(raw.scoreB ?? 0),
@@ -185,6 +258,63 @@ export class EsportResultDialog {
 			this.data.config,
 		);
 	});
+
+	constructor() {
+		if (this.data.match.pandascoreId) this.loadSuggestion(true);
+	}
+
+	statusLabel(status: string): string {
+		return PANDASCORE_STATUS_LABELS[status] ?? status;
+	}
+
+	canRefresh(): boolean {
+		const at = this.suggestion()?.refreshableAt;
+		return !at || new Date(at).getTime() <= Date.now();
+	}
+
+	refreshTime(): string {
+		const at = this.suggestion()?.refreshableAt;
+		return at ? zonedTimeOfDay(new Date(at), ESPORT_TIME_ZONE) : '';
+	}
+
+	useSuggestion(): void {
+		const score = this.suggestion()?.score;
+		if (!score) return;
+		this.form.patchValue({ scoreA: score.a, scoreB: score.b });
+		this.form.markAsDirty();
+	}
+
+	/** Un appel a PandaScore pour toute la semaine du match, puis relecture. */
+	refreshSuggestion(): void {
+		this.refreshing.set(true);
+		this.suggestionError.set(null);
+		this.api.refreshPandascoreWeek(this.data.match.weekId).subscribe({
+			next: () => {
+				this.refreshing.set(false);
+				this.loadSuggestion(false);
+			},
+			error: (err: unknown) => {
+				this.refreshing.set(false);
+				this.suggestionError.set(readApiError(err));
+			},
+		});
+	}
+
+	/**
+	 * Le score PandaScore pre-remplit un match pas encore termine ; il ne
+	 * remplace jamais un score deja saisi. Rien n'est envoye sans « Terminer ».
+	 */
+	private loadSuggestion(prefill: boolean): void {
+		this.api.getPandascoreResult(this.data.match.id).subscribe({
+			next: (suggestion) => {
+				this.suggestion.set(suggestion);
+				if (prefill && suggestion.score && !this.data.match.finished && this.form.pristine) {
+					this.form.patchValue({ scoreA: suggestion.score.a, scoreB: suggestion.score.b });
+				}
+			},
+			error: (err: unknown) => this.suggestionError.set(readApiError(err)),
+		});
+	}
 
 	save(): void {
 		if (this.form.invalid) {

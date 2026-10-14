@@ -199,8 +199,11 @@
 										@if (match.competition) {
 											<span>{{ match.competition }}</span>
 										}
-										@if (match.bestOf) {
-											<span>BO{{ match.bestOf }}</span>
+										@if (formatLabel(match); as format) {
+											<span>{{ format }}</span>
+										}
+										@if (match.pandascoreId) {
+											<span class="tag source" matTooltip="Importé depuis PandaScore, modifiable librement">PandaScore</span>
 										}
 										@if (match.streamUrl) {
 											<a [href]="match.streamUrl" target="_blank" rel="noopener">Stream</a>
@@ -265,6 +268,12 @@
 								<mat-icon>add</mat-icon>
 								Ajouter un match
 							</button>
+							@if (canImport()) {
+								<button matButton="outlined" [disabled]="busy()" (click)="openImport()">
+									<mat-icon>cloud_download</mat-icon>
+									Importer depuis PandaScore
+								</button>
+							}
 						</div>
 					</mat-card-content>
 				</mat-card>
@@ -315,6 +324,9 @@
 						</span>
 						@if (team.highlighted) {
 							<mat-icon class="star" matTooltip="Équipe suivie">star</mat-icon>
+						}
+						@if (team.pandascoreId) {
+							<span class="tag source" matTooltip="Reliée à PandaScore : reconnue d'un import à l'autre">PandaScore</span>
 						}
 						@if (team.archived) {
 							<span class="tag">Archivée</span>

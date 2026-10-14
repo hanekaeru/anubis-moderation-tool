@@ -7,6 +7,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import {
 	addDaysToKey,
+	esportFormatLabel,
+	EsportMatchFormat,
 	ESPORT_TIME_ZONE,
 	zonedDateKey,
 	zonedTimeOfDay,
@@ -118,10 +120,10 @@ export interface MatchDialogData {
 
 					<mat-form-field class="small">
 						<mat-label>Format</mat-label>
-						<mat-select formControlName="bestOf">
+						<mat-select formControlName="format">
 							<mat-option [value]="null">—</mat-option>
-							@for (bo of formats; track bo) {
-								<mat-option [value]="bo">BO{{ bo }}</mat-option>
+							@for (format of formats; track format) {
+								<mat-option [value]="format">{{ formatLabel(format) }}</mat-option>
 							}
 						</mat-select>
 					</mat-form-field>
@@ -135,6 +137,13 @@ export interface MatchDialogData {
 					}
 				</mat-form-field>
 			</form>
+
+			@if (data.match?.pandascoreId) {
+				<p class="hint">
+					Match importé depuis PandaScore. Vos modifications sont conservées ; seul un nouvel
+					import de ce match, demandé depuis « Importer depuis PandaScore », les remplacerait.
+				</p>
+			}
 
 			@if (error(); as message) {
 				<p class="error" role="alert">{{ message }}</p>
@@ -218,7 +227,8 @@ export class EsportMatchDialog {
 	private readonly dialogRef = inject(MatDialogRef<EsportMatchDialog, EsportWeekDto>);
 	readonly data = inject<MatchDialogData>(MAT_DIALOG_DATA);
 
-	readonly formats = [1, 3, 5, 7];
+	/** « BO3 » : au meilleur des trois manches ; « FT3 » : premier a trois (OWCS). */
+	readonly formats = ['BEST_OF:1', 'BEST_OF:3', 'BEST_OF:5', 'BEST_OF:7', 'FIRST_TO:2', 'FIRST_TO:3', 'FIRST_TO:4'];
 	readonly lastDay = addDaysToKey(this.data.week.weekStart, 6);
 	readonly emojiUrl = customEmojiUrl;
 
@@ -256,9 +266,23 @@ export class EsportMatchDialog {
 			[Validators.required],
 		],
 		competition: [this.data.match?.competition ?? this.competitions.at(-1) ?? ''],
-		bestOf: [this.data.match?.bestOf ?? (null as number | null)],
+		format: [this.initialFormat()],
 		streamUrl: [this.data.match?.streamUrl ?? '', [Validators.pattern(/^https?:\/\/\S+$/)]],
 	});
+
+	formatLabel(value: string): string {
+		const [format, games] = value.split(':');
+		return esportFormatLabel(format as EsportMatchFormat, Number(games)) ?? value;
+	}
+
+	private initialFormat(): string | null {
+		const match = this.data.match;
+		if (!match?.bestOf) return null;
+		const value = `${match.format}:${match.bestOf}`;
+		// Un format hors liste (BO9…) reste propose plutot que d'etre efface.
+		if (!this.formats.includes(value)) this.formats.push(value);
+		return value;
+	}
 
 	/** Aujourd'hui s'il tombe dans la semaine, le lundi sinon. */
 	private defaultDay(): string {
@@ -280,12 +304,14 @@ export class EsportMatchDialog {
 			return;
 		}
 
+		const [format, games] = raw.format ? raw.format.split(':') : [EsportMatchFormat.BEST_OF, null];
 		const request = {
 			teamAId: raw.teamAId ?? null,
 			teamBId: raw.teamBId ?? null,
 			competition: raw.competition?.trim() || null,
 			scheduledAt: zonedWallTimeToUtc(raw.date!, raw.time!, ESPORT_TIME_ZONE).toISOString(),
-			bestOf: raw.bestOf ?? null,
+			format: format as EsportMatchFormat,
+			bestOf: games ? Number(games) : null,
 			streamUrl: raw.streamUrl?.trim() || null,
 		};
 

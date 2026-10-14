@@ -17,8 +17,10 @@ function match(overrides: Partial<EsportEmbedMatch> = {}): EsportEmbedMatch {
 		competition: "OWCS EMEA",
 		// Mardi 13 octobre 2026, 20 h a Paris.
 		scheduledAt: "2026-10-13T18:00:00.000Z",
+		format: "BEST_OF",
 		bestOf: 5,
 		streamUrl: null,
+		pandascoreId: null,
 		finished: false,
 		scoreA: null,
 		scoreB: null,
@@ -76,6 +78,21 @@ describe("buildEsportWeekEmbed", () => {
 	it("annonce une semaine vide", () => {
 		expect(semaine([]).description).toContain("Aucun match prévu");
 	});
+
+	it("distingue un FT3 d'un BO3", () => {
+		const [field] = semaine([match({ format: "FIRST_TO", bestOf: 3 })]).fields;
+
+		expect(field!.value).toContain("FT3");
+		expect(field!.value).not.toContain("BO3");
+	});
+
+	// Condition de reutilisation des donnees PandaScore.
+	it("cite PandaScore des qu'un match en vient, et seulement alors", () => {
+		expect(semaine([match()]).footer!.text).not.toContain("PandaScore");
+		expect(semaine([match(), match({ pandascoreId: 1713048 })]).footer!.text).toContain(
+			"Source : PandaScore",
+		);
+	});
 });
 
 describe("buildEsportResultEmbed", () => {
@@ -94,6 +111,12 @@ describe("buildEsportResultEmbed", () => {
 
 		expect(embed.description).toContain("Victoire de **Falcons**");
 		expect(embed.thumbnail).toEqual({ url: "https://exemple.fr/falcons.png" });
+	});
+
+	it("cite PandaScore pour un match importe", () => {
+		const embed = buildEsportResultEmbed({ ...fini, pandascoreId: 1713048 }, SETTINGS);
+
+		expect(embed.footer!.text).toContain("Source : PandaScore");
 	});
 });
 

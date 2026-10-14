@@ -9,6 +9,8 @@ import type {
 	EsportTeamPayload,
 	EsportWeekDto,
 	EsportWeekSummaryDto,
+	PandascoreResultSuggestionDto,
+	PandascoreWeekDto,
 	UpdateEsportConfigRequest,
 	UpdateEsportWeekRequest,
 } from '@anubis/shared';
@@ -96,5 +98,25 @@ export class EsportApi {
 
 	removeResultMessage(id: string): Observable<EsportWeekDto> {
 		return this.http.post<EsportWeekDto>(`/api/esport/matchs/${id}/resultat/retrait`, {});
+	}
+
+	/** Lit le cache ; PandaScore n'est appele que si la semaine n'a jamais ete recuperee. */
+	getPandascoreWeek(weekId: string): Observable<PandascoreWeekDto> {
+		return this.http.get<PandascoreWeekDto>(`/api/esport/semaines/${weekId}/pandascore`);
+	}
+
+	refreshPandascoreWeek(weekId: string): Observable<PandascoreWeekDto> {
+		return this.http.post<PandascoreWeekDto>(
+			`/api/esport/semaines/${weekId}/pandascore/actualisation`,
+			{},
+		);
+	}
+
+	importMatches(weekId: string, ids: number[]): Observable<EsportWeekDto> {
+		return this.http.post<EsportWeekDto>(`/api/esport/semaines/${weekId}/import`, { ids });
+	}
+
+	getPandascoreResult(matchId: string): Observable<PandascoreResultSuggestionDto> {
+		return this.http.get<PandascoreResultSuggestionDto>(`/api/esport/matchs/${matchId}/pandascore`);
 	}
 }

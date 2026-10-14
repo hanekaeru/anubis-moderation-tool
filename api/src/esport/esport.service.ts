@@ -4,6 +4,7 @@ import {
 	Injectable,
 	NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import type { EsportConfig, EsportMatch, EsportTeam, EsportWeek, Prisma } from "@anubis/shared/prisma";
 import {
 	addDaysToKey,
@@ -14,6 +15,7 @@ import {
 	ESPORT_TIME_ZONE,
 	EMBED_LIMITS,
 	EMBED_TOTAL_LIMIT,
+	EsportMatchFormat,
 	isDateKey,
 	MAX_ESPORT_MATCHES_PER_WEEK,
 	mondayOfKey,
@@ -28,6 +30,7 @@ import {
 import { AuditService } from "../audit/audit.service";
 import { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
+import type { AppConfig } from "../config/configuration";
 import { PrismaService } from "../prisma/prisma.service";
 import type {
 	EsportMatchDtoIn,
@@ -47,6 +50,8 @@ const CONFIG_DEFAULTS = {
 	spoilerScores: true,
 	color: DEFAULT_ESPORT_COLOR,
 	title: DEFAULT_ESPORT_TITLE,
+	pandascoreLeagueIds: [5223] as number[],
+	pandascoreSeries: [] as string[],
 };
 
 const MATCH_INCLUDE = { teamA: true, teamB: true } as const;
@@ -54,12 +59,12 @@ const WEEK_INCLUDE = {
 	matches: { include: MATCH_INCLUDE, orderBy: { scheduledAt: "asc" } },
 } as const;
 
-type MatchRow = EsportMatch & { teamA: EsportTeam | null; teamB: EsportTeam | null };
+export type MatchRow = EsportMatch & { teamA: EsportTeam | null; teamB: EsportTeam | null };
 type WeekRow = EsportWeek & { matches: MatchRow[] };
-type Tx = Prisma.TransactionClient;
+export type Tx = Prisma.TransactionClient;
 
-const toKey = (date: Date) => date.toISOString().slice(0, 10);
-const fromKey = (key: string) => new Date(`${key}T00:00:00Z`);
+export const toKey = (date: Date) => date.toISOString().slice(0, 10);
+export const fromKey = (key: string) => new Date(`${key}T00:00:00Z`);
 
 /**
  * Ou en est un message sur Discord.
@@ -85,6 +90,7 @@ export class EsportService {
 		private readonly prisma: PrismaService,
 		private readonly guild: GuildContextService,
 		private readonly audit: AuditService,
+		private readonly appConfig: ConfigService<{ app: AppConfig }, true>,
 	) {}
 
 	// -------------------------------------------------------------------------
@@ -108,6 +114,14 @@ export class EsportService {
 		) as Partial<typeof CONFIG_DEFAULTS>;
 
 		if (data.title !== undefined) data.title = data.title.trim() || DEFAULT_ESPORT_TITLE;
+		if (data.pandascoreLeagueIds !== undefined) {
+			data.pandascoreLeagueIds = [...new Set(data.pandascoreLeagueIds)];
+		}
+		if (data.pandascoreSeries !== undefined) {
+			data.pandascoreSeries = [
+				...new Set(data.pandascoreSeries.map((motCle) => motCle.trim()).filter(Boolean)),
+			];
+		}
 
 		const saved = await this.prisma.esportConfig.upsert({
 			where: { guildId },
@@ -137,6 +151,11 @@ export class EsportService {
 			spoilerScores: valeurs.spoilerScores,
 			color: valeurs.color,
 			title: valeurs.title,
+			pandascore: {
+				available: this.appConfig.get("app", { infer: true }).pandascore.available,
+				leagueIds: valeurs.pandascoreLeagueIds,
+				series: valeurs.pandascoreSeries,
+			},
 			updatedAt: row?.updatedAt.toISOString() ?? null,
 		};
 	}
@@ -293,7 +312,7 @@ export class EsportService {
 		if (doublon) throw new ConflictException(`L'équipe « ${name} » existe déjà.`);
 	}
 
-	private toTeamDto(row: EsportTeam): EsportTeamDto {
+	toTeamDto(row: EsportTeam): EsportTeamDto {
 		return {
 			id: row.id,
 			name: row.name,
@@ -301,6 +320,7 @@ export class EsportService {
 			logoUrl: row.logoUrl,
 			highlighted: row.highlighted,
 			archived: row.archivedAt !== null,
+			pandascoreId: row.pandascoreId,
 		};
 	}
 
@@ -476,7 +496,7 @@ export class EsportService {
 		return this.findWeek(id);
 	}
 
-	private async loadWeek(id: string): Promise<EsportWeek> {
+	async loadWeek(id: string): Promise<EsportWeek> {
 		const week = await this.prisma.esportWeek.findFirst({
 			where: { id, guildId: this.guild.guildId },
 		});
@@ -484,7 +504,7 @@ export class EsportService {
 		return week;
 	}
 
-	private async findWeek(id: string): Promise<EsportWeekDto> {
+	async findWeek(id: string): Promise<EsportWeekDto> {
 		const row = await this.prisma.esportWeek.findUniqueOrThrow({
 			where: { id },
 			include: WEEK_INCLUDE,
@@ -496,7 +516,7 @@ export class EsportService {
 	 * Toute modification d'une semaine deja envoyee la remet en file : le bot
 	 * corrige le message publie. Un brouillon, lui, n'a rien a rattraper.
 	 */
-	private async resynchroniser(tx: Tx, weekId: string): Promise<void> {
+	async resynchroniser(tx: Tx, weekId: string): Promise<void> {
 		await tx.esportWeek.updateMany({
 			where: { id: weekId, publishRequestedAt: { not: null }, removalRequestedAt: null },
 			data: { discordSyncedAt: null },
@@ -508,7 +528,7 @@ export class EsportService {
 	 * refus ici, explique, qu'un echec du bot au moment de publier. Appelee dans
 	 * la transaction, apres l'ecriture : le rendu porte sur l'etat final.
 	 */
-	private async verifierTaille(tx: Tx, weekId: string): Promise<void> {
+	async verifierTaille(tx: Tx, weekId: string): Promise<void> {
 		const [week, config] = await Promise.all([
 			tx.esportWeek.findUniqueOrThrow({ where: { id: weekId }, include: WEEK_INCLUDE }),
 			tx.esportConfig.findUnique({ where: { guildId: this.guild.guildId } }),
@@ -721,7 +741,7 @@ export class EsportService {
 		return this.findWeek(match.weekId);
 	}
 
-	private async loadMatch(id: string): Promise<EsportMatch & { week: EsportWeek }> {
+	async loadMatch(id: string): Promise<EsportMatch & { week: EsportWeek }> {
 		const match = await this.prisma.esportMatch.findFirst({
 			where: { id, week: { guildId: this.guild.guildId } },
 			include: { week: true },
@@ -773,6 +793,7 @@ export class EsportService {
 			teamBId: dto.teamBId,
 			competition: dto.competition?.trim() || null,
 			scheduledAt,
+			format: dto.format ?? existing?.format ?? EsportMatchFormat.BEST_OF,
 			bestOf: dto.bestOf ?? null,
 			streamUrl: dto.streamUrl?.trim() || null,
 		};
@@ -815,8 +836,10 @@ export class EsportService {
 			teamB: row.teamB ? this.toTeamDto(row.teamB) : null,
 			competition: row.competition,
 			scheduledAt: row.scheduledAt.toISOString(),
+			format: row.format,
 			bestOf: row.bestOf,
 			streamUrl: row.streamUrl,
+			pandascoreId: row.pandascoreId,
 			finished,
 			scoreA: row.scoreA,
 			scoreB: row.scoreB,
@@ -843,8 +866,10 @@ export class EsportService {
 			teamB: row.teamB,
 			competition: row.competition,
 			scheduledAt: row.scheduledAt,
+			format: row.format,
 			bestOf: row.bestOf,
 			streamUrl: row.streamUrl,
+			pandascoreId: row.pandascoreId,
 			finished: row.finishedAt !== null,
 			scoreA: row.scoreA,
 			scoreB: row.scoreB,

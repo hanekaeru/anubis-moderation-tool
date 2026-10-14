@@ -17,18 +17,22 @@ import {
 	type EsportTeamDto,
 	type EsportWeekDto,
 	type EsportWeekSummaryDto,
+	type PandascoreResultSuggestionDto,
+	type PandascoreWeekDto,
 } from "@anubis/shared";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../common/decorators/require-permissions.decorator";
 import type { AuthenticatedUser } from "../common/types";
 import {
 	CreateEsportWeekDto,
+	EsportImportDtoIn,
 	EsportMatchDtoIn,
 	EsportResultDtoIn,
 	EsportTeamDtoIn,
 	UpdateEsportConfigDto,
 	UpdateEsportWeekDto,
 } from "./dto/esport.dto";
+import { EsportImportService } from "./esport-import.service";
 import { EsportService } from "./esport.service";
 
 /**
@@ -36,11 +40,15 @@ import { EsportService } from "./esport.service";
  *
  * Trois niveaux : lire (`esport:read`), composer et envoyer (`esport:write`),
  * regler et **retirer un message publie** (`esport:manage`). Rien ici ne parle
- * a Discord : l'API met en file, le bot publie.
+ * a Discord : l'API met en file, le bot publie. L'import PandaScore demande
+ * `esport:write`, comme la saisie : il ne fait que preremplir la semaine.
  */
 @Controller("esport")
 export class EsportController {
-	constructor(private readonly esport: EsportService) {}
+	constructor(
+		private readonly esport: EsportService,
+		private readonly imports: EsportImportService,
+	) {}
 
 	@Get("configuration")
 	@RequirePermissions(Permission.ESPORT_READ)
@@ -167,6 +175,35 @@ export class EsportController {
 		@CurrentUser() actor: AuthenticatedUser,
 	): Promise<EsportWeekDto> {
 		return this.esport.addMatch(id, dto, actor);
+	}
+
+	/** Matchs PandaScore de la semaine, depuis le cache (un appel s'il est vide). */
+	@Get("semaines/:id/pandascore")
+	@RequirePermissions(Permission.ESPORT_WRITE)
+	pandascoreWeek(@Param("id", ParseUUIDPipe) id: string): Promise<PandascoreWeekDto> {
+		return this.imports.weekView(id);
+	}
+
+	@Post("semaines/:id/pandascore/actualisation")
+	@RequirePermissions(Permission.ESPORT_WRITE)
+	refreshPandascore(@Param("id", ParseUUIDPipe) id: string): Promise<PandascoreWeekDto> {
+		return this.imports.refresh(id);
+	}
+
+	@Post("semaines/:id/import")
+	@RequirePermissions(Permission.ESPORT_WRITE)
+	importMatches(
+		@Param("id", ParseUUIDPipe) id: string,
+		@Body() dto: EsportImportDtoIn,
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<EsportWeekDto> {
+		return this.imports.import(id, dto.ids, actor);
+	}
+
+	@Get("matchs/:id/pandascore")
+	@RequirePermissions(Permission.ESPORT_WRITE)
+	pandascoreResult(@Param("id", ParseUUIDPipe) id: string): Promise<PandascoreResultSuggestionDto> {
+		return this.imports.resultSuggestion(id);
 	}
 
 	@Patch("matchs/:id")
