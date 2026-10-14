@@ -122,7 +122,7 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 			<p class="preview-label">
 				{{ data.match.finished ? 'Annonce corrigée' : 'Annonce envoyée dans le salon des résultats' }}
 			</p>
-			<app-esport-embed-preview [embed]="preview()" />
+			<app-esport-embed-preview [embeds]="[preview()]" />
 
 			@if (error(); as message) {
 				<p class="error" role="alert">{{ message }}</p>

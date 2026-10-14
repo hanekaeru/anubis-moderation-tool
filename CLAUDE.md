@@ -719,11 +719,14 @@ le dev avec rechargement).
   `null` publie, renseigne corrige, introuvable republie — mais avec deux
   cycles : `EsportWeek.discordSyncedAt` pour le recapitulatif,
   `EsportMatch.resultSyncedAt` pour le resultat. Cinq points a garder :
-  - **les deux embeds sont rendus dans `@anubis/shared`**
-    (`buildEsportWeekEmbed`, `buildEsportResultEmbed`) : le bot les envoie, le
+  - **les deux rendus vivent dans `@anubis/shared`**
+    (`buildEsportWeekEmbeds`, `buildEsportResultEmbed`) : le bot les envoie, le
     dashboard les previsualise, l'API mesure leur taille **dans la
     transaction**, apres l'ecriture, et refuse un match qui ferait deborder les
-    6000 caracteres plutot que de laisser le bot echouer a la publication.
+    6000 caracteres plutot que de laisser le bot echouer a la publication. Le
+    recapitulatif est **un message a plusieurs embeds** : les 6000 caracteres
+    portent sur leur somme (`esportEmbedsSize`), et Discord n'en accepte que
+    dix par message.
   - **tout se raisonne a l'heure de Paris** (`ESPORT_TIME_ZONE`,
     `src/timezone.ts`) : la saisie, le regroupement par jour et l'appartenance
     d'un match a sa semaine. Un match du dimanche 23 h 30 n'est pas de la
@@ -738,12 +741,23 @@ le dev avec rechargement).
     « dimanche, 01:00 » est converti en lundi 01:00 (`esportCalendarDay`). Le
     calcul se fait sur l'heure **locale**, jamais en retranchant six heures a
     l'instant : la nuit du changement d'heure tomberait du mauvais cote.
-  - **chaque journee se groupe par region** (`EsportMatch.region`, codes de
-    `ESPORT_REGIONS`), sous un intertitre, les regions dans l'ordre de leur
-    premier match. Sans aucune region dans la semaine, pas d'intertitre ; un
-    match sans region a cote d'autres va sous « 🎮 Autres ». Un champ
-    « (suite) » repete l'intertitre en cours. A l'import, la region est
-    reconnue dans l'intitule de la serie (`detectEsportRegion`).
+  - **un embed par region** (`EsportMatch.region`, codes de `ESPORT_REGIONS`),
+    tous dans le meme message — jamais un message par region, qui multiplierait
+    les messages a publier, corriger et retirer, et les notifications. Les
+    regions suivent l'ordre de `ESPORT_REGIONS`, « 🎮 Autres » en dernier ;
+    dans chaque embed, un champ par journee. Chaque embed porte son en-tete
+    (titre de la semaine en `author`, region en titre, dates), l'introduction
+    n'est que sur le premier et le pied que sur le dernier. Chaque region a sa
+    couleur, modifiable (`EsportConfig.regionColors`, qui ne garde que les
+    ecarts au defaut). Sans aucune region dans la semaine, un embed unique comme
+    avant. A l'import, la region est reconnue dans l'intitule de la serie
+    (`detectEsportRegion`).
+    **Ce que toute la region partage va dans la description de son embed**
+    (competition sans le nom de la region, format, stream) : le staff trouvait
+    le recapitulatif trop dense quand chaque ligne repetait « OWCS North
+    America Stage 3 · FT3 · Stream ». Une ligne ne garde que l'heure, les
+    equipes et ce qui lui est propre. Le nom d'un evenement international
+    (« World Finals ») n'est jamais raccourci.
   - **le spoiler se resout match par match** : `EsportMatch.spoiler` a `null`
     suit `EsportConfig.spoilerScores`. Sous spoiler, le vainqueur l'est aussi
     et le logo du gagnant n'est pas affiche — il trahirait le resultat avant le

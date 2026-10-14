@@ -54,14 +54,33 @@ export function esportCalendarDay(dayKey: string, time: string): string {
  * (« EMEA Stage 3 », « North America Stage 3 »…) a l'import.
  */
 export const ESPORT_REGIONS = [
-	{ code: "EMEA", label: "EMEA", emoji: "🇪🇺", keywords: ["emea", "europe"] },
-	{ code: "NA", label: "Amérique du Nord", emoji: "🇺🇸", keywords: ["north america", "americas"] },
-	{ code: "KR", label: "Corée", emoji: "🇰🇷", keywords: ["korea"] },
-	{ code: "CN", label: "Chine", emoji: "🇨🇳", keywords: ["china"] },
-	{ code: "JP", label: "Japon", emoji: "🇯🇵", keywords: ["japan"] },
-	{ code: "PAC", label: "Pacifique", emoji: "🌏", keywords: ["pacific", "asia", "oceania"] },
-	{ code: "INTL", label: "International", emoji: "🌍", keywords: ["world", "midseason", "international", "finals", "clash", "ewc"] },
+	{ code: "EMEA", label: "EMEA", emoji: "🇪🇺", color: 0x3b82f6, keywords: ["emea", "europe"] },
+	{ code: "NA", label: "Amérique du Nord", emoji: "🇺🇸", color: 0xe5484d, keywords: ["north america", "americas"] },
+	{ code: "KR", label: "Corée", emoji: "🇰🇷", color: 0x8e4ec6, keywords: ["korea"] },
+	{ code: "CN", label: "Chine", emoji: "🇨🇳", color: 0xf5a524, keywords: ["china"] },
+	{ code: "JP", label: "Japon", emoji: "🇯🇵", color: 0xe93d82, keywords: ["japan"] },
+	{ code: "PAC", label: "Pacifique", emoji: "🌏", color: 0x12a594, keywords: ["pacific", "asia", "oceania"] },
+	{ code: "INTL", label: "International", emoji: "🌍", color: 0x30a46c, keywords: ["world", "midseason", "international", "finals", "clash", "ewc"] },
 ] as const;
+
+/** Couleur de la bande d'une region : le reglage du serveur, sinon celle par defaut. */
+export function esportRegionColor(
+	code: string | null | undefined,
+	settings: Pick<EsportEmbedSettings, "color" | "regionColors">,
+): number {
+	const region = esportRegion(code);
+	if (!region) return settings.color;
+	return settings.regionColors?.[region.code] ?? region.color;
+}
+
+/** Couleurs de toutes les regions, reglages du serveur appliques sur les defauts. */
+export function resolveEsportRegionColors(
+	overrides: Partial<Record<string, number>> | null | undefined,
+): Record<EsportRegion, number> {
+	return Object.fromEntries(
+		ESPORT_REGIONS.map((region) => [region.code, overrides?.[region.code] ?? region.color]),
+	) as Record<EsportRegion, number>;
+}
 
 export type EsportRegion = (typeof ESPORT_REGIONS)[number]["code"];
 export const ESPORT_REGION_CODES = ESPORT_REGIONS.map((region) => region.code) as EsportRegion[];
@@ -176,7 +195,10 @@ export interface EsportConfigDto {
 	mentionOnPublish: boolean;
 	mentionOnResult: boolean;
 	spoilerScores: boolean;
+	/** Couleur des embeds sans region (et de l'annonce de resultat). */
 	color: number;
+	/** Couleur de l'embed de chaque region, defauts compris. */
+	regionColors: Record<EsportRegion, number>;
 	title: string;
 	pandascore: {
 		/** Jeton present dans l'environnement de l'API. */
@@ -189,9 +211,11 @@ export interface EsportConfigDto {
 }
 
 export type UpdateEsportConfigRequest = Partial<
-	Omit<EsportConfigDto, "updatedAt" | "pandascore"> & {
+	Omit<EsportConfigDto, "updatedAt" | "pandascore" | "regionColors"> & {
 		pandascoreLeagueIds: number[];
 		pandascoreSeries: string[];
+		/** Couleur par code de region ; une couleur egale au defaut n'est pas gardee. */
+		regionColors: Partial<Record<string, number>>;
 	}
 >;
 
@@ -374,10 +398,14 @@ export interface EsportEmbedSettings {
 	title: string;
 	color: number;
 	spoilerScores: boolean;
+	/** Couleurs choisies par le serveur ; une region absente garde la sienne. */
+	regionColors?: Partial<Record<string, number>>;
 }
 
 /** Forme acceptee telle quelle par discord.js (`APIEmbed`). */
 export interface EsportEmbed {
+	/** Petite ligne au-dessus du titre : le titre de la semaine. */
+	author?: { name: string };
 	title: string;
 	description?: string;
 	color: number;
@@ -430,11 +458,41 @@ function unix(date: Date | string): number {
 	return Math.floor(new Date(date).getTime() / 1000);
 }
 
-function matchLine(match: EsportEmbedMatch, settings: EsportEmbedSettings): string {
+/** Details deja portes par l'intertitre du groupe, a ne pas repeter par ligne. */
+interface SharedDetails {
+	competition: boolean;
+	format: boolean;
+	stream: boolean;
+}
+
+const NOTHING_SHARED: SharedDetails = { competition: false, format: false, stream: false };
+
+/**
+ * Une competition sans le nom de sa region : sous l'intertitre « 🇪🇺 EMEA »,
+ * « OWCS EMEA Stage 3 » se lit « OWCS Stage 3 ».
+ */
+function competitionLabel(competition: string, regionCode: string | null | undefined): string {
+	const region = esportRegion(regionCode);
+	// « World Finals » ou « Midseason » nomment l'evenement : rien a retirer.
+	if (!region || region.code === "INTL") return competition;
+	let texte = competition;
+	for (const mot of [region.label, ...region.keywords]) {
+		texte = texte.replace(new RegExp(mot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " ");
+	}
+	return texte.replace(/\s+/g, " ").trim() || competition;
+}
+
+function matchLine(
+	match: EsportEmbedMatch,
+	settings: EsportEmbedSettings,
+	shared: SharedDetails = NOTHING_SHARED,
+): string {
 	const details: string[] = [];
-	if (match.competition) details.push(`*${escapeMarkdown(match.competition)}*`);
+	if (match.competition && !shared.competition) {
+		details.push(`*${escapeMarkdown(competitionLabel(match.competition, match.region))}*`);
+	}
 	const format = esportFormatLabel(match.format, match.bestOf);
-	if (format) details.push(format);
+	if (format && !shared.format) details.push(format);
 
 	if (match.finished) {
 		const spoiler = esportScoreSpoiler(match, settings);
@@ -446,98 +504,48 @@ function matchLine(match: EsportEmbedMatch, settings: EsportEmbedSettings): stri
 	// lune signale un match d'apres minuit range sous la journee de la veille.
 	const nuit = isEsportNight(new Date(match.scheduledAt)) ? "🌙 " : "";
 	const line = `${nuit}<t:${unix(match.scheduledAt)}:t> ${teamLabel(match.teamA)} vs ${teamLabel(match.teamB)}`;
-	if (match.streamUrl) details.push(`[Stream](${match.streamUrl})`);
+	if (match.streamUrl && !shared.stream) details.push(`[Stream](${match.streamUrl})`);
 	return [line, ...details].join(" · ");
 }
 
-/** Intertitre des matchs sans region, quand d'autres en ont une. */
-const OTHER_REGION_HEADER = "🎮 Autres";
+/** Titre de l'embed des matchs sans region, quand d'autres en ont une. */
+const OTHER_REGION_TITLE = "🎮 Autres";
 
-/**
- * Lignes d'une journee, groupees par region sous un intertitre. Les regions
- * se suivent dans l'ordre de leur premier match : la journee se lit toujours
- * du matin a la nuit. Sans aucune region dans la semaine, pas d'intertitre —
- * le rendu d'avant les regions.
- */
-function dayBlocks(
-	matches: readonly EsportEmbedMatch[],
-	settings: EsportEmbedSettings,
-	withHeaders: boolean,
-): { header: string | null; lines: string[] }[] {
-	if (!withHeaders) {
-		return [{ header: null, lines: matches.map((match) => matchLine(match, settings)) }];
-	}
-
-	const groupes = new Map<string, { header: string; lines: string[] }>();
-	for (const match of matches) {
-		const header = esportRegionLabel(match.region) ?? OTHER_REGION_HEADER;
-		const groupe = groupes.get(header) ?? { header, lines: [] };
-		groupe.lines.push(matchLine(match, settings));
-		groupes.set(header, groupe);
-	}
-	return [...groupes.values()];
+/** La valeur, si tous les elements la partagent (et qu'elle existe). */
+function commune<T>(valeurs: readonly T[]): T | null {
+	const [premiere] = valeurs;
+	return premiere != null && valeurs.every((valeur) => valeur === premiere) ? premiere : null;
 }
 
 /**
- * Recapitulatif de la semaine : un champ par journee, les matchs dans l'ordre,
- * groupes par region.
- *
- * Les journees se forment a l'heure de Paris et finissent a 06:00 (voir
- * `ESPORT_DAY_START`). Une journee trop chargee pour un seul champ (1024
- * caracteres) se poursuit dans un champ « (suite) », qui repete l'intertitre
- * de la region en cours, plutot que de faire refuser l'embed entier.
+ * Un champ par journee, les matchs dans l'ordre. Une journee trop chargee pour
+ * un seul champ (1024 caracteres) se poursuit dans un champ « (suite) »
+ * plutot que de faire refuser l'embed entier.
  */
-export function buildEsportWeekEmbed(
-	week: {
-		weekStart: string;
-		title: string | null;
-		description: string | null;
-		matches: readonly EsportEmbedMatch[];
-	},
+function dayFields(
+	matches: readonly EsportEmbedMatch[],
 	settings: EsportEmbedSettings,
-): EsportEmbed {
-	const range = `📅 Du ${esportDayLabel(week.weekStart).toLowerCase()} au ${esportDayLabel(
-		addDaysToKey(week.weekStart, 6),
-	).toLowerCase()}`;
-
-	const description = [week.description?.trim(), range]
-		.filter((part): part is string => !!part)
-		.concat(week.matches.length ? [] : ["Aucun match prévu cette semaine."])
-		.join("\n\n");
-
-	const parJour = new Map<string, EsportEmbedMatch[]>();
-	const tries = [...week.matches].sort(
-		(a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
-	);
-	for (const match of tries) {
+	shared: SharedDetails,
+): EsportEmbed["fields"] {
+	const parJour = new Map<string, string[]>();
+	for (const match of matches) {
 		const jour = esportDayKey(new Date(match.scheduledAt));
-		parJour.set(jour, [...(parJour.get(jour) ?? []), match]);
+		parJour.set(jour, [...(parJour.get(jour) ?? []), matchLine(match, settings, shared)]);
 	}
 
-	const withHeaders = week.matches.some((match) => esportRegion(match.region) !== null);
-
 	const fields: EsportEmbed["fields"] = [];
-	for (const [jour, matchs] of parJour) {
+	for (const [jour, lignes] of parJour) {
 		let valeur = "";
 		let suite = false;
-		for (const bloc of dayBlocks(matchs, settings, withHeaders)) {
-			const intertitre = bloc.header ? `**${bloc.header}**` : null;
-			bloc.lines.forEach((ligne, index) => {
-				// L'intertitre ouvre son groupe, et rouvre un champ « (suite) ».
-				const avecTitre = intertitre && index === 0 ? `${intertitre}\n${ligne}` : ligne;
-				const candidate = valeur ? `${valeur}\n${avecTitre}` : avecTitre;
-				if (candidate.length > FIELD_VALUE_LIMIT && valeur) {
-					fields.push({
-						name: esportDayLabel(jour) + (suite ? " (suite)" : ""),
-						value: valeur,
-						inline: false,
-					});
-					valeur = intertitre ? `${intertitre}\n${ligne}` : ligne;
-					suite = true;
-				} else {
-					valeur = candidate;
-				}
-			});
+		for (const ligne of lignes) {
+			const candidate = valeur ? `${valeur}\n${ligne}` : ligne;
+			if (candidate.length > FIELD_VALUE_LIMIT && valeur) {
+				fields.push({ name: esportDayLabel(jour) + (suite ? " (suite)" : ""), value: valeur, inline: false });
+				valeur = ligne;
+				suite = true;
+			} else {
+				valeur = candidate;
+			}
 		}
 		if (valeur) {
 			fields.push({
@@ -547,17 +555,110 @@ export function buildEsportWeekEmbed(
 			});
 		}
 	}
+	return fields;
+}
+
+/**
+ * Ce que tous les matchs d'une region partagent (competition, format, stream) :
+ * ecrit une fois dans la description de son embed, plus sur chaque ligne.
+ */
+function sharedDetails(group: readonly EsportEmbedMatch[]): { shared: SharedDetails; text: string | null } {
+	const competition = commune(group.map((match) => match.competition));
+	const format = commune(group.map((match) => esportFormatLabel(match.format, match.bestOf)));
+	// Le stream n'est affiche que pour les matchs a venir.
+	const aVenir = group.filter((match) => !match.finished);
+	const stream = aVenir.length ? commune(aVenir.map((match) => match.streamUrl)) : null;
+
+	const parts = [
+		competition ? `🏆 ${escapeMarkdown(competitionLabel(competition, group[0]!.region))}` : null,
+		format,
+		stream ? `📺 [Stream](${stream})` : null,
+	].filter((part): part is string => !!part);
+
+	return {
+		shared: { competition: !!competition, format: !!format, stream: !!stream },
+		text: parts.length ? parts.join(" · ") : null,
+	};
+}
+
+/**
+ * Recapitulatif de la semaine : **un embed par region**, tous dans le meme
+ * message, chacun avec son en-tete (titre de la semaine, region, dates) et sa
+ * couleur. Discord accepte dix embeds par message ; sept regions plus
+ * « Autres » y tiennent. La limite de 6000 caracteres porte sur l'ensemble
+ * (`esportEmbedsSize`).
+ *
+ * Les regions suivent l'ordre de `ESPORT_REGIONS`, « Autres » en dernier.
+ * Dans chaque embed, un champ par journee esport (qui finit a 06:00, voir
+ * `ESPORT_DAY_START`). Une semaine sans aucune region garde un embed unique,
+ * a la couleur des reglages. Le pied (fuseau, source) ne figure que sur le
+ * dernier embed : il vaut pour tout le message.
+ */
+export function buildEsportWeekEmbeds(
+	week: {
+		weekStart: string;
+		title: string | null;
+		description: string | null;
+		matches: readonly EsportEmbedMatch[];
+	},
+	settings: EsportEmbedSettings,
+): EsportEmbed[] {
+	const titreSemaine = week.title?.trim() || settings.title;
+	const intro = week.description?.trim() || null;
+	const range = `📅 Du ${esportDayLabel(week.weekStart).toLowerCase()} au ${esportDayLabel(
+		addDaysToKey(week.weekStart, 6),
+	).toLowerCase()}`;
 
 	const pied = ["Horaires affichés dans votre fuseau horaire"];
 	if (week.matches.some((match) => match.pandascoreId !== null)) pied.push(PANDASCORE_SOURCE_LABEL);
+	const footer = { text: pied.join(" · ") };
 
-	return {
-		title: week.title?.trim() || settings.title,
-		description,
-		color: settings.color,
-		fields,
-		footer: { text: pied.join(" · ") },
-	};
+	const tries = [...week.matches].sort(
+		(a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+	);
+
+	if (!tries.some((match) => esportRegion(match.region) !== null)) {
+		return [
+			{
+				title: titreSemaine,
+				description: [intro, range, tries.length ? null : "Aucun match prévu cette semaine."]
+					.filter((part): part is string => !!part)
+					.join("\n\n"),
+				color: settings.color,
+				fields: dayFields(tries, settings, NOTHING_SHARED),
+				footer,
+			},
+		];
+	}
+
+	const groupes: { titre: string; color: number; matches: EsportEmbedMatch[] }[] = [
+		...ESPORT_REGIONS.map((region) => ({
+			titre: `${region.emoji} ${region.label}`,
+			color: esportRegionColor(region.code, settings),
+			matches: tries.filter((match) => match.region === region.code),
+		})),
+		{
+			titre: OTHER_REGION_TITLE,
+			color: settings.color,
+			matches: tries.filter((match) => esportRegion(match.region) === null),
+		},
+	].filter((groupe) => groupe.matches.length);
+
+	const embeds = groupes.map((groupe, index): EsportEmbed => {
+		const details = sharedDetails(groupe.matches);
+		return {
+			author: { name: titreSemaine },
+			title: groupe.titre,
+			// L'introduction n'est ecrite qu'une fois, en tete du message.
+			description: [index === 0 ? intro : null, [range, details.text].filter(Boolean).join("\n")]
+				.filter((part): part is string => !!part)
+				.join("\n\n"),
+			color: groupe.color,
+			fields: dayFields(groupe.matches, settings, details.shared),
+		};
+	});
+	embeds[embeds.length - 1]!.footer = footer;
+	return embeds;
 }
 
 /**
@@ -611,9 +712,15 @@ export function buildEsportResultEmbed(
 /** Total de caracteres compte par Discord pour la limite de 6000. */
 export function esportEmbedSize(embed: EsportEmbed): number {
 	return (
+		(embed.author?.name.length ?? 0) +
 		embed.title.length +
 		(embed.description?.length ?? 0) +
 		(embed.footer?.text.length ?? 0) +
 		embed.fields.reduce((total, field) => total + field.name.length + field.value.length, 0)
 	);
+}
+
+/** Total d'un message a plusieurs embeds : la limite de 6000 porte sur la somme. */
+export function esportEmbedsSize(embeds: readonly EsportEmbed[]): number {
+	return embeds.reduce((total, embed) => total + esportEmbedSize(embed), 0);
 }

@@ -5,9 +5,16 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { SNOWFLAKE_PATTERN, type EsportConfigDto } from '@anubis/shared';
+import {
+	ESPORT_REGIONS,
+	SNOWFLAKE_PATTERN,
+	type EsportConfigDto,
+	type EsportRegion,
+} from '@anubis/shared';
 import { EsportApi } from '../../core/api/esport.api';
 import { readApiError } from '../../core/error.interceptor';
+
+const toHex = (color: number) => `#${color.toString(16).padStart(6, '0')}`;
 
 /** Reglages de l'esport, reserves aux administrateurs (`esport:manage`). */
 @Component({
@@ -71,6 +78,23 @@ import { readApiError } from '../../core/error.interceptor';
 						<label for="esport-color">Couleur</label>
 						<input id="esport-color" type="color" formControlName="color" />
 					</div>
+				</div>
+
+				<h3 class="section">Couleurs des régions</h3>
+				<p class="hint">
+					Chaque région a son embed dans le récapitulatif, avec sa couleur. La couleur ci-dessus sert aux
+					matchs sans région et aux annonces de résultat.
+				</p>
+				<div class="region-colors" formGroupName="regionColors">
+					@for (region of regions; track region.code) {
+						<label class="color region">
+							<input type="color" [formControlName]="region.code" />
+							<span>{{ region.emoji }} {{ region.label }}</span>
+						</label>
+					}
+				</div>
+				<div>
+					<button matButton type="button" (click)="resetRegionColors()">Rétablir les couleurs par défaut</button>
 				</div>
 
 				<h3 class="section">Import PandaScore</h3>
@@ -147,6 +171,25 @@ import { readApiError } from '../../core/error.interceptor';
 			}
 		}
 
+		.region-colors {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+			gap: var(--space-2) var(--space-3);
+		}
+
+		.color.region {
+			flex-direction: row;
+			align-items: center;
+			gap: var(--space-2);
+			font-size: 0.9rem;
+			cursor: pointer;
+
+			input {
+				width: 40px;
+				height: 32px;
+			}
+		}
+
 		.section {
 			margin: var(--space-3) 0 0;
 			font: var(--mat-sys-title-small);
@@ -199,7 +242,24 @@ export class EsportConfigDialog {
 			[Validators.pattern(/^\s*(\d+\s*([,;\s]\s*\d+\s*)*)?$/)],
 		],
 		series: [this.data.pandascore.series.join(', ')],
+		regionColors: inject(FormBuilder).nonNullable.group(
+			Object.fromEntries(
+				ESPORT_REGIONS.map((region) => [region.code, [toHex(this.data.regionColors[region.code])]]),
+			) as Record<EsportRegion, [string]>,
+		),
 	});
+
+	readonly regions = ESPORT_REGIONS;
+
+	resetRegionColors(): void {
+		this.form.controls.regionColors.setValue(
+			Object.fromEntries(ESPORT_REGIONS.map((region) => [region.code, toHex(region.color)])) as Record<
+				EsportRegion,
+				string
+			>,
+		);
+		this.form.markAsDirty();
+	}
 
 	save(): void {
 		if (this.form.invalid) {
@@ -221,6 +281,9 @@ export class EsportConfigDialog {
 				spoilerScores: raw.spoilerScores,
 				title: raw.title.trim(),
 				color: parseInt(raw.color.slice(1), 16),
+				regionColors: Object.fromEntries(
+					Object.entries(raw.regionColors).map(([code, hex]) => [code, parseInt(hex.slice(1), 16)]),
+				),
 				pandascoreLeagueIds: raw.leagueIds
 					.split(/[,;\s]+/)
 					.filter(Boolean)

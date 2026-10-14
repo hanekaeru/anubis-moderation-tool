@@ -7,6 +7,7 @@ import {
 	IsDateString,
 	IsIn,
 	IsInt,
+	IsObject,
 	IsOptional,
 	IsString,
 	IsUrl,
@@ -87,6 +88,11 @@ export class UpdateEsportConfigDto {
 	@IsString({ each: true })
 	@MaxLength(60, { each: true })
 	pandascoreSeries?: string[];
+
+	/** `{ code de region: couleur }` ; codes et valeurs verifies par le service. */
+	@IsOptional()
+	@IsObject()
+	regionColors?: Record<string, number>;
 }
 
 export class EsportImportDtoIn {

@@ -1,6 +1,6 @@
 import {
 	buildEsportResultEmbed,
-	buildEsportWeekEmbed,
+	buildEsportWeekEmbeds,
 	detectEsportRegion,
 	esportCalendarDay,
 	esportDayKey,
@@ -34,9 +34,11 @@ function match(overrides: Partial<EsportEmbedMatch> = {}): EsportEmbedMatch {
 	};
 }
 
-describe("buildEsportWeekEmbed", () => {
-	const semaine = (matches: EsportEmbedMatch[]) =>
-		buildEsportWeekEmbed({ weekStart: "2026-10-12", title: null, description: null, matches }, SETTINGS);
+describe("buildEsportWeekEmbeds", () => {
+	const embeds = (matches: EsportEmbedMatch[], description: string | null = null) =>
+		buildEsportWeekEmbeds({ weekStart: "2026-10-12", title: null, description, matches }, SETTINGS);
+	/** Semaine sans region : un seul embed. */
+	const semaine = (matches: EsportEmbedMatch[]) => embeds(matches)[0]!;
 
 	it("regroupe les matchs par jour, a l'heure de Paris", () => {
 		const embed = semaine([
@@ -97,40 +99,106 @@ describe("buildEsportWeekEmbed", () => {
 		expect(embed.fields[0]!.value.split("\n")[0]).not.toContain("🌙");
 	});
 
-	it("groupe une journee par region, dans l'ordre du premier match", () => {
-		const embed = semaine([
-			match({ region: "EMEA", scheduledAt: "2026-10-17T17:00:00.000Z" }),
-			match({ region: "KR", scheduledAt: "2026-10-17T06:00:00.000Z" }),
+	it("fait un embed par region, dans l'ordre des regions, « Autres » en dernier", () => {
+		const resultat = embeds([
 			match({ region: "NA", scheduledAt: "2026-10-17T23:00:00.000Z" }),
-			match({ region: "EMEA", scheduledAt: "2026-10-17T18:30:00.000Z" }),
+			match({ region: null }),
+			match({ region: "KR", scheduledAt: "2026-10-17T06:00:00.000Z" }),
+			match({ region: "EMEA", scheduledAt: "2026-10-17T17:00:00.000Z" }),
 		]);
-		const lignes = embed.fields[0]!.value.split("\n");
 
-		expect(lignes.filter((ligne) => ligne.startsWith("**"))).toEqual([
-			"**🇰🇷 Corée**",
-			"**🇪🇺 EMEA**",
-			"**🇺🇸 Amérique du Nord**",
+		expect(resultat.map((embed) => embed.title)).toEqual([
+			"🇪🇺 EMEA",
+			"🇺🇸 Amérique du Nord",
+			"🇰🇷 Corée",
+			"🎮 Autres",
 		]);
-		expect(lignes[3]).toContain("<t:");
-		expect(lignes[4]).toContain("<t:");
 	});
 
-	it("n'ajoute aucun intertitre sans region dans la semaine", () => {
-		expect(semaine([match(), match()]).fields[0]!.value).not.toContain("**🎮");
-	});
-
-	it("range sous « Autres » un match sans region quand d'autres en ont", () => {
-		expect(semaine([match({ region: "EMEA" }), match()]).fields[0]!.value).toContain("**🎮 Autres**");
-	});
-
-	it("repete l'intertitre de la region dans un champ « (suite) »", () => {
-		const longs = Array.from({ length: 12 }, () =>
-			match({ region: "EMEA", streamUrl: `https://twitch.tv/${"x".repeat(60)}` }),
+	// Chaque embed porte son en-tete : titre de la semaine, region, dates.
+	it("met un en-tete sur chaque embed, l'introduction sur le premier seulement", () => {
+		const [emea, na] = embeds(
+			[match({ region: "EMEA" }), match({ region: "NA" })],
+			"Bonne semaine !",
 		);
-		const embed = semaine(longs);
 
-		expect(embed.fields[1]!.name).toBe("Mardi 13 octobre (suite)");
-		expect(embed.fields[1]!.value.startsWith("**🇪🇺 EMEA**\n")).toBe(true);
+		for (const embed of [emea!, na!]) {
+			expect(embed.author).toEqual({ name: "Matchs" });
+			expect(embed.description).toContain("📅 Du lundi 12 octobre au dimanche 18 octobre");
+		}
+		expect(emea!.description).toContain("Bonne semaine !");
+		expect(na!.description).not.toContain("Bonne semaine !");
+	});
+
+	it("donne a chaque region sa couleur, celle du serveur l'emportant", () => {
+		const matches = [match({ region: "EMEA" }), match({ region: "NA" }), match()];
+		const [emea, na, autres] = buildEsportWeekEmbeds(
+			{ weekStart: "2026-10-12", title: null, description: null, matches },
+			{ ...SETTINGS, regionColors: { NA: 0x123456 } },
+		);
+
+		expect(emea!.color).toBe(0x3b82f6);
+		expect(na!.color).toBe(0x123456);
+		expect(autres!.color).toBe(SETTINGS.color);
+	});
+
+	it("ne met le pied que sur le dernier embed", () => {
+		const resultat = embeds([match({ region: "EMEA" }), match({ region: "NA", pandascoreId: 1 })]);
+
+		expect(resultat[0]!.footer).toBeUndefined();
+		expect(resultat[1]!.footer!.text).toContain("Source : PandaScore");
+	});
+
+	// Ce que toute la region partage n'est ecrit qu'une fois.
+	it("ecrit dans la description la competition, le format et le stream communs", () => {
+		const commun = { region: "EMEA", competition: "OWCS EMEA Stage 3", streamUrl: "https://twitch.tv/ow" };
+		const [embed] = embeds([match(commun), match({ ...commun, scheduledAt: "2026-10-14T18:00:00.000Z" })]);
+
+		expect(embed!.description).toContain("🏆 OWCS Stage 3 · BO5 · 📺 [Stream](https://twitch.tv/ow)");
+		expect(embed!.fields.map((field) => field.name)).toEqual(["Mardi 13 octobre", "Mercredi 14 octobre"]);
+		for (const field of embed!.fields) {
+			expect(field.value).not.toContain("Stage 3");
+			expect(field.value).not.toContain("BO5");
+			expect(field.value).not.toContain("Stream");
+		}
+	});
+
+	it("garde sur sa ligne ce qu'un match ne partage pas", () => {
+		const [embed] = embeds([
+			match({ region: "EMEA", streamUrl: "https://twitch.tv/a" }),
+			match({ region: "EMEA", streamUrl: "https://twitch.tv/b", format: "FIRST_TO", bestOf: 3 }),
+		]);
+		const [, ligneB] = embed!.fields[0]!.value.split("\n");
+
+		expect(embed!.description).toContain("🏆 OWCS");
+		expect(embed!.description).not.toContain("Stream");
+		expect(ligneB).toContain("FT3");
+		expect(ligneB).toContain("[Stream](https://twitch.tv/b)");
+	});
+
+	it("ne retire rien du nom d'un evenement international", () => {
+		const [embed] = embeds([match({ region: "INTL", competition: "OWCS World Finals" })]);
+
+		expect(embed!.description).toContain("OWCS World Finals");
+	});
+
+	it("garde un seul embed, sans en-tete de region, sans region dans la semaine", () => {
+		const resultat = embeds([match(), match()]);
+
+		expect(resultat.length).toBe(1);
+		expect(resultat[0]!.title).toBe("Matchs");
+		expect(resultat[0]!.author).toBeUndefined();
+	});
+
+	it("poursuit une journee trop chargee dans un champ « (suite) »", () => {
+		// Un stream different par match : rien a mettre en commun, les lignes restent longues.
+		const longs = Array.from({ length: 12 }, (_, index) =>
+			match({ region: "EMEA", streamUrl: `https://twitch.tv/${index}${"x".repeat(60)}` }),
+		);
+		const [embed] = embeds(longs);
+
+		expect(embed!.fields[1]!.name).toBe("Mardi 13 octobre (suite)");
+		expect(embed!.fields.every((field) => field.value.length <= 1024)).toBe(true);
 	});
 
 	it("distingue un FT3 d'un BO3", () => {

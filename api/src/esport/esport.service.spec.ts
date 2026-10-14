@@ -138,6 +138,32 @@ describe("EsportService.addMatch", () => {
 	});
 });
 
+describe("EsportService.updateConfig", () => {
+	const upsert = () => jest.fn(({ create }) => Promise.resolve({ ...create, updatedAt: new Date() }));
+
+	// Une region jamais retouchee doit suivre un changement de sa couleur par defaut.
+	it("ne garde que les couleurs de region qui s'ecartent du defaut", async () => {
+		const { service, prisma } = makeService({ esportConfig: { upsert: upsert() } });
+
+		const config = await service.updateConfig(
+			{ regionColors: { EMEA: 0x3b82f6, NA: 0x123456 } },
+			ACTOR,
+		);
+
+		expect(prisma.esportConfig.upsert.mock.calls[0][0].update.regionColors).toEqual({ NA: 0x123456 });
+		expect(config.regionColors.EMEA).toBe(0x3b82f6);
+		expect(config.regionColors.NA).toBe(0x123456);
+	});
+
+	it("refuse une region inconnue", async () => {
+		const { service } = makeService({ esportConfig: { upsert: upsert() } });
+
+		await expect(
+			service.updateConfig({ regionColors: { MARS: 0xffffff } }, ACTOR),
+		).rejects.toBeInstanceOf(BadRequestException);
+	});
+});
+
 describe("EsportService.publishWeek", () => {
 	it("refuse sans salon de publication", async () => {
 		const { service } = makeService({

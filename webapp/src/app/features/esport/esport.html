@@ -288,8 +288,8 @@
 					<mat-card-subtitle>Rendu approché ; les heures s'affichent dans votre fuseau.</mat-card-subtitle>
 				</mat-card-header>
 				<mat-card-content>
-					@if (preview(); as embed) {
-						<app-esport-embed-preview [embed]="embed" [content]="w.status === 'DRAFT' ? previewContent() : null" />
+					@if (preview(); as embeds) {
+						<app-esport-embed-preview [embeds]="embeds" [content]="w.status === 'DRAFT' ? previewContent() : null" />
 					}
 				</mat-card-content>
 			</mat-card>
