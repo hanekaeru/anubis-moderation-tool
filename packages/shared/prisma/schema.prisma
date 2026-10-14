@@ -239,35 +239,35 @@ model DiscordUser {
 
   memberships             Member[]
   identityEvents          IdentityEvent[]
-  warningsReceived        Warning[]               @relation("WarningTarget")
-  warningsIssued          Warning[]               @relation("WarningModerator")
-  sanctionsReceived       Sanction[]              @relation("SanctionTarget")
-  sanctionsIssued         Sanction[]              @relation("SanctionModerator")
-  sanctionsRevoked        Sanction[]              @relation("SanctionDiscordRevoker")
+  warningsReceived        Warning[]                    @relation("WarningTarget")
+  warningsIssued          Warning[]                    @relation("WarningModerator")
+  sanctionsReceived       Sanction[]                   @relation("SanctionTarget")
+  sanctionsIssued         Sanction[]                   @relation("SanctionModerator")
+  sanctionsRevoked        Sanction[]                   @relation("SanctionDiscordRevoker")
   notes                   MemberNote[]
-  ticketsOpened           Ticket[]                @relation("TicketOpener")
-  ticketsAssigned         Ticket[]                @relation("TicketAssignee")
-  ticketsClaimedOnDiscord Ticket[]                @relation("TicketDiscordClaimer")
+  ticketsOpened           Ticket[]                     @relation("TicketOpener")
+  ticketsAssigned         Ticket[]                     @relation("TicketAssignee")
+  ticketsClaimedOnDiscord Ticket[]                     @relation("TicketDiscordClaimer")
   ticketPrefixes          TicketModeratorPrefix[]
   ticketEvents            TicketEvent[]
   messageStats            MessageStat[]
   activityProfiles        MemberActivityProfile[]
   voiceSessions           VoiceSession[]
   memberRoles             MemberRole[]
-  roleEvents              MemberRoleEvent[]       @relation("RoleEventTarget")
-  moderationActivity      ModerationActivity[]    @relation("ActivityModerator")
-  activityTargets         ModerationActivity[]    @relation("ActivityTarget")
+  roleEvents              MemberRoleEvent[]            @relation("RoleEventTarget")
+  moderationActivity      ModerationActivity[]         @relation("ActivityModerator")
+  activityTargets         ModerationActivity[]         @relation("ActivityTarget")
   automodIncidents        AutomodIncident[]
   accountFlags            AccountFlag[]
-  quarantineStatuses      QuarantineStatus[]      @relation("QuarantineMember")
-  quarantineReleases      QuarantineStatus[]      @relation("QuarantineDiscordReleaser")
+  quarantineStatuses      QuarantineStatus[]           @relation("QuarantineMember")
+  quarantineReleases      QuarantineStatus[]           @relation("QuarantineDiscordReleaser")
   memberRoleRequests      MemberRoleRequest[]
   battlenetAccount        BattlenetAccount?
   battlenetStates         BattlenetVerificationState[]
   shadowbanRoleBackups    ShadowbanRoleBackup[]
   ownedVoiceChannels      TemporaryVoiceChannel[]
   appUser                 AppUser?
-  attachmentsUploaded     ModerationAttachment[]  @relation("AttachmentDiscordUploader")
+  attachmentsUploaded     ModerationAttachment[]       @relation("AttachmentDiscordUploader")
   giveawayEntries         GiveawayEntry[]
   staffReminders          StaffReminder[]
 
@@ -866,16 +866,16 @@ model RaidIncident {
 /// Signalement d'un compte suspect a l'arrivee : jamais de sanction
 /// automatique, uniquement une trace presentee au staff.
 model AccountFlag {
-  id           BigInt          @id @default(autoincrement())
-  guildId      String          @map("guild_id") @db.VarChar(20)
-  userId       String          @map("user_id") @db.VarChar(20)
-  type         AccountFlagType
+  id              BigInt          @id @default(autoincrement())
+  guildId         String          @map("guild_id") @db.VarChar(20)
+  userId          String          @map("user_id") @db.VarChar(20)
+  type            AccountFlagType
   /// Details bruts ayant motive le signalement (age du compte, pseudo
   /// imite, delai depuis le depart precedent, ...).
-  details      Json?
-  createdAt    DateTime        @default(now()) @map("created_at")
-  reviewedAt   DateTime?       @map("reviewed_at")
-  reviewedById String?         @map("reviewed_by_id") @db.Uuid
+  details         Json?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  reviewedAt      DateTime?       @map("reviewed_at")
+  reviewedById    String?         @map("reviewed_by_id") @db.Uuid
   /// Alerte au staff deja envoyee sur Discord.
   ///
   /// Meme patron que `Sanction.discordSyncedAt`. Un signalement pose par le bot
@@ -993,22 +993,22 @@ model ModerationPointsConfig {
 /// Etat de quarantaine d'un membre. Pas d'expulsion automatique : la
 /// quarantaine dure jusqu'au clic sur le bouton, ou une levee manuelle.
 model QuarantineStatus {
-  guildId         String    @map("guild_id") @db.VarChar(20)
-  userId          String    @map("user_id") @db.VarChar(20)
-  quarantinedAt   DateTime  @default(now()) @map("quarantined_at")
-  acceptedAt      DateTime? @map("accepted_at")
+  guildId             String    @map("guild_id") @db.VarChar(20)
+  userId              String    @map("user_id") @db.VarChar(20)
+  quarantinedAt       DateTime  @default(now()) @map("quarantined_at")
+  acceptedAt          DateTime? @map("accepted_at")
   /// Levee manuelle : c'est **elle** qui fait foi, pas l'auteur. Les deux
   /// colonnes d'auteur passent a `null` quand le compte disparait
   /// (`SetNull`), et une levee ne doit pas s'annuler parce qu'un compte du
   /// dashboard a ete supprime. Elle reste aussi posee quand l'audit log
   /// Discord ne dit pas qui a retire le role.
-  releasedAt      DateTime? @map("released_at")
+  releasedAt          DateTime? @map("released_at")
   /// Auteur d'une levee depuis la webapp.
-  releasedById    String?   @map("released_by_id") @db.Uuid
+  releasedById        String?   @map("released_by_id") @db.Uuid
   /// Auteur d'une levee depuis le client Discord (role de quarantaine retire
   /// a la main). Exclusif de `releasedById`, meme couple que
   /// `Sanction.revokedById` / `revokedByDiscordId`.
-  releasedByDiscordId String? @map("released_by_discord_id") @db.VarChar(20)
+  releasedByDiscordId String?   @map("released_by_discord_id") @db.VarChar(20)
   /// Verification Battle.net reussie. `null` tant qu'elle manque — la levee
   /// complete n'a lieu que lorsque `acceptedAt` et celle-ci sont toutes deux
   /// posees, ou que `QuarantineConfig.battlenetRequired` est a `false`.
@@ -1016,7 +1016,7 @@ model QuarantineStatus {
   /// Pose immediatement quand le retrait du role est fait par le bot
   /// lui-meme (clic sur le bouton) — meme patron que
   /// `RaidIncident.discordSyncedAt` pour une levee demandee depuis la webapp.
-  discordSyncedAt DateTime? @map("discord_synced_at")
+  discordSyncedAt     DateTime? @map("discord_synced_at")
 
   guild             Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
   user              DiscordUser  @relation("QuarantineMember", fields: [userId], references: [id], onDelete: Cascade)
@@ -1059,21 +1059,28 @@ model WelcomeConfig {
 
 /// Reglages du recapitulatif esport, une ligne par serveur.
 model EsportConfig {
-  guildId          String   @id @map("guild_id") @db.VarChar(20)
+  guildId             String   @id @map("guild_id") @db.VarChar(20)
   /// Salon des recapitulatifs de la semaine.
-  channelId        String?  @map("channel_id") @db.VarChar(20)
+  channelId           String?  @map("channel_id") @db.VarChar(20)
   /// Salon des annonces de resultat ; `null` pour celui des recapitulatifs.
-  resultsChannelId String?  @map("results_channel_id") @db.VarChar(20)
+  resultsChannelId    String?  @map("results_channel_id") @db.VarChar(20)
   /// Role interpelle (un role « Esport » auquel on s'inscrit, jamais
   /// `@everyone`). `null` pour n'interpeller personne.
-  mentionRoleId    String?  @map("mention_role_id") @db.VarChar(20)
-  mentionOnPublish Boolean  @default(true) @map("mention_on_publish")
-  mentionOnResult  Boolean  @default(false) @map("mention_on_result")
+  mentionRoleId       String?  @map("mention_role_id") @db.VarChar(20)
+  mentionOnPublish    Boolean  @default(true) @map("mention_on_publish")
+  mentionOnResult     Boolean  @default(false) @map("mention_on_result")
   /// Scores en spoiler par defaut ; chaque match peut faire exception.
-  spoilerScores    Boolean  @default(true) @map("spoiler_scores")
-  color            Int      @default(5793266)
-  title            String   @default("🎮 Matchs esport de la semaine") @db.VarChar(200)
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  spoilerScores       Boolean  @default(true) @map("spoiler_scores")
+  color               Int      @default(5793266)
+  title               String   @default("🎮 Matchs esport de la semaine") @db.VarChar(200)
+  /// Ligues PandaScore interrogees a l'import (5223 : Overwatch Champions
+  /// Series). Toutes partent dans le meme appel.
+  pandascoreLeagueIds Int[]    @default([5223]) @map("pandascore_league_ids")
+  /// Mots-cles des series suivies (« EMEA », « North America »…) : seuls les
+  /// matchs dont la serie en contient un sont proposes d'office a l'import.
+  /// Vide : tout est propose.
+  pandascoreSeries    String[] @default([]) @map("pandascore_series")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
@@ -1085,23 +1092,27 @@ model EsportConfig {
 /// Une equipe deja utilisee n'est jamais supprimee, seulement archivee
 /// (`archivedAt`) : les semaines passees doivent continuer de l'afficher.
 model EsportTeam {
-  id          String    @id @default(uuid()) @db.Uuid
-  guildId     String    @map("guild_id") @db.VarChar(20)
-  name        String    @db.VarChar(80)
+  id           String    @id @default(uuid()) @db.Uuid
+  guildId      String    @map("guild_id") @db.VarChar(20)
+  name         String    @db.VarChar(80)
   /// Emoji tel que Discord l'ecrit : unicode, ou `<:nom:id>` pour un emoji
   /// du serveur.
-  emoji       String?   @db.VarChar(100)
-  logoUrl     String?   @map("logo_url") @db.VarChar(500)
+  emoji        String?   @db.VarChar(100)
+  logoUrl      String?   @map("logo_url") @db.VarChar(500)
   /// Equipe suivie par le serveur : mise en gras dans les recapitulatifs.
-  highlighted Boolean   @default(false)
-  archivedAt  DateTime? @map("archived_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  highlighted  Boolean   @default(false)
+  /// Equipe PandaScore correspondante : c'est elle qui fait reconnaitre
+  /// l'equipe d'un import a l'autre, quel que soit le nom choisi ici.
+  pandascoreId Int?      @map("pandascore_id")
+  archivedAt   DateTime? @map("archived_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   guild    Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
   matchesA EsportMatch[] @relation("EsportMatchTeamA")
   matchesB EsportMatch[] @relation("EsportMatchTeamB")
 
+  @@unique([guildId, pandascoreId])
   @@index([guildId])
   @@map("esport_teams")
 }
@@ -1146,35 +1157,79 @@ model EsportWeek {
 /// Le resultat a son propre message, distinct du recapitulatif, et son propre
 /// cycle de synchronisation (`resultSyncedAt`).
 model EsportMatch {
-  id                       String    @id @default(uuid()) @db.Uuid
-  weekId                   String    @map("week_id") @db.Uuid
+  id                       String            @id @default(uuid()) @db.Uuid
+  weekId                   String            @map("week_id") @db.Uuid
   /// `null` : adversaire encore a determiner.
-  teamAId                  String?   @map("team_a_id") @db.Uuid
-  teamBId                  String?   @map("team_b_id") @db.Uuid
-  competition              String?   @db.VarChar(120)
-  scheduledAt              DateTime  @map("scheduled_at")
-  bestOf                   Int?      @map("best_of")
-  streamUrl                String?   @map("stream_url") @db.VarChar(500)
-  scoreA                   Int?      @map("score_a")
-  scoreB                   Int?      @map("score_b")
+  teamAId                  String?           @map("team_a_id") @db.Uuid
+  teamBId                  String?           @map("team_b_id") @db.Uuid
+  competition              String?           @db.VarChar(120)
+  scheduledAt              DateTime          @map("scheduled_at")
+  /// Lecture de `bestOf` : « au meilleur des N » ou « premier a N ».
+  format                   EsportMatchFormat @default(BEST_OF)
+  /// Nombre de manches du format (BO3, FT3…) ; `null` si non precise.
+  bestOf                   Int?              @map("best_of")
+  streamUrl                String?           @map("stream_url") @db.VarChar(500)
+  /// Match PandaScore dont celui-ci a ete importe. Le staff reste libre de
+  /// tout modifier : seul un nouvel import, demande explicitement, l'ecrase.
+  pandascoreId             Int?              @map("pandascore_id")
+  scoreA                   Int?              @map("score_a")
+  scoreB                   Int?              @map("score_b")
   /// Score en spoiler ; `null` pour le reglage du serveur.
   spoiler                  Boolean?
-  finishedAt               DateTime? @map("finished_at")
-  resultChannelId          String?   @map("result_channel_id") @db.VarChar(20)
-  resultMessageId          String?   @map("result_message_id") @db.VarChar(20)
-  resultSyncedAt           DateTime? @map("result_synced_at")
-  resultError              String?   @map("result_error")
-  resultRemovalRequestedAt DateTime? @map("result_removal_requested_at")
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime  @updatedAt @map("updated_at")
+  finishedAt               DateTime?         @map("finished_at")
+  resultChannelId          String?           @map("result_channel_id") @db.VarChar(20)
+  resultMessageId          String?           @map("result_message_id") @db.VarChar(20)
+  resultSyncedAt           DateTime?         @map("result_synced_at")
+  resultError              String?           @map("result_error")
+  resultRemovalRequestedAt DateTime?         @map("result_removal_requested_at")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @updatedAt @map("updated_at")
 
   week  EsportWeek  @relation(fields: [weekId], references: [id], onDelete: Cascade)
   teamA EsportTeam? @relation("EsportMatchTeamA", fields: [teamAId], references: [id], onDelete: SetNull)
   teamB EsportTeam? @relation("EsportMatchTeamB", fields: [teamBId], references: [id], onDelete: SetNull)
 
+  @@unique([weekId, pandascoreId])
   @@index([weekId, scheduledAt])
   @@index([finishedAt, resultSyncedAt])
   @@map("esport_matches")
+}
+
+enum EsportMatchFormat {
+  /// BO3 : au meilleur des trois manches.
+  BEST_OF
+  /// FT3 : le premier a trois manches gagnees (format de l'OWCS).
+  FIRST_TO
+}
+
+/// Cache des matchs PandaScore : la reponse telle que recue, **jamais
+/// modifiee par le staff**. Les matchs de la semaine en sont des copies que le
+/// staff corrige librement ; ce cache ne sert qu'a proposer l'import et le
+/// score sans rappeler PandaScore a chaque ouverture.
+model PandascoreMatch {
+  /// Identifiant PandaScore du match.
+  id          Int      @id
+  leagueId    Int      @map("league_id")
+  scheduledAt DateTime @map("scheduled_at")
+  status      String   @db.VarChar(20)
+  data        Json
+  fetchedAt   DateTime @map("fetched_at")
+
+  @@index([leagueId, scheduledAt])
+  @@map("pandascore_matches")
+}
+
+/// Dernier appel a PandaScore pour une semaine. C'est ce qui decide si une
+/// actualisation est encore permise (delai minimal entre deux appels) et si le
+/// cache couvre les ligues reglees aujourd'hui.
+model PandascoreFetch {
+  /// Lundi de la semaine, heure de Paris.
+  weekStart  DateTime @id @map("week_start") @db.Date
+  leagueIds  Int[]    @map("league_ids")
+  matchCount Int      @map("match_count")
+  fetchedAt  DateTime @map("fetched_at")
+
+  @@map("pandascore_fetches")
 }
 
 /// Roles a ajouter a un membre, demandes depuis la fiche du dashboard.
@@ -1215,12 +1270,12 @@ model MemberRoleRequest {
 /// dispositif — sans elles, la verification ne prouverait que la capacite a
 /// creer un compte Blizzard, ce qui est gratuit et prend deux minutes.
 model BattlenetAccount {
-  battlenetId String   @id @map("battlenet_id")
-  userId      String   @unique @map("user_id") @db.VarChar(20)
-  battletag   String
+  battlenetId     String    @id @map("battlenet_id")
+  userId          String    @unique @map("user_id") @db.VarChar(20)
+  battletag       String
   /// Serveur depuis lequel la verification a ete faite, pour le journal.
-  guildId     String   @map("guild_id") @db.VarChar(20)
-  verifiedAt  DateTime @default(now()) @map("verified_at")
+  guildId         String    @map("guild_id") @db.VarChar(20)
+  verifiedAt      DateTime  @default(now()) @map("verified_at")
   /// Annonce de la verification deja faite sur Discord (journal de moderation
   /// et message prive au membre).
   ///
@@ -1469,22 +1524,22 @@ model VoiceHubPlatform {
 /// encore ouvertes (`leftAt = null`) du salon, deja tenues a jour par
 /// `collectors/voice.ts` et remises a plat au demarrage du bot.
 model TemporaryVoiceChannel {
-  id         String    @id @default(uuid()) @db.Uuid
-  hubId      String    @map("hub_id") @db.Uuid
-  guildId    String    @map("guild_id") @db.VarChar(20)
-  channelId  String    @unique @map("channel_id") @db.VarChar(20)
-  name       String
+  id           String    @id @default(uuid()) @db.Uuid
+  hubId        String    @map("hub_id") @db.Uuid
+  guildId      String    @map("guild_id") @db.VarChar(20)
+  channelId    String    @unique @map("channel_id") @db.VarChar(20)
+  name         String
   /// Numero affiche dans le nom (`#1`, `#2`, ...), unique parmi les salons
   /// vivants du meme hub — un numero libere est reattribue.
-  index      Int
+  index        Int
   /// Proprietaire courant : transfere au plus ancien occupant restant quand
   /// il s'en va, jamais laisse vide tant que le salon est occupe.
-  ownerId    String    @map("owner_id") @db.VarChar(20)
-  locked     Boolean   @default(false)
+  ownerId      String    @map("owner_id") @db.VarChar(20)
+  locked       Boolean   @default(false)
   /// Rang choisi par le proprietaire, `null` tant qu'il n'a rien choisi — le
   /// salon reste alors dans la categorie de son salon de creation.
-  rankId     String?   @map("rank_id") @db.Uuid
-  platformId String?   @map("platform_id") @db.Uuid
+  rankId       String?   @map("rank_id") @db.Uuid
+  platformId   String?   @map("platform_id") @db.Uuid
   /// Places deja prises dans chaque role, declarees par le proprietaire.
   /// `null` tant qu'il n'a rien declare : la ligne des roles n'apparait alors
   /// pas du tout dans le sujet. Le total vient du salon de creation.
@@ -1492,12 +1547,12 @@ model TemporaryVoiceChannel {
   /// Remplace l'ancien texte libre du sujet, retire parce qu'il invitait au
   /// debordement — un champ libre affiche sous le nom du salon finit par
   /// porter autre chose que des places d'equipe.
-  tankTaken    Int?    @map("tank_taken")
-  dpsTaken     Int?    @map("dps_taken")
-  supportTaken Int?    @map("support_taken")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  tankTaken    Int?      @map("tank_taken")
+  dpsTaken     Int?      @map("dps_taken")
+  supportTaken Int?      @map("support_taken")
+  createdAt    DateTime  @default(now()) @map("created_at")
   /// Pose a la suppression du salon Discord : la ligne reste pour l'audit.
-  closedAt   DateTime? @map("closed_at")
+  closedAt     DateTime? @map("closed_at")
 
   hub      VoiceHub          @relation(fields: [hubId], references: [id], onDelete: Cascade)
   guild    Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)

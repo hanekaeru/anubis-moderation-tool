@@ -1,7 +1,11 @@
 import { Type } from "class-transformer";
 import {
+	ArrayMaxSize,
+	ArrayMinSize,
+	IsArray,
 	IsBoolean,
 	IsDateString,
+	IsIn,
 	IsInt,
 	IsOptional,
 	IsString,
@@ -14,7 +18,7 @@ import {
 	MinLength,
 	ValidateIf,
 } from "class-validator";
-import { MAX_ESPORT_SCORE } from "@anubis/shared";
+import { EsportMatchFormat, MAX_ESPORT_MATCHES_PER_WEEK, MAX_ESPORT_SCORE } from "@anubis/shared";
 
 const SNOWFLAKE = /^\d{17,20}$/;
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
@@ -63,6 +67,30 @@ export class UpdateEsportConfigDto {
 	@MinLength(1)
 	@MaxLength(200)
 	title?: string;
+
+	/** Remplace la liste entiere ; `[]` coupe l'import sans retirer le jeton. */
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(10)
+	@IsInt({ each: true, message: "Identifiant de ligue PandaScore invalide." })
+	@Min(1, { each: true })
+	pandascoreLeagueIds?: number[];
+
+	@IsOptional()
+	@IsArray()
+	@ArrayMaxSize(20)
+	@IsString({ each: true })
+	@MaxLength(60, { each: true })
+	pandascoreSeries?: string[];
+}
+
+export class EsportImportDtoIn {
+	@IsArray()
+	@ArrayMinSize(1, { message: "Choisissez au moins un match à importer." })
+	@ArrayMaxSize(MAX_ESPORT_MATCHES_PER_WEEK)
+	@IsInt({ each: true })
+	@Min(1, { each: true })
+	ids!: number[];
 }
 
 export class EsportTeamDtoIn {
@@ -126,6 +154,10 @@ export class EsportMatchDtoIn {
 
 	@IsDateString()
 	scheduledAt!: string;
+
+	@IsOptional()
+	@IsIn(Object.values(EsportMatchFormat))
+	format?: EsportMatchFormat;
 
 	@IsOptional()
 	@ValidateIf((_, value) => value !== null)

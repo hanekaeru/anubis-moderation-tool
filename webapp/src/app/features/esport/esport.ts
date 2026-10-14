@@ -23,6 +23,7 @@ import {
 	addDaysToKey,
 	buildEsportWeekEmbed,
 	esportDayLabel,
+	esportFormatLabel,
 	esportScoreSpoiler,
 	ESPORT_PUBLICATION_STATUS_LABELS,
 	ESPORT_TIME_ZONE,
@@ -46,6 +47,7 @@ import { FrDatePipe } from '../../shared/pipes/format.pipes';
 import { EsportConfigDialog } from './config-dialog';
 import { customEmojiUrl } from './discord-markdown';
 import { EsportEmbedPreview } from './embed-preview';
+import { EsportImportDialog, type ImportDialogData } from './import-dialog';
 import { EsportMatchDialog, type MatchDialogData } from './match-dialog';
 import { EsportResultDialog, type ResultDialogData } from './result-dialog';
 import { EsportTeamDialog, type TeamDialogData } from './team-dialog';
@@ -159,6 +161,12 @@ export class EsportPage {
 	});
 
 	readonly missingChannel = computed(() => this.config() !== null && !this.config()!.channelId);
+
+	/** Jeton configure sur l'API et au moins une ligue reglee. */
+	readonly canImport = computed(() => {
+		const pandascore = this.config()?.pandascore;
+		return !!pandascore?.available && pandascore.leagueIds.length > 0;
+	});
 
 	constructor() {
 		this.destroyRef.onDestroy(() => this.poll?.unsubscribe());
@@ -306,6 +314,35 @@ export class EsportPage {
 			},
 			() => this.run(this.api.deleteMatch(match.id), 'Match supprimé.'),
 		);
+	}
+
+	openImport(): void {
+		const week = this.week();
+		if (!week) return;
+
+		this.dialog
+			.open<EsportImportDialog, ImportDialogData, EsportWeekDto>(EsportImportDialog, {
+				data: { week },
+				width: '760px',
+				maxWidth: '95vw',
+			})
+			.afterClosed()
+			.subscribe((updated) => {
+				if (!updated) return;
+				this.applyWeek(updated);
+				this.loadHistory();
+				// Des equipes ont pu etre creees ou reliees.
+				this.refreshTeams();
+				this.notifications.success(
+					updated.status === 'DRAFT'
+						? 'Matchs importés : relisez-les avant d’envoyer.'
+						: 'Matchs importés : le message publié sera corrigé.',
+				);
+			});
+	}
+
+	formatLabel(match: EsportMatchDto): string | null {
+		return esportFormatLabel(match.format, match.bestOf);
 	}
 
 	openResult(match: EsportMatchDto): void {

@@ -72,6 +72,29 @@ import { readApiError } from '../../core/error.interceptor';
 						<input id="esport-color" type="color" formControlName="color" />
 					</div>
 				</div>
+
+				<h3 class="section">Import PandaScore</h3>
+				@if (!data.pandascore.available) {
+					<p class="hint warning">
+						Aucun jeton PandaScore n'est configuré sur l'API (<code>PANDASCORE_TOKEN</code>) :
+						l'import est désactivé, la saisie manuelle reste disponible.
+					</p>
+				}
+
+				<mat-form-field>
+					<mat-label>Ligues PandaScore</mat-label>
+					<input matInput formControlName="leagueIds" placeholder="5223" />
+					<mat-hint>Identifiants séparés par des virgules. 5223 : Overwatch Champions Series.</mat-hint>
+					@if (form.controls.leagueIds.hasError('pattern')) {
+						<mat-error>Des nombres séparés par des virgules sont attendus.</mat-error>
+					}
+				</mat-form-field>
+
+				<mat-form-field>
+					<mat-label>Séries suivies (facultatif)</mat-label>
+					<input matInput formControlName="series" placeholder="EMEA, North America" />
+					<mat-hint>Mots-clés séparés par des virgules. Vide : toutes les séries sont proposées.</mat-hint>
+				</mat-form-field>
 			</form>
 
 			@if (error(); as message) {
@@ -124,6 +147,21 @@ import { readApiError } from '../../core/error.interceptor';
 			}
 		}
 
+		.section {
+			margin: var(--space-3) 0 0;
+			font: var(--mat-sys-title-small);
+		}
+
+		.hint {
+			margin: 0;
+			font-size: 0.85rem;
+			color: var(--mat-sys-on-surface-variant);
+
+			&.warning {
+				color: var(--mat-sys-error);
+			}
+		}
+
 		.error {
 			margin: var(--space-3) 0 0;
 			padding: 10px 12px;
@@ -142,7 +180,7 @@ import { readApiError } from '../../core/error.interceptor';
 export class EsportConfigDialog {
 	private readonly api = inject(EsportApi);
 	private readonly dialogRef = inject(MatDialogRef<EsportConfigDialog, EsportConfigDto>);
-	private readonly data = inject<EsportConfigDto>(MAT_DIALOG_DATA);
+	readonly data = inject<EsportConfigDto>(MAT_DIALOG_DATA);
 
 	readonly saving = signal(false);
 	readonly error = signal<string | null>(null);
@@ -156,6 +194,11 @@ export class EsportConfigDialog {
 		spoilerScores: [this.data.spoilerScores],
 		title: [this.data.title, [Validators.required, Validators.maxLength(200)]],
 		color: [`#${this.data.color.toString(16).padStart(6, '0')}`],
+		leagueIds: [
+			this.data.pandascore.leagueIds.join(', '),
+			[Validators.pattern(/^\s*(\d+\s*([,;\s]\s*\d+\s*)*)?$/)],
+		],
+		series: [this.data.pandascore.series.join(', ')],
 	});
 
 	save(): void {
@@ -178,6 +221,14 @@ export class EsportConfigDialog {
 				spoilerScores: raw.spoilerScores,
 				title: raw.title.trim(),
 				color: parseInt(raw.color.slice(1), 16),
+				pandascoreLeagueIds: raw.leagueIds
+					.split(/[,;\s]+/)
+					.filter(Boolean)
+					.map(Number),
+				pandascoreSeries: raw.series
+					.split(/[,;]+/)
+					.map((motCle) => motCle.trim())
+					.filter(Boolean),
 			})
 			.subscribe({
 				next: (config) => this.dialogRef.close(config),

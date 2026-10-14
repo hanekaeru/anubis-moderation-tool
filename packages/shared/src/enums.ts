@@ -180,6 +180,13 @@ export const VoicePlacementMode = {
 export type VoicePlacementMode =
 	(typeof VoicePlacementMode)[keyof typeof VoicePlacementMode];
 
+export const EsportMatchFormat = {
+	BEST_OF: "BEST_OF",
+	FIRST_TO: "FIRST_TO",
+} as const;
+export type EsportMatchFormat =
+	(typeof EsportMatchFormat)[keyof typeof EsportMatchFormat];
+
 /** Libelles francais, pour ne pas les repeter dans chaque composant. */
 export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
 	TIMEOUT: "Exclusion temporaire",

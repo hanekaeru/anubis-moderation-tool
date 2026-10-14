@@ -1,3 +1,4 @@
+import { EsportMatchFormat } from "../enums";
 import { addDaysToKey, zonedDateKey } from "../timezone";
 import { IsoDateString, Snowflake } from "./common";
 
@@ -24,6 +25,43 @@ export const DEFAULT_ESPORT_COLOR = 0x5865f2;
 
 /** Plus que de quoi ecrire un score de carte ou de manche. */
 export const MAX_ESPORT_SCORE = 99;
+
+/**
+ * Mention de la source, ajoutee au pied des embeds des qu'un match affiche
+ * vient de PandaScore — c'est la condition de reutilisation de leurs donnees.
+ */
+export const PANDASCORE_SOURCE_LABEL = "Source : PandaScore";
+
+/**
+ * Delai minimal entre deux appels a PandaScore pour une meme semaine.
+ *
+ * Le cache rend l'ouverture de l'import gratuite ; ce delai empeche seulement
+ * qu'une serie de clics sur « Actualiser » vide le quota horaire.
+ */
+export const PANDASCORE_REFRESH_COOLDOWN_MS = 2 * 60_000;
+
+export const ESPORT_MATCH_FORMAT_LABELS: Record<EsportMatchFormat, string> = {
+	BEST_OF: "Au meilleur des (BO)",
+	FIRST_TO: "Premier à (FT)",
+};
+
+/** « BO3 », « FT3 » ; `null` quand le nombre de manches n'est pas precise. */
+export function esportFormatLabel(
+	format: EsportMatchFormat | null | undefined,
+	games: number | null | undefined,
+): string | null {
+	if (!games) return null;
+	return `${format === "FIRST_TO" ? "FT" : "BO"}${games}`;
+}
+
+/** Statuts d'un match chez PandaScore, tels que le dashboard les affiche. */
+export const PANDASCORE_STATUS_LABELS: Record<string, string> = {
+	not_started: "À venir",
+	running: "En cours",
+	finished: "Terminé",
+	canceled: "Annulé",
+	postponed: "Reporté",
+};
 
 /**
  * Etat d'un message sur Discord, tel que le dashboard l'affiche.
@@ -55,6 +93,8 @@ export interface EsportTeamDto {
 	logoUrl: string | null;
 	highlighted: boolean;
 	archived: boolean;
+	/** Equipe PandaScore reliee ; `null` pour une equipe saisie a la main. */
+	pandascoreId: number | null;
 }
 
 export interface EsportTeamPayload {
@@ -73,10 +113,22 @@ export interface EsportConfigDto {
 	spoilerScores: boolean;
 	color: number;
 	title: string;
+	pandascore: {
+		/** Jeton present dans l'environnement de l'API. */
+		available: boolean;
+		leagueIds: number[];
+		/** Mots-cles des series suivies ; vide pour toutes. */
+		series: string[];
+	};
 	updatedAt: IsoDateString | null;
 }
 
-export type UpdateEsportConfigRequest = Partial<Omit<EsportConfigDto, "updatedAt">>;
+export type UpdateEsportConfigRequest = Partial<
+	Omit<EsportConfigDto, "updatedAt" | "pandascore"> & {
+		pandascoreLeagueIds: number[];
+		pandascoreSeries: string[];
+	}
+>;
 
 export interface EsportMatchDto {
 	id: string;
@@ -85,8 +137,11 @@ export interface EsportMatchDto {
 	teamB: EsportTeamDto | null;
 	competition: string | null;
 	scheduledAt: IsoDateString;
+	format: EsportMatchFormat;
 	bestOf: number | null;
 	streamUrl: string | null;
+	/** Match PandaScore d'origine ; `null` pour un match saisi a la main. */
+	pandascoreId: number | null;
 	finished: boolean;
 	scoreA: number | null;
 	scoreB: number | null;
@@ -105,6 +160,7 @@ export interface EsportMatchPayload {
 	teamBId: string | null;
 	competition?: string | null;
 	scheduledAt: IsoDateString;
+	format?: EsportMatchFormat;
 	bestOf?: number | null;
 	streamUrl?: string | null;
 }
@@ -144,6 +200,79 @@ export interface UpdateEsportWeekRequest {
 }
 
 // ---------------------------------------------------------------------------
+// Import PandaScore
+// ---------------------------------------------------------------------------
+
+export interface PandascoreTeamDto {
+	id: number;
+	name: string;
+	acronym: string | null;
+	/** Logo pour fond sombre quand PandaScore en fournit un, clair sinon. */
+	logoUrl: string | null;
+}
+
+/**
+ * Match lu dans le cache PandaScore, mis en regard de la semaine composee.
+ * Rien ici n'est modifiable : c'est la donnee de PandaScore telle que recue.
+ */
+export interface PandascoreMatchDto {
+	id: number;
+	scheduledAt: IsoDateString;
+	/** Horaire deplace par l'organisateur depuis l'annonce initiale. */
+	rescheduled: boolean;
+	/** Cle de `PANDASCORE_STATUS_LABELS`. */
+	status: string;
+	/** Intitule que portera le match importe (« OWCS EMEA Stage 3 »). */
+	competition: string;
+	serie: string | null;
+	tournament: string | null;
+	format: EsportMatchFormat;
+	games: number | null;
+	teamA: PandascoreTeamDto | null;
+	teamB: PandascoreTeamDto | null;
+	/** Manches gagnees ; seulement une fois le match termine chez PandaScore. */
+	score: { a: number; b: number } | null;
+	forfeit: boolean;
+	streamUrl: string | null;
+	/** Fait partie des series suivies dans les reglages. */
+	followed: boolean;
+	/** Match de la semaine deja importe depuis celui-ci. */
+	importedMatchId: string | null;
+	/**
+	 * Ce qui differe entre PandaScore et le match importe : une modification du
+	 * staff, ou un changement chez PandaScore depuis l'import.
+	 */
+	differences: string[];
+}
+
+export interface PandascoreWeekDto {
+	/** Jeton PandaScore configure sur l'API. */
+	available: boolean;
+	fetchedAt: IsoDateString | null;
+	/** Avant cette date, une actualisation serait refusee. */
+	refreshableAt: IsoDateString | null;
+	matches: PandascoreMatchDto[];
+	/** Matchs importes que PandaScore ne place plus dans cette semaine. */
+	missing: { matchId: string; label: string }[];
+}
+
+export interface EsportImportRequest {
+	/** Identifiants PandaScore. Un match deja importe est mis a jour. */
+	ids: number[];
+}
+
+/** Score propose a la fin d'un match importe, dans l'ordre des equipes locales. */
+export interface PandascoreResultSuggestionDto {
+	available: boolean;
+	fetchedAt: IsoDateString | null;
+	refreshableAt: IsoDateString | null;
+	/** `null` : le match n'est plus dans le cache de sa semaine. */
+	status: string | null;
+	score: { a: number; b: number } | null;
+	forfeit: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Rendu des embeds
 // ---------------------------------------------------------------------------
 
@@ -159,8 +288,11 @@ export interface EsportEmbedMatch {
 	teamB: EsportEmbedTeam | null;
 	competition: string | null;
 	scheduledAt: Date | string;
+	format: EsportMatchFormat;
 	bestOf: number | null;
 	streamUrl: string | null;
+	/** Renseigne : le match vient de PandaScore, et la source est citee. */
+	pandascoreId: number | null;
 	finished: boolean;
 	scoreA: number | null;
 	scoreB: number | null;
@@ -230,7 +362,8 @@ function unix(date: Date | string): number {
 function matchLine(match: EsportEmbedMatch, settings: EsportEmbedSettings): string {
 	const details: string[] = [];
 	if (match.competition) details.push(`*${escapeMarkdown(match.competition)}*`);
-	if (match.bestOf) details.push(`BO${match.bestOf}`);
+	const format = esportFormatLabel(match.format, match.bestOf);
+	if (format) details.push(format);
 
 	if (match.finished) {
 		const spoiler = esportScoreSpoiler(match, settings);
@@ -307,12 +440,15 @@ export function buildEsportWeekEmbed(
 		}
 	}
 
+	const pied = ["Horaires affichés dans votre fuseau horaire"];
+	if (week.matches.some((match) => match.pandascoreId !== null)) pied.push(PANDASCORE_SOURCE_LABEL);
+
 	return {
 		title: week.title?.trim() || settings.title,
 		description,
 		color: settings.color,
 		fields,
-		footer: { text: "Horaires affichés dans votre fuseau horaire" },
+		footer: { text: pied.join(" · ") },
 	};
 }
 
@@ -343,7 +479,11 @@ export function buildEsportResultEmbed(
 				: `🏆 Victoire de **${nomGagnant}**`;
 
 	const jour = esportDayLabel(zonedDateKey(new Date(match.scheduledAt), ESPORT_TIME_ZONE));
-	const pied = [jour, match.bestOf ? `BO${match.bestOf}` : null]
+	const pied = [
+		jour,
+		esportFormatLabel(match.format, match.bestOf),
+		match.pandascoreId !== null ? PANDASCORE_SOURCE_LABEL : null,
+	]
 		.filter((part): part is string => !!part)
 		.join(" · ");
 

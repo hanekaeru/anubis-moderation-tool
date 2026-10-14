@@ -1,5 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
+import type { ConfigService } from "@nestjs/config";
 import type { AuditService } from "../audit/audit.service";
+import type { AppConfig } from "../config/configuration";
 import type { GuildContextService } from "../common/guild-context.service";
 import type { AuthenticatedUser } from "../common/types";
 import type { PrismaService } from "../prisma/prisma.service";
@@ -61,7 +63,14 @@ function makeService(overrides: Record<string, unknown> = {}) {
 	const guild = { guildId: GUILD_ID } as unknown as GuildContextService;
 	const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
 
-	return { service: new EsportService(prisma as unknown as PrismaService, guild, audit), prisma };
+	const config = {
+		get: () => ({ pandascore: { token: "", available: false } }),
+	} as unknown as ConfigService<{ app: AppConfig }, true>;
+
+	return {
+		service: new EsportService(prisma as unknown as PrismaService, guild, audit, config),
+		prisma,
+	};
 }
 
 const match = (scheduledAt: string, teamAId: string | null = TEAM_A, teamBId: string | null = TEAM_B) => ({

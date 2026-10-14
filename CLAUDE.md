@@ -742,9 +742,41 @@ le dev avec rechargement).
     passees doivent continuer de l'afficher. Modifier une equipe remet en file
     les recapitulatifs publies de la semaine en cours et des suivantes, pas
     ceux du passe.
-  Le remplissage automatique (Liquipedia, PandaScore) est volontairement
-  remis a plus tard : la saisie manuelle doit rester le chemin qui marche le
-  jour ou une source externe tombe.
+  Les formats distinguent **BO** et **FT** (`EsportMatch.format`) : l'OWCS se
+  joue en « premier a trois » (FT3), que PandaScore ecrit `match_type:
+  first_to`. `bestOf` reste le nombre de manches dans les deux cas.
+
+  **Import PandaScore** (`api/src/esport/esport-import.service.ts`,
+  `pandascore.client.ts`, `features/esport/import-dialog.ts`) : il preremplit,
+  il ne decide rien. Le proprietaire veut garder la main — **ne jamais ajouter
+  d'appel planifie, de creation de match ni de publication automatique**.
+  Cinq points a garder :
+  - **trois couches distinctes**. Le cache (`pandascore_matches`, la reponse
+    brute) n'est jamais modifie par le staff ; la semaine en recoit des
+    **copies** que le staff corrige librement ; seul un nouvel import, coche
+    explicitement avec ses differences affichees, ecrase une copie — et jamais
+    son score, son spoiler ni ses messages.
+  - **un appel par semaine** : `/ow/matches` filtre par ligue et par
+    `range[scheduled_at]` ramene matchs a venir, en cours et termines. Il part
+    a l'ouverture de l'import d'une semaine jamais recuperee, ou sur
+    « Actualiser », refuse a moins de deux minutes du precedent
+    (`pandascore_fetches`, `PANDASCORE_REFRESH_COOLDOWN_MS`). L'import lui-meme
+    lit le cache, jamais PandaScore : on importe ce qu'on a vu.
+  - **`scheduled_at`, jamais `begin_at`** (l'heure reelle de lancement), et
+    aucun score avant `status: finished` — PandaScore ecrit 0 - 0 d'avance.
+    Le score n'est qu'une **proposition** dans « Terminer », qui reste le seul
+    chemin vers une annonce de resultat.
+  - les equipes se reconnaissent par **`pandascoreId`**, puis par nom pour
+    relier une equipe saisie a la main avant l'import (elle garde son emoji et
+    son logo). Le logo importe est la version **sombre** quand elle existe :
+    Discord est le plus souvent en theme sombre.
+  - **la source est citee** (« Source : PandaScore », `PANDASCORE_SOURCE_LABEL`)
+    au pied de tout embed qui affiche un match importe — condition de
+    reutilisation de leurs donnees. Le rendu le fait seul, a partir de
+    `pandascoreId`.
+  `PANDASCORE_TOKEN` vit dans l'environnement de l'API, jamais en base ; absent,
+  le bouton d'import disparait et la saisie manuelle reste entiere — c'est le
+  chemin qui doit marcher le jour ou la source tombe.
 - **Ce qui n'est PAS rattrape automatiquement.** Le patron `discordSyncedAt`
   couvre sanctions, avertissements (message prive), tickets, anti-raid,
   quarantine (etapes et levees), signalements de compte, concours et messages

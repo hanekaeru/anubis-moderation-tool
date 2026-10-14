@@ -43,6 +43,9 @@ services:
             BATTLENET_CLIENT_ID: ${BATTLENET_CLIENT_ID:-}
             BATTLENET_CLIENT_SECRET: ${BATTLENET_CLIENT_SECRET:-}
             BATTLENET_REDIRECT_URI: https://${APP_DOMAIN}/api/verification/battlenet/callback
+            # Import des matchs esport (facultatif). Vide : l'import est
+            # annonce indisponible, la saisie manuelle reste entiere.
+            PANDASCORE_TOKEN: ${PANDASCORE_TOKEN:-}
 
     webapp:
         build:

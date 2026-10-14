@@ -65,6 +65,17 @@ export interface AppConfig {
 		redirectUri: string;
 		available: boolean;
 	};
+	/**
+	 * Jeton PandaScore, pour l'import des matchs esport.
+	 *
+	 * Dans l'environnement et jamais en base, comme le client Battle.net : il
+	 * donne acces au compte PandaScore de l'association. Absent, l'import est
+	 * annonce indisponible et la saisie manuelle reste entiere.
+	 */
+	pandascore: {
+		token: string;
+		available: boolean;
+	};
 }
 
 class MissingConfigError extends Error {
@@ -141,6 +152,7 @@ export function loadConfiguration(): AppConfig {
 	const battlenetClientId = env.BATTLENET_CLIENT_ID?.trim() ?? "";
 	const battlenetClientSecret = env.BATTLENET_CLIENT_SECRET?.trim() ?? "";
 	const battlenetRedirectUri = env.BATTLENET_REDIRECT_URI?.trim() ?? "";
+	const pandascoreToken = env.PANDASCORE_TOKEN?.trim() ?? "";
 
 	return {
 		nodeEnv,
@@ -181,6 +193,10 @@ export function loadConfiguration(): AppConfig {
 			available: Boolean(
 				battlenetClientId && battlenetClientSecret && battlenetRedirectUri,
 			),
+		},
+		pandascore: {
+			token: pandascoreToken,
+			available: pandascoreToken.length > 0,
 		},
 	};
 }

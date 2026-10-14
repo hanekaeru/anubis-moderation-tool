@@ -330,6 +330,11 @@ mat-card-title {
 		background: var(--mat-sys-tertiary-container);
 		color: var(--mat-sys-on-tertiary-container);
 	}
+
+	&.source {
+		background: var(--mat-sys-secondary-container);
+		color: var(--mat-sys-on-secondary-container);
+	}
 }
 
 .danger-text {
