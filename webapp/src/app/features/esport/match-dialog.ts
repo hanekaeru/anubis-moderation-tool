@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -7,10 +8,15 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import {
 	addDaysToKey,
+	detectEsportRegion,
+	esportCalendarDay,
+	esportDayKey,
+	esportDayLabel,
 	esportFormatLabel,
+	ESPORT_DAY_START,
+	ESPORT_REGIONS,
 	EsportMatchFormat,
 	ESPORT_TIME_ZONE,
-	zonedDateKey,
 	zonedTimeOfDay,
 	zonedWallTimeToUtc,
 	type EsportMatchDto,
@@ -35,6 +41,10 @@ export interface MatchDialogData {
  * fuseau du navigateur : c'est l'heure que le staff lit sur les annonces
  * officielles. La conversion passe par `zonedWallTimeToUtc`, partagee avec
  * l'API qui verifie que le match tombe bien dans sa semaine.
+ *
+ * On choisit une **journee** puis une heure, comme le recapitulatif les
+ * affiche : « dimanche, 01:00 » est la nuit du dimanche au lundi
+ * (`esportCalendarDay`), pas la nuit du samedi au dimanche.
  */
 @Component({
 	selector: 'app-esport-match-dialog',
@@ -96,18 +106,36 @@ export interface MatchDialogData {
 
 				<div class="row">
 					<mat-form-field>
-						<mat-label>Jour</mat-label>
-						<input matInput type="date" formControlName="date" [min]="data.week.weekStart" [max]="lastDay" />
-						<mat-hint>Du lundi au dimanche de la semaine.</mat-hint>
+						<mat-label>Journée</mat-label>
+						<mat-select formControlName="date">
+							@for (day of days; track day.key) {
+								<mat-option [value]="day.key">{{ day.label }}</mat-option>
+							}
+						</mat-select>
 					</mat-form-field>
 
 					<mat-form-field>
 						<mat-label>Heure (Paris)</mat-label>
 						<input matInput type="time" formControlName="time" />
+						@if (night()) {
+							<mat-hint>🌙 Nuit suivante : {{ nightLabel() }}.</mat-hint>
+						} @else {
+							<mat-hint>Avant 06:00 : la nuit qui suit cette journée.</mat-hint>
+						}
 					</mat-form-field>
 				</div>
 
 				<div class="row">
+					<mat-form-field class="region">
+						<mat-label>Région</mat-label>
+						<mat-select formControlName="region">
+							<mat-option [value]="null">—</mat-option>
+							@for (region of regions; track region.code) {
+								<mat-option [value]="region.code">{{ region.emoji }} {{ region.label }}</mat-option>
+							}
+						</mat-select>
+					</mat-form-field>
+
 					<mat-form-field class="grow">
 						<mat-label>Compétition</mat-label>
 						<input matInput formControlName="competition" maxlength="120" list="esport-competitions" placeholder="OWCS EMEA" />
@@ -178,6 +206,10 @@ export interface MatchDialogData {
 			.small {
 				flex: 0 0 120px;
 			}
+
+			.region {
+				flex: 0 0 200px;
+			}
 		}
 
 		.vs {
@@ -230,6 +262,13 @@ export class EsportMatchDialog {
 	/** « BO3 » : au meilleur des trois manches ; « FT3 » : premier a trois (OWCS). */
 	readonly formats = ['BEST_OF:1', 'BEST_OF:3', 'BEST_OF:5', 'BEST_OF:7', 'FIRST_TO:2', 'FIRST_TO:3', 'FIRST_TO:4'];
 	readonly lastDay = addDaysToKey(this.data.week.weekStart, 6);
+	readonly regions = ESPORT_REGIONS;
+
+	/** Les sept journees de la semaine ; une journee court jusqu'a 05:59 le lendemain. */
+	readonly days = Array.from({ length: 7 }, (_, index) => {
+		const key = addDaysToKey(this.data.week.weekStart, index);
+		return { key, label: esportDayLabel(key) };
+	});
 	readonly emojiUrl = customEmojiUrl;
 
 	/** Competitions deja saisies cette semaine, proposees a la frappe. */
@@ -255,7 +294,7 @@ export class EsportMatchDialog {
 		teamBId: [this.data.match?.teamB?.id ?? (null as string | null)],
 		date: [
 			this.data.match
-				? zonedDateKey(new Date(this.data.match.scheduledAt), ESPORT_TIME_ZONE)
+				? esportDayKey(new Date(this.data.match.scheduledAt))
 				: this.defaultDay(),
 			[Validators.required],
 		],
@@ -266,8 +305,23 @@ export class EsportMatchDialog {
 			[Validators.required],
 		],
 		competition: [this.data.match?.competition ?? this.competitions.at(-1) ?? ''],
+		region: [
+			this.data.match
+				? this.data.match.region
+				: detectEsportRegion(this.competitions.at(-1) ?? ''),
+		],
 		format: [this.initialFormat()],
 		streamUrl: [this.data.match?.streamUrl ?? '', [Validators.pattern(/^https?:\/\/\S+$/)]],
+	});
+
+	private readonly value = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
+
+	/** Heure saisie avant 06:00 : le match a lieu la nuit qui suit la journee. */
+	readonly night = computed(() => (this.value().time ?? '') < ESPORT_DAY_START && !!this.value().time);
+
+	readonly nightLabel = computed(() => {
+		const raw = this.value();
+		return raw.date && raw.time ? `${esportDayLabel(esportCalendarDay(raw.date, raw.time)).toLowerCase()} à ${raw.time}` : '';
 	});
 
 	formatLabel(value: string): string {
@@ -286,7 +340,7 @@ export class EsportMatchDialog {
 
 	/** Aujourd'hui s'il tombe dans la semaine, le lundi sinon. */
 	private defaultDay(): string {
-		const today = zonedDateKey(new Date(), ESPORT_TIME_ZONE);
+		const today = esportDayKey(new Date());
 		return today >= this.data.week.weekStart && today <= this.lastDay
 			? today
 			: this.data.week.weekStart;
@@ -309,7 +363,12 @@ export class EsportMatchDialog {
 			teamAId: raw.teamAId ?? null,
 			teamBId: raw.teamBId ?? null,
 			competition: raw.competition?.trim() || null,
-			scheduledAt: zonedWallTimeToUtc(raw.date!, raw.time!, ESPORT_TIME_ZONE).toISOString(),
+			scheduledAt: zonedWallTimeToUtc(
+				esportCalendarDay(raw.date!, raw.time!),
+				raw.time!,
+				ESPORT_TIME_ZONE,
+			).toISOString(),
+			region: raw.region ?? null,
 			format: format as EsportMatchFormat,
 			bestOf: games ? Number(games) : null,
 			streamUrl: raw.streamUrl?.trim() || null,

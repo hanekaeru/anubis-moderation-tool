@@ -62,6 +62,13 @@ describe("readPandascoreMatch", () => {
 		expect(readPandascoreMatch(brut())!.competition).toBe("OWCS Japan Stage 3");
 	});
 
+	it("reconnait la region dans la serie", () => {
+		expect(readPandascoreMatch(brut())!.region).toBe("JP");
+		expect(
+			readPandascoreMatch(brut({ serie: { name: "North America Stage 3" } }))!.region,
+		).toBe("NA");
+	});
+
 	it("prefere le logo pour fond sombre, et retombe sur le clair", () => {
 		const match = readPandascoreMatch(brut())!;
 

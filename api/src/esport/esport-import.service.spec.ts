@@ -94,6 +94,7 @@ describe("EsportImportService.import", () => {
 				format: "FIRST_TO",
 				bestOf: 3,
 				competition: "OWCS EMEA Stage 3",
+				region: "EMEA",
 			}),
 		});
 		expect(esport.verifierTaille).toHaveBeenCalled();
@@ -125,9 +126,18 @@ describe("EsportImportService.import", () => {
 		);
 	});
 
+	it("accepte un match de la nuit du dimanche au lundi", async () => {
+		// Lundi 19 octobre, 1 h a Paris.
+		const { service, prisma } = makeService([raw(1, "2026-10-18T23:00:00Z")]);
+
+		await service.import("week-1", [1], ACTOR);
+
+		expect(prisma.esportMatch.create).toHaveBeenCalled();
+	});
+
 	it("refuse un match que PandaScore a deplace dans une autre semaine", async () => {
-		// Lundi suivant, 0 h 30 a Paris.
-		const { service } = makeService([raw(1, "2026-10-18T22:30:00Z")]);
+		// Lundi suivant, 7 h a Paris (0 h 30 serait encore la nuit du dimanche).
+		const { service } = makeService([raw(1, "2026-10-19T05:00:00Z")]);
 
 		await expect(service.import("week-1", [1], ACTOR)).rejects.toBeInstanceOf(BadRequestException);
 	});

@@ -245,6 +245,7 @@ export class EsportResultDialog {
 				teamA: match.teamA,
 				teamB: match.teamB,
 				competition: match.competition,
+				region: match.region,
 				scheduledAt: match.scheduledAt,
 				format: match.format,
 				bestOf: match.bestOf,

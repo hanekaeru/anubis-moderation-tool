@@ -15,12 +15,14 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { interval } from 'rxjs';
 import {
+	esportDayKey,
 	esportDayLabel,
 	esportFormatLabel,
+	esportRegionLabel,
+	isEsportNight,
 	ESPORT_TIME_ZONE,
 	MAX_ESPORT_MATCHES_PER_WEEK,
 	PANDASCORE_STATUS_LABELS,
-	zonedDateKey,
 	zonedTimeOfDay,
 	type EsportWeekDto,
 	type PandascoreMatchDto,
@@ -150,6 +152,9 @@ interface Day {
 										</span>
 									</div>
 									<div class="meta">
+										@if (region(match); as label) {
+											<span class="tag">{{ label }}</span>
+										}
 										<span>{{ match.competition }}</span>
 										@if (match.tournament) {
 											<span>{{ match.tournament }}</span>
@@ -262,7 +267,7 @@ interface Day {
 
 		.time {
 			padding-top: 10px;
-			min-width: 44px;
+			min-width: 64px;
 			font-variant-numeric: tabular-nums;
 			font-weight: 500;
 		}
@@ -389,7 +394,7 @@ export class EsportImportDialog {
 		);
 		const days = new Map<string, Day>();
 		for (const match of matches) {
-			const key = zonedDateKey(new Date(match.scheduledAt), ESPORT_TIME_ZONE);
+			const key = esportDayKey(new Date(match.scheduledAt));
 			const day = days.get(key) ?? { key, label: esportDayLabel(key), matches: [] };
 			day.matches.push(match);
 			days.set(key, day);
@@ -462,7 +467,12 @@ export class EsportImportDialog {
 	}
 
 	time(match: PandascoreMatchDto): string {
-		return zonedTimeOfDay(new Date(match.scheduledAt), ESPORT_TIME_ZONE);
+		const instant = new Date(match.scheduledAt);
+		return (isEsportNight(instant) ? '🌙 ' : '') + zonedTimeOfDay(instant, ESPORT_TIME_ZONE);
+	}
+
+	region(match: PandascoreMatchDto): string | null {
+		return esportRegionLabel(match.region);
 	}
 
 	format(match: PandascoreMatchDto): string | null {

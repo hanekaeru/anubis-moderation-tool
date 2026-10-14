@@ -9,15 +9,17 @@ import { ConfigService } from "@nestjs/config";
 import type { EsportTeam, Prisma } from "@anubis/shared/prisma";
 import {
 	addDaysToKey,
+	esportDayKey,
 	esportDayLabel,
 	esportFormatLabel,
+	esportRegionLabel,
+	esportWeekStart,
+	ESPORT_DAY_START,
 	ESPORT_TIME_ZONE,
 	MAX_ESPORT_MATCHES_PER_WEEK,
 	PANDASCORE_REFRESH_COOLDOWN_MS,
-	zonedDateKey,
 	zonedTimeOfDay,
 	zonedWallTimeToUtc,
-	zonedWeekStart,
 	type EsportWeekDto,
 	type PandascoreMatchDto,
 	type PandascoreResultSuggestionDto,
@@ -47,7 +49,7 @@ const memesLigues = (a: readonly number[], b: readonly number[]) =>
 	[...a].sort((x, y) => x - y).join(",") === [...b].sort((x, y) => x - y).join(",");
 
 const quand = (date: Date) =>
-	`${esportDayLabel(zonedDateKey(date, ESPORT_TIME_ZONE))} ${zonedTimeOfDay(date, ESPORT_TIME_ZONE)}`;
+	`${esportDayLabel(esportDayKey(date))} ${zonedTimeOfDay(date, ESPORT_TIME_ZONE)}`;
 
 const nomLocal = (team: EsportTeam | null) => team?.name ?? "À déterminer";
 const nomPandascore = (team: PandascoreTeamDto | null) => team?.name ?? "À déterminer";
@@ -95,10 +97,10 @@ export class EsportImportService {
 		};
 	}
 
-	/** Lundi 0 h -> dimanche 23 h 59 59, heure de Paris. */
+	/** Lundi 06:00 -> lundi suivant 05:59:59, heure de Paris (`ESPORT_DAY_START`). */
 	private bornes(weekStart: string): { from: Date; to: Date } {
-		const from = zonedWallTimeToUtc(weekStart, "00:00", ESPORT_TIME_ZONE);
-		const lundiSuivant = zonedWallTimeToUtc(addDaysToKey(weekStart, 7), "00:00", ESPORT_TIME_ZONE);
+		const from = zonedWallTimeToUtc(weekStart, ESPORT_DAY_START, ESPORT_TIME_ZONE);
+		const lundiSuivant = zonedWallTimeToUtc(addDaysToKey(weekStart, 7), ESPORT_DAY_START, ESPORT_TIME_ZONE);
 		return { from, to: new Date(lundiSuivant.getTime() - 1000) };
 	}
 
@@ -292,6 +294,7 @@ export class EsportImportService {
 			rescheduled: match.rescheduled,
 			status: match.status,
 			competition: match.competition,
+			region: match.region,
 			serie: match.serie,
 			tournament: match.tournament,
 			format: match.format,
@@ -339,6 +342,12 @@ export class EsportImportService {
 			diffs.push(`Compétition : « ${local.competition ?? "—"} » → « ${match.competition} »`);
 		}
 
+		if ((local.region ?? null) !== match.region) {
+			diffs.push(
+				`Région : ${esportRegionLabel(local.region) ?? "aucune"} → ${esportRegionLabel(match.region) ?? "aucune"}`,
+			);
+		}
+
 		if ((local.streamUrl ?? null) !== match.streamUrl) diffs.push("Lien du stream");
 
 		return diffs;
@@ -376,7 +385,7 @@ export class EsportImportService {
 					"Un des matchs choisis n'est plus dans les données PandaScore : actualisez la liste.",
 				);
 			}
-			if (zonedWeekStart(match.scheduledAt, ESPORT_TIME_ZONE) !== weekStart) {
+			if (esportWeekStart(match.scheduledAt) !== weekStart) {
 				throw new BadRequestException(
 					`${nomPandascore(match.teamA)} vs ${nomPandascore(match.teamB)} n'est plus prévu cette semaine chez PandaScore : actualisez la liste.`,
 				);
@@ -407,6 +416,7 @@ export class EsportImportService {
 						teamAId: await this.equipe(tx, match.teamA),
 						teamBId: await this.equipe(tx, match.teamB),
 						competition: match.competition,
+						region: match.region,
 						scheduledAt: match.scheduledAt,
 						format: match.format,
 						bestOf: match.games,
@@ -523,7 +533,7 @@ export class EsportImportService {
 		};
 		if (!this.token || !local.pandascoreId) return vide;
 
-		const weekStart = zonedWeekStart(local.scheduledAt, ESPORT_TIME_ZONE);
+		const weekStart = esportWeekStart(local.scheduledAt);
 		const [row, appel] = await Promise.all([
 			this.prisma.pandascoreMatch.findUnique({ where: { id: local.pandascoreId } }),
 			this.prisma.pandascoreFetch.findUnique({ where: { weekStart: fromKey(weekStart) } }),

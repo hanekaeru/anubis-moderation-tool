@@ -196,6 +196,9 @@
 									</div>
 
 									<div class="meta">
+										@if (regionLabel(match); as region) {
+											<span class="tag">{{ region }}</span>
+										}
 										@if (match.competition) {
 											<span>{{ match.competition }}</span>
 										}

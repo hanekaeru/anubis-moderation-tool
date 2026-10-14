@@ -1163,6 +1163,9 @@ model EsportMatch {
   teamAId                  String?           @map("team_a_id") @db.Uuid
   teamBId                  String?           @map("team_b_id") @db.Uuid
   competition              String?           @db.VarChar(120)
+  /// Code de `ESPORT_REGIONS` (EMEA, NA, KR…) : l'intertitre sous lequel le
+  /// match se range dans le recapitulatif. `null` : sans region.
+  region                   String?           @db.VarChar(10)
   scheduledAt              DateTime          @map("scheduled_at")
   /// Lecture de `bestOf` : « au meilleur des N » ou « premier a N ».
   format                   EsportMatchFormat @default(BEST_OF)
