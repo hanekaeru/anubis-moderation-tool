@@ -391,8 +391,7 @@ export interface LiquipediaTeamDto {
 	/** Nom de l'adversaire chez Liquipedia (sa page) : la cle de rapprochement. */
 	key: string;
 	name: string;
-	/** Logo pour fond sombre quand Liquipedia en fournit un, clair sinon. */
-	logoUrl: string | null;
+	// Pas de logo : Liquipedia refuse ses images aux autres sites (403).
 }
 
 /**

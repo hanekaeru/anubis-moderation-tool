@@ -131,7 +131,8 @@ describe("EsportImportService.import", () => {
 
 		expect(prisma.esportTeam.update).toHaveBeenCalledWith({
 			where: { id: "manuelle" },
-			data: { liquipediaName: "Twisted Minds", logoUrl: "https://moi.fr/logo.png" },
+			// Son logo saisi a la main n'est pas touche.
+			data: { liquipediaName: "Twisted Minds" },
 		});
 	});
 

@@ -816,10 +816,10 @@ le dev avec rechargement).
     minutes et se contente du cache sinon : il ne repond jamais par un refus.
   - les equipes se reconnaissent par **`liquipediaName`** (le nom de
     l'adversaire, c'est-a-dire sa page), puis par nom affiche pour relier une
-    equipe saisie a la main (elle garde son emoji et son logo). Le logo est la
-    version **sombre** quand elle existe ; Liquipedia ne donne qu'un nom de
-    fichier, l'adresse Commons se reconstruit par le MD5 du nom
-    (`commonsFileUrl`).
+    equipe saisie a la main (elle garde son emoji et son logo). **Aucun logo
+    n'est repris de Liquipedia** : le site refuse ses images aux autres domaines
+    (403, dashboard comme proxy de Discord), et une image cassee vaut moins
+    qu'aucune. Le logo se saisit a la main sur l'equipe.
   - **la source est citee avec son lien** (licence CC BY-SA) : la page du
     **tournoi** (`EsportMatch.liquipediaPage`, champ `parent` — la page du
     Stage, pas la sous-page « Regular Season » ou vit le match) est liee dans

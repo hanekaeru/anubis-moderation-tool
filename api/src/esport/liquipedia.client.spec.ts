@@ -1,4 +1,4 @@
-import { commonsFileUrl, isFollowed, readLiquipediaMatch, trimLiquipediaMatch, type LiquipediaRawMatch } from "./liquipedia.client";
+import { isFollowed, readLiquipediaMatch, trimLiquipediaMatch, type LiquipediaRawMatch } from "./liquipedia.client";
 
 /**
  * Forme d'un match de `/match` sur le wiki Overwatch (OWCS EMEA Stage 3,
@@ -93,11 +93,9 @@ describe("readLiquipediaMatch", () => {
 		expect(readLiquipediaMatch(tbd, FT)!.teamA).toBeNull();
 	});
 
-	it("prefere le logo sombre, et reconstruit son adresse sur Commons", () => {
-		const match = readLiquipediaMatch(brut(), FT)!;
-		expect(match.teamA!.logoUrl).toMatch(
-			/^https:\/\/liquipedia\.net\/commons\/images\/[0-9a-f]\/[0-9a-f]{2}\/Twisted_Minds_2023_darkmode\.png$/,
-		);
+	// Liquipedia refuse ses images aux autres sites (403) : aucun logo repris.
+	it("ne reprend aucun logo", () => {
+		expect(readLiquipediaMatch(brut(), FT)!.teamA).toEqual({ key: "Twisted Minds", name: "Twisted Minds" });
 	});
 
 	it("reconstruit le lien Twitch depuis le nom de chaine", () => {
@@ -106,13 +104,6 @@ describe("readLiquipediaMatch", () => {
 
 	it("ecarte un match sans horaire", () => {
 		expect(readLiquipediaMatch(brut({ date: "1970-01-01 00:00:00" }), FT)).toBeNull();
-	});
-});
-
-describe("commonsFileUrl", () => {
-	// Exemple de MediaWiki : md5("Example.jpg") commence par « a9 ».
-	it("range le fichier sous les deux premiers caracteres du MD5 de son nom", () => {
-		expect(commonsFileUrl("example.jpg")).toBe("https://liquipedia.net/commons/images/a/a9/Example.jpg");
 	});
 });
 

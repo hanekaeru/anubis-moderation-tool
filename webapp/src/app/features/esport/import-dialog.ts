@@ -134,12 +134,7 @@ interface Day {
 								<span class="time">{{ time(match) }}</span>
 								<div class="body">
 									<div class="teams">
-										<span class="team">
-											@if (match.teamA?.logoUrl) {
-												<img [src]="match.teamA!.logoUrl" alt="" />
-											}
-											{{ match.teamA?.name ?? 'À déterminer' }}
-										</span>
+										<span class="team">{{ match.teamA?.name ?? 'À déterminer' }}</span>
 										<span class="vs">
 											@if (match.score) {
 												{{ match.score.a }} – {{ match.score.b }}
@@ -147,12 +142,7 @@ interface Day {
 												vs
 											}
 										</span>
-										<span class="team">
-											@if (match.teamB?.logoUrl) {
-												<img [src]="match.teamB!.logoUrl" alt="" />
-											}
-											{{ match.teamB?.name ?? 'À déterminer' }}
-										</span>
+										<span class="team">{{ match.teamB?.name ?? 'À déterminer' }}</span>
 									</div>
 									<div class="meta">
 										@if (region(match); as label) {
@@ -291,16 +281,7 @@ interface Day {
 		}
 
 		.team {
-			display: inline-flex;
-			align-items: center;
-			gap: var(--space-1);
 			font-weight: 500;
-
-			img {
-				width: 20px;
-				height: 20px;
-				object-fit: contain;
-			}
 		}
 
 		.vs {
