@@ -52,8 +52,9 @@ const CONFIG_DEFAULTS = {
 	spoilerScores: true,
 	color: DEFAULT_ESPORT_COLOR,
 	title: DEFAULT_ESPORT_TITLE,
-	pandascoreLeagueIds: [5223] as number[],
-	pandascoreSeries: [] as string[],
+	liquipediaSeries: ["Overwatch Champions Series"] as string[],
+	liquipediaKeywords: [] as string[],
+	liquipediaFirstTo: true,
 	regionColors: {} as Record<string, number>,
 };
 
@@ -120,12 +121,14 @@ export class EsportService {
 		) as Partial<typeof CONFIG_DEFAULTS>;
 
 		if (data.title !== undefined) data.title = data.title.trim() || DEFAULT_ESPORT_TITLE;
-		if (data.pandascoreLeagueIds !== undefined) {
-			data.pandascoreLeagueIds = [...new Set(data.pandascoreLeagueIds)];
+		if (data.liquipediaSeries !== undefined) {
+			data.liquipediaSeries = [
+				...new Set(data.liquipediaSeries.map((serie) => serie.trim()).filter(Boolean)),
+			];
 		}
-		if (data.pandascoreSeries !== undefined) {
-			data.pandascoreSeries = [
-				...new Set(data.pandascoreSeries.map((motCle) => motCle.trim()).filter(Boolean)),
+		if (data.liquipediaKeywords !== undefined) {
+			data.liquipediaKeywords = [
+				...new Set(data.liquipediaKeywords.map((motCle) => motCle.trim()).filter(Boolean)),
 			];
 		}
 		if (data.regionColors !== undefined) {
@@ -179,10 +182,11 @@ export class EsportService {
 			color: valeurs.color,
 			regionColors: resolveEsportRegionColors(valeurs.regionColors as Record<string, number>),
 			title: valeurs.title,
-			pandascore: {
-				available: this.appConfig.get("app", { infer: true }).pandascore.available,
-				leagueIds: valeurs.pandascoreLeagueIds,
-				series: valeurs.pandascoreSeries,
+			liquipedia: {
+				available: this.appConfig.get("app", { infer: true }).liquipedia.available,
+				series: valeurs.liquipediaSeries,
+				keywords: valeurs.liquipediaKeywords,
+				firstTo: valeurs.liquipediaFirstTo,
 			},
 			updatedAt: row?.updatedAt.toISOString() ?? null,
 		};
@@ -348,7 +352,7 @@ export class EsportService {
 			logoUrl: row.logoUrl,
 			highlighted: row.highlighted,
 			archived: row.archivedAt !== null,
-			pandascoreId: row.pandascoreId,
+			liquipediaName: row.liquipediaName,
 		};
 	}
 
@@ -713,6 +717,12 @@ export class EsportService {
 					resultSyncedAt: null,
 					resultError: null,
 					resultRemovalRequestedAt: null,
+					// Le score releve sur Liquipedia est valide ou ecarte : dans les
+					// deux cas, il n'y a plus rien a proposer.
+					suggestedScoreA: null,
+					suggestedScoreB: null,
+					suggestedForfeit: false,
+					suggestedAt: null,
 				},
 			});
 			await this.resynchroniser(tx, match.weekId);
@@ -880,12 +890,22 @@ export class EsportService {
 			format: row.format,
 			bestOf: row.bestOf,
 			streamUrl: row.streamUrl,
-			pandascoreId: row.pandascoreId,
+			liquipediaId: row.liquipediaId,
+			liquipediaPage: row.liquipediaPage,
 			finished,
 			scoreA: row.scoreA,
 			scoreB: row.scoreB,
 			spoiler: row.spoiler,
 			announceResult: row.announceResult,
+			suggestion:
+				row.suggestedAt && row.suggestedScoreA !== null && row.suggestedScoreB !== null
+					? {
+							scoreA: row.suggestedScoreA,
+							scoreB: row.suggestedScoreB,
+							forfeit: row.suggestedForfeit,
+							at: row.suggestedAt.toISOString(),
+						}
+					: null,
 			// Sans annonce demandee ni message publie, il n'y a rien a suivre :
 			// le score vit dans le recapitulatif.
 			result:
@@ -914,7 +934,7 @@ export class EsportService {
 			format: row.format,
 			bestOf: row.bestOf,
 			streamUrl: row.streamUrl,
-			pandascoreId: row.pandascoreId,
+			liquipediaPage: row.liquipediaPage,
 			finished: row.finishedAt !== null,
 			scoreA: row.scoreA,
 			scoreB: row.scoreB,

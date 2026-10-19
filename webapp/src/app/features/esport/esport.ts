@@ -29,6 +29,7 @@ import {
 	esportWeekStart,
 	isEsportNight,
 	esportScoreSpoiler,
+	liquipediaPageUrl,
 	ESPORT_PUBLICATION_STATUS_LABELS,
 	ESPORT_TIME_ZONE,
 	Permission,
@@ -164,11 +165,14 @@ export class EsportPage {
 
 	readonly missingChannel = computed(() => this.config() !== null && !this.config()!.channelId);
 
-	/** Jeton configure sur l'API et au moins une ligue reglee. */
+	/** Cle configuree sur l'API et au moins une serie reglee. */
 	readonly canImport = computed(() => {
-		const pandascore = this.config()?.pandascore;
-		return !!pandascore?.available && pandascore.leagueIds.length > 0;
+		const liquipedia = this.config()?.liquipedia;
+		return !!liquipedia?.available && liquipedia.series.length > 0;
 	});
+
+	/** Des matchs viennent de Liquipedia : leurs scores peuvent y etre releves. */
+	readonly hasImported = computed(() => !!this.week()?.matches.some((match) => match.liquipediaId));
 
 	constructor() {
 		this.destroyRef.onDestroy(() => this.poll?.unsubscribe());
@@ -343,6 +347,38 @@ export class EsportPage {
 			});
 	}
 
+	/**
+	 * Releve les scores sur Liquipedia et les pose en propositions. Rien n'est
+	 * publie : chacune se valide par « Terminer », ou s'ignore.
+	 */
+	fetchScores(): void {
+		const week = this.week();
+		if (!week) return;
+
+		this.busy.set(true);
+		this.api.fetchScores(week.id).subscribe({
+			next: (result) => {
+				this.busy.set(false);
+				this.applyWeek(result.week);
+				const fraicheur = result.refreshed ? '' : ' (données de moins de deux minutes)';
+				if (result.suggested) {
+					this.notifications.success(`${result.suggested} score(s) à valider${fraicheur}.`);
+				} else {
+					this.notifications.info(`Aucun nouveau score sur Liquipedia${fraicheur}.`);
+				}
+			},
+			error: () => this.busy.set(false),
+		});
+	}
+
+	dismissSuggestion(match: EsportMatchDto): void {
+		this.run(this.api.dismissSuggestion(match.id), 'Proposition ignorée.');
+	}
+
+	liquipediaUrl(page: string): string {
+		return liquipediaPageUrl(page);
+	}
+
 	regionLabel(match: EsportMatchDto): string | null {
 		return esportRegionLabel(match.region);
 	}
@@ -351,13 +387,14 @@ export class EsportPage {
 		return esportFormatLabel(match.format, match.bestOf);
 	}
 
-	openResult(match: EsportMatchDto): void {
+	/** `validateSuggestion` : ouvert depuis « Valider », le score propose remplit le formulaire. */
+	openResult(match: EsportMatchDto, validateSuggestion = false): void {
 		const config = this.config();
 		if (!config) return;
 
 		this.dialog
 			.open<EsportResultDialog, ResultDialogData, EsportWeekDto>(EsportResultDialog, {
-				data: { match, config },
+				data: { match, config, validateSuggestion },
 				width: '600px',
 			})
 			.afterClosed()

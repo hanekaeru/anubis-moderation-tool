@@ -7,17 +7,12 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
-import { MatIconModule } from '@angular/material/icon';
 import {
 	buildEsportResultEmbed,
-	ESPORT_TIME_ZONE,
 	MAX_ESPORT_SCORE,
-	PANDASCORE_STATUS_LABELS,
-	zonedTimeOfDay,
 	type EsportConfigDto,
 	type EsportMatchDto,
 	type EsportWeekDto,
-	type PandascoreResultSuggestionDto,
 } from '@anubis/shared';
 import { EsportApi } from '../../core/api/esport.api';
 import { readApiError } from '../../core/error.interceptor';
@@ -27,6 +22,11 @@ import { EsportEmbedPreview } from './embed-preview';
 export interface ResultDialogData {
 	match: EsportMatchDto;
 	config: EsportConfigDto;
+	/**
+	 * Ouvert depuis « Valider » : le score propose par Liquipedia remplit le
+	 * formulaire, meme pour un match deja termine.
+	 */
+	validateSuggestion?: boolean;
 }
 
 /** Valeurs du select de spoiler : `inherit` suit le reglage du serveur. */
@@ -37,6 +37,10 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
  *
  * L'apercu montre l'annonce telle qu'elle partira dans le salon des resultats,
  * spoiler compris : c'est le moment ou l'on choisit de cacher ou non le score.
+ *
+ * Un score releve sur Liquipedia (« Recuperer les scores ») preremplit un
+ * match pas encore termine ; il ne remplace un score deja saisi que si l'on
+ * vient de « Valider ». Rien n'est envoye sans le bouton du bas.
  */
 @Component({
 	selector: 'app-esport-result-dialog',
@@ -44,7 +48,6 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 		EsportEmbedPreview,
 		FrDatePipe,
 		MatButtonModule,
-		MatIconModule,
 		MatDialogModule,
 		MatFormFieldModule,
 		MatInputModule,
@@ -57,39 +60,17 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 		<h2 mat-dialog-title>{{ data.match.finished ? 'Corriger le score' : 'Terminer le match' }}</h2>
 
 		<mat-dialog-content>
-			@if (data.match.pandascoreId) {
-				<div class="pandascore">
-					@if (suggestion(); as s) {
-						@if (s.score) {
-							<p>
-								PandaScore : <strong>{{ s.score.a }} – {{ s.score.b }}</strong>
-								@if (s.forfeit) {
-									(forfait)
-								}
-								@if (s.fetchedAt) {
-									<span class="muted">· données du {{ s.fetchedAt | frDate }}</span>
-								}
-							</p>
-							<button matButton type="button" (click)="useSuggestion()">Utiliser ce score</button>
-						} @else {
-							<p>
-								PandaScore : {{ s.status ? statusLabel(s.status) : 'match introuvable dans la semaine' }}
-								@if (s.fetchedAt) {
-									<span class="muted">· données du {{ s.fetchedAt | frDate }}</span>
-								}
-							</p>
-							<button matButton type="button" [disabled]="refreshing() || !canRefresh()" (click)="refreshSuggestion()">
-								<mat-icon>refresh</mat-icon>
-								{{ canRefresh() ? 'Actualiser' : 'Actualisable à ' + refreshTime() }}
-							</button>
+			@if (data.match.suggestion; as s) {
+				<div class="liquipedia">
+					<p>
+						Liquipedia : <strong>{{ s.scoreA }} – {{ s.scoreB }}</strong>
+						@if (s.forfeit) {
+							(forfait)
 						}
-					} @else {
-						<p class="muted">Lecture du score PandaScore…</p>
-					}
+						<span class="muted">· relevé le {{ s.at | frDate }}</span>
+					</p>
+					<button matButton type="button" (click)="useSuggestion()">Utiliser ce score</button>
 				</div>
-				@if (suggestionError(); as message) {
-					<p class="error" role="alert">{{ message }}</p>
-				}
 			}
 
 			<form [formGroup]="form" class="form">
@@ -177,7 +158,7 @@ type SpoilerChoice = 'inherit' | 'on' | 'off';
 			font-size: 1.2rem;
 		}
 
-		.pandascore {
+		.liquipedia {
 			display: flex;
 			align-items: center;
 			flex-wrap: wrap;
@@ -239,9 +220,6 @@ export class EsportResultDialog {
 	readonly max = MAX_ESPORT_SCORE;
 	readonly saving = signal(false);
 	readonly error = signal<string | null>(null);
-	readonly suggestion = signal<PandascoreResultSuggestionDto | null>(null);
-	readonly suggestionError = signal<string | null>(null);
-	readonly refreshing = signal(false);
 
 	private readonly scoreValidators = [
 		Validators.required,
@@ -250,9 +228,15 @@ export class EsportResultDialog {
 		Validators.pattern(/^\d+$/),
 	];
 
+	/** Le score propose remplit le formulaire : match a terminer, ou « Valider ». */
+	private readonly prefill =
+		this.data.match.suggestion && (this.data.validateSuggestion || !this.data.match.finished)
+			? this.data.match.suggestion
+			: null;
+
 	readonly form = inject(FormBuilder).nonNullable.group({
-		scoreA: [this.data.match.scoreA ?? 0, this.scoreValidators],
-		scoreB: [this.data.match.scoreB ?? 0, this.scoreValidators],
+		scoreA: [this.prefill?.scoreA ?? this.data.match.scoreA ?? 0, this.scoreValidators],
+		scoreB: [this.prefill?.scoreB ?? this.data.match.scoreB ?? 0, this.scoreValidators],
 		spoiler: [this.toChoice(this.data.match.spoiler)],
 		// Decochee par defaut : le recapitulatif suffit le plus souvent.
 		announce: [this.data.match.announceResult],
@@ -280,7 +264,7 @@ export class EsportResultDialog {
 				format: match.format,
 				bestOf: match.bestOf,
 				streamUrl: match.streamUrl,
-				pandascoreId: match.pandascoreId,
+				liquipediaPage: match.liquipediaPage,
 				finished: true,
 				scoreA: Number(raw.scoreA ?? 0),
 				scoreB: Number(raw.scoreB ?? 0),
@@ -290,61 +274,11 @@ export class EsportResultDialog {
 		);
 	});
 
-	constructor() {
-		if (this.data.match.pandascoreId) this.loadSuggestion(true);
-	}
-
-	statusLabel(status: string): string {
-		return PANDASCORE_STATUS_LABELS[status] ?? status;
-	}
-
-	canRefresh(): boolean {
-		const at = this.suggestion()?.refreshableAt;
-		return !at || new Date(at).getTime() <= Date.now();
-	}
-
-	refreshTime(): string {
-		const at = this.suggestion()?.refreshableAt;
-		return at ? zonedTimeOfDay(new Date(at), ESPORT_TIME_ZONE) : '';
-	}
-
 	useSuggestion(): void {
-		const score = this.suggestion()?.score;
-		if (!score) return;
-		this.form.patchValue({ scoreA: score.a, scoreB: score.b });
+		const suggestion = this.data.match.suggestion;
+		if (!suggestion) return;
+		this.form.patchValue({ scoreA: suggestion.scoreA, scoreB: suggestion.scoreB });
 		this.form.markAsDirty();
-	}
-
-	/** Un appel a PandaScore pour toute la semaine du match, puis relecture. */
-	refreshSuggestion(): void {
-		this.refreshing.set(true);
-		this.suggestionError.set(null);
-		this.api.refreshPandascoreWeek(this.data.match.weekId).subscribe({
-			next: () => {
-				this.refreshing.set(false);
-				this.loadSuggestion(false);
-			},
-			error: (err: unknown) => {
-				this.refreshing.set(false);
-				this.suggestionError.set(readApiError(err));
-			},
-		});
-	}
-
-	/**
-	 * Le score PandaScore pre-remplit un match pas encore termine ; il ne
-	 * remplace jamais un score deja saisi. Rien n'est envoye sans « Terminer ».
-	 */
-	private loadSuggestion(prefill: boolean): void {
-		this.api.getPandascoreResult(this.data.match.id).subscribe({
-			next: (suggestion) => {
-				this.suggestion.set(suggestion);
-				if (prefill && suggestion.score && !this.data.match.finished && this.form.pristine) {
-					this.form.patchValue({ scoreA: suggestion.score.a, scoreB: suggestion.score.b });
-				}
-			},
-			error: (err: unknown) => this.suggestionError.set(readApiError(err)),
-		});
 	}
 
 	save(): void {

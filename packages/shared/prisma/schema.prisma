@@ -1076,13 +1076,16 @@ model EsportConfig {
   /// Couleur de l'embed de chaque region (`{ "EMEA": 3900150 }`). Une region
   /// absente garde sa couleur par defaut (`ESPORT_REGIONS`).
   regionColors        Json     @default("{}") @map("region_colors")
-  /// Ligues PandaScore interrogees a l'import (5223 : Overwatch Champions
-  /// Series). Toutes partent dans le meme appel.
-  pandascoreLeagueIds Int[]    @default([5223]) @map("pandascore_league_ids")
-  /// Mots-cles des series suivies (« EMEA », « North America »…) : seuls les
-  /// matchs dont la serie en contient un sont proposes d'office a l'import.
+  /// Series Liquipedia interrogees a l'import (champ `series` des matchs :
+  /// « Overwatch Champions Series »). Toutes partent dans le meme appel.
+  liquipediaSeries    String[] @default(["Overwatch Champions Series"]) @map("liquipedia_series")
+  /// Mots-cles des competitions suivies (« EMEA », « NA »…) : seuls les
+  /// matchs dont le tournoi en contient un sont proposes d'office a l'import.
   /// Vide : tout est propose.
-  pandascoreSeries    String[] @default([]) @map("pandascore_series")
+  liquipediaKeywords  String[] @default([]) @map("liquipedia_keywords")
+  /// Liquipedia n'ecrit que des « BO » : l'OWCS, en premier a trois, y est
+  /// note `bestof=5`. Vrai : un BO impair se lit en « premier a » (BO5 -> FT3).
+  liquipediaFirstTo   Boolean  @default(true) @map("liquipedia_first_to")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -1104,9 +1107,10 @@ model EsportTeam {
   logoUrl      String?   @map("logo_url") @db.VarChar(500)
   /// Equipe suivie par le serveur : mise en gras dans les recapitulatifs.
   highlighted  Boolean   @default(false)
-  /// Equipe PandaScore correspondante : c'est elle qui fait reconnaitre
-  /// l'equipe d'un import a l'autre, quel que soit le nom choisi ici.
-  pandascoreId Int?      @map("pandascore_id")
+  /// Equipe Liquipedia correspondante (nom de l'adversaire, c'est-a-dire de
+  /// sa page) : c'est lui qui fait reconnaitre l'equipe d'un import a l'autre,
+  /// quel que soit le nom choisi ici.
+  liquipediaName String?  @map("liquipedia_name") @db.VarChar(120)
   archivedAt   DateTime? @map("archived_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
@@ -1115,7 +1119,7 @@ model EsportTeam {
   matchesA EsportMatch[] @relation("EsportMatchTeamA")
   matchesB EsportMatch[] @relation("EsportMatchTeamB")
 
-  @@unique([guildId, pandascoreId])
+  @@unique([guildId, liquipediaName])
   @@index([guildId])
   @@map("esport_teams")
 }
@@ -1175,14 +1179,25 @@ model EsportMatch {
   /// Nombre de manches du format (BO3, FT3…) ; `null` si non precise.
   bestOf                   Int?              @map("best_of")
   streamUrl                String?           @map("stream_url") @db.VarChar(500)
-  /// Match PandaScore dont celui-ci a ete importe. Le staff reste libre de
-  /// tout modifier : seul un nouvel import, demande explicitement, l'ecrase.
-  pandascoreId             Int?              @map("pandascore_id")
+  /// Match Liquipedia (`match2id`) dont celui-ci a ete importe. Le staff reste
+  /// libre de tout modifier : seul un nouvel import, demande explicitement,
+  /// l'ecrase.
+  liquipediaId             String?           @map("liquipedia_id") @db.VarChar(100)
+  /// Page Liquipedia du tournoi (`parent` : la page du Stage, pas celle de la
+  /// phase), citee avec son lien sous les embeds qui affichent le match.
+  liquipediaPage           String?           @map("liquipedia_page") @db.VarChar(255)
   scoreA                   Int?              @map("score_a")
   scoreB                   Int?              @map("score_b")
   /// Score en spoiler ; `null` pour le reglage du serveur.
   spoiler                  Boolean?
   finishedAt               DateTime?         @map("finished_at")
+  /// Score releve sur Liquipedia par « Recuperer les scores », **a valider** :
+  /// il ne touche ni au score, ni au recapitulatif, ni a Discord. Valider passe
+  /// par « Terminer », qui l'efface.
+  suggestedScoreA          Int?              @map("suggested_score_a")
+  suggestedScoreB          Int?              @map("suggested_score_b")
+  suggestedForfeit         Boolean           @default(false) @map("suggested_forfeit")
+  suggestedAt              DateTime?         @map("suggested_at")
   /// Le resultat a son propre message d'annonce. Decoche (defaut) : le score
   /// ne vit que dans le recapitulatif, corrige en place. Un message deja
   /// publie reste corrige meme si la case est decochee ensuite.
@@ -1199,7 +1214,7 @@ model EsportMatch {
   teamA EsportTeam? @relation("EsportMatchTeamA", fields: [teamAId], references: [id], onDelete: SetNull)
   teamB EsportTeam? @relation("EsportMatchTeamB", fields: [teamBId], references: [id], onDelete: SetNull)
 
-  @@unique([weekId, pandascoreId])
+  @@unique([weekId, liquipediaId])
   @@index([weekId, scheduledAt])
   @@index([finishedAt, resultSyncedAt])
   @@map("esport_matches")
@@ -1212,34 +1227,36 @@ enum EsportMatchFormat {
   FIRST_TO
 }
 
-/// Cache des matchs PandaScore : la reponse telle que recue, **jamais
-/// modifiee par le staff**. Les matchs de la semaine en sont des copies que le
-/// staff corrige librement ; ce cache ne sert qu'a proposer l'import et le
-/// score sans rappeler PandaScore a chaque ouverture.
-model PandascoreMatch {
-  /// Identifiant PandaScore du match.
-  id          Int      @id
-  leagueId    Int      @map("league_id")
+/// Cache des matchs Liquipedia : la reponse telle que recue (allegee des
+/// manches et des joueurs), **jamais modifiee par le staff**. Les matchs de la
+/// semaine en sont des copies que le staff corrige librement ; ce cache ne sert
+/// qu'a proposer l'import et les scores sans rappeler Liquipedia a chaque
+/// ouverture.
+model LiquipediaMatch {
+  /// `match2id` Liquipedia.
+  id          String   @id @db.VarChar(100)
+  /// Champ `series` du match, celui sur lequel porte l'appel.
+  series      String   @db.VarChar(200)
   scheduledAt DateTime @map("scheduled_at")
-  status      String   @db.VarChar(20)
+  finished    Boolean
   data        Json
   fetchedAt   DateTime @map("fetched_at")
 
-  @@index([leagueId, scheduledAt])
-  @@map("pandascore_matches")
+  @@index([series, scheduledAt])
+  @@map("liquipedia_matches")
 }
 
-/// Dernier appel a PandaScore pour une semaine. C'est ce qui decide si une
+/// Dernier appel a Liquipedia pour une semaine. C'est ce qui decide si une
 /// actualisation est encore permise (delai minimal entre deux appels) et si le
-/// cache couvre les ligues reglees aujourd'hui.
-model PandascoreFetch {
+/// cache couvre les series reglees aujourd'hui.
+model LiquipediaFetch {
   /// Lundi de la semaine, heure de Paris.
   weekStart  DateTime @id @map("week_start") @db.Date
-  leagueIds  Int[]    @map("league_ids")
+  series     String[]
   matchCount Int      @map("match_count")
   fetchedAt  DateTime @map("fetched_at")
 
-  @@map("pandascore_fetches")
+  @@map("liquipedia_fetches")
 }
 
 /// Roles a ajouter a un membre, demandes depuis la fiche du dashboard.

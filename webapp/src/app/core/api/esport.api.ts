@@ -9,8 +9,8 @@ import type {
 	EsportTeamPayload,
 	EsportWeekDto,
 	EsportWeekSummaryDto,
-	PandascoreResultSuggestionDto,
-	PandascoreWeekDto,
+	LiquipediaScoresDto,
+	LiquipediaWeekDto,
 	UpdateEsportConfigRequest,
 	UpdateEsportWeekRequest,
 } from '@anubis/shared';
@@ -100,23 +100,28 @@ export class EsportApi {
 		return this.http.post<EsportWeekDto>(`/api/esport/matchs/${id}/resultat/retrait`, {});
 	}
 
-	/** Lit le cache ; PandaScore n'est appele que si la semaine n'a jamais ete recuperee. */
-	getPandascoreWeek(weekId: string): Observable<PandascoreWeekDto> {
-		return this.http.get<PandascoreWeekDto>(`/api/esport/semaines/${weekId}/pandascore`);
+	/** Lit le cache ; Liquipedia n'est appele que si la semaine n'a jamais ete recuperee. */
+	getLiquipediaWeek(weekId: string): Observable<LiquipediaWeekDto> {
+		return this.http.get<LiquipediaWeekDto>(`/api/esport/semaines/${weekId}/liquipedia`);
 	}
 
-	refreshPandascoreWeek(weekId: string): Observable<PandascoreWeekDto> {
-		return this.http.post<PandascoreWeekDto>(
-			`/api/esport/semaines/${weekId}/pandascore/actualisation`,
+	refreshLiquipediaWeek(weekId: string): Observable<LiquipediaWeekDto> {
+		return this.http.post<LiquipediaWeekDto>(
+			`/api/esport/semaines/${weekId}/liquipedia/actualisation`,
 			{},
 		);
 	}
 
-	importMatches(weekId: string, ids: number[]): Observable<EsportWeekDto> {
+	importMatches(weekId: string, ids: string[]): Observable<EsportWeekDto> {
 		return this.http.post<EsportWeekDto>(`/api/esport/semaines/${weekId}/import`, { ids });
 	}
 
-	getPandascoreResult(matchId: string): Observable<PandascoreResultSuggestionDto> {
-		return this.http.get<PandascoreResultSuggestionDto>(`/api/esport/matchs/${matchId}/pandascore`);
+	/** Pose les scores de Liquipedia en propositions ; rien n'est publie. */
+	fetchScores(weekId: string): Observable<LiquipediaScoresDto> {
+		return this.http.post<LiquipediaScoresDto>(`/api/esport/semaines/${weekId}/liquipedia/scores`, {});
+	}
+
+	dismissSuggestion(matchId: string): Observable<EsportWeekDto> {
+		return this.http.delete<EsportWeekDto>(`/api/esport/matchs/${matchId}/proposition`);
 	}
 }

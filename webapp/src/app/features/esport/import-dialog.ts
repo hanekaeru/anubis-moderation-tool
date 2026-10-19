@@ -20,13 +20,16 @@ import {
 	esportFormatLabel,
 	esportRegionLabel,
 	isEsportNight,
+	liquipediaPageLabel,
+	liquipediaPageUrl,
 	ESPORT_TIME_ZONE,
+	LIQUIPEDIA_STATUS_LABELS,
 	MAX_ESPORT_MATCHES_PER_WEEK,
-	PANDASCORE_STATUS_LABELS,
 	zonedTimeOfDay,
 	type EsportWeekDto,
-	type PandascoreMatchDto,
-	type PandascoreWeekDto,
+	type LiquipediaMatchDto,
+	type LiquipediaMatchStatus,
+	type LiquipediaWeekDto,
 } from '@anubis/shared';
 import { EsportApi } from '../../core/api/esport.api';
 import { readApiError } from '../../core/error.interceptor';
@@ -39,16 +42,16 @@ export interface ImportDialogData {
 interface Day {
 	key: string;
 	label: string;
-	matches: PandascoreMatchDto[];
+	matches: LiquipediaMatchDto[];
 }
 
 /**
- * Import des matchs de la semaine depuis PandaScore.
+ * Import des matchs de la semaine depuis Liquipedia.
  *
  * Rien ne part sans un clic : la liste vient du cache de l'API (un appel a
- * PandaScore seulement si la semaine n'a jamais ete recuperee), le staff coche
+ * Liquipedia seulement si la semaine n'a jamais ete recuperee), le staff coche
  * ce qu'il veut, et un match deja importe n'est remplace que s'il est coche
- * de nouveau — ses differences avec PandaScore sous les yeux.
+ * de nouveau — ses differences avec Liquipedia sous les yeux.
  */
 @Component({
 	selector: 'app-esport-import-dialog',
@@ -64,7 +67,7 @@ interface Day {
 	],
 	changeDetection: ChangeDetectionStrategy.OnPush,
 	template: `
-		<h2 mat-dialog-title>Importer depuis PandaScore</h2>
+		<h2 mat-dialog-title>Importer depuis Liquipedia</h2>
 
 		<mat-dialog-content>
 			@if (loading()) {
@@ -78,7 +81,7 @@ interface Day {
 			@if (view(); as v) {
 				<div class="toolbar">
 					<span class="source">
-						Données PandaScore
+						Données Liquipedia
 						@if (v.fetchedAt) {
 							récupérées le {{ v.fetchedAt | frDate }}
 						}
@@ -87,7 +90,7 @@ interface Day {
 					<button
 						matButton
 						[disabled]="loading() || !canRefresh()"
-						[matTooltip]="canRefresh() ? 'Un appel à PandaScore' : 'Une actualisation toutes les deux minutes au plus'"
+						[matTooltip]="canRefresh() ? 'Un appel à Liquipedia' : 'Une actualisation toutes les deux minutes au plus'"
 						(click)="refresh()"
 					>
 						<mat-icon>refresh</mat-icon>
@@ -97,7 +100,7 @@ interface Day {
 
 				@if (hiddenCount()) {
 					<mat-slide-toggle [checked]="showAll()" (change)="showAll.set($event.checked)">
-						Afficher les séries non suivies ({{ hiddenCount() }})
+						Afficher les compétitions non suivies ({{ hiddenCount() }})
 					</mat-slide-toggle>
 				}
 
@@ -105,7 +108,7 @@ interface Day {
 					<div class="missing">
 						<mat-icon>event_busy</mat-icon>
 						<p>
-							PandaScore ne place plus cette semaine :
+							Liquipedia ne place plus cette semaine :
 							@for (item of v.missing; track item.matchId; let last = $last) {
 								<strong>{{ item.label }}</strong>{{ last ? '' : ', ' }}
 							}
@@ -115,7 +118,7 @@ interface Day {
 				}
 
 				@if (!days().length) {
-					<p class="empty">Aucun match PandaScore cette semaine pour les ligues réglées.</p>
+					<p class="empty">Aucun match Liquipedia cette semaine pour les séries réglées.</p>
 				}
 
 				@for (day of days(); track day.key) {
@@ -156,22 +159,22 @@ interface Day {
 											<span class="tag">{{ label }}</span>
 										}
 										<span>{{ match.competition }}</span>
-										@if (match.tournament) {
-											<span>{{ match.tournament }}</span>
+										@if (match.page) {
+											<a [href]="pageUrl(match.page)" target="_blank" rel="noopener">{{ pageLabel(match.page) }}</a>
 										}
 										@if (format(match); as label) {
 											<span>{{ label }}</span>
 										}
 										<span class="tag" [attr.data-status]="match.status">{{ statusLabel(match.status) }}</span>
-										@if (match.rescheduled) {
-											<span class="tag">Horaire déplacé</span>
+										@if (!match.dateExact) {
+											<span class="tag" matTooltip="Liquipedia n'a qu'une estimation de l'horaire">Horaire estimé</span>
 										}
 										@if (match.forfeit) {
 											<span class="tag">Forfait</span>
 										}
 										@if (match.importedMatchId) {
 											<span class="tag imported">
-												{{ match.differences.length ? 'Importé · diffère de PandaScore' : 'Déjà importé' }}
+												{{ match.differences.length ? 'Importé · diffère de Liquipedia' : 'Déjà importé' }}
 											</span>
 										}
 									</div>
@@ -181,7 +184,7 @@ interface Day {
 												<li>{{ difference }}</li>
 											}
 										</ul>
-										<p class="note">Coché, ce match sera remplacé par la version PandaScore (score et spoiler conservés).</p>
+										<p class="note">Coché, ce match sera remplacé par la version Liquipedia (score et spoiler conservés).</p>
 									}
 								</div>
 							</li>
@@ -323,8 +326,7 @@ interface Day {
 				color: var(--mat-sys-on-secondary-container);
 			}
 
-			&[data-status='canceled'],
-			&[data-status='postponed'] {
+			&[data-status='notplayed'] {
 				background: var(--mat-sys-error-container);
 				color: var(--mat-sys-on-error-container);
 			}
@@ -375,12 +377,12 @@ export class EsportImportDialog {
 	readonly data = inject<ImportDialogData>(MAT_DIALOG_DATA);
 
 	readonly max = MAX_ESPORT_MATCHES_PER_WEEK;
-	readonly view = signal<PandascoreWeekDto | null>(null);
+	readonly view = signal<LiquipediaWeekDto | null>(null);
 	readonly loading = signal(true);
 	readonly saving = signal(false);
 	readonly error = signal<string | null>(null);
 	readonly showAll = signal(false);
-	readonly selected = signal(new Set<number>());
+	readonly selected = signal(new Set<string>());
 	/** Horloge du bouton « Actualiser », relue toutes les cinq secondes. */
 	private readonly now = signal(Date.now());
 
@@ -426,7 +428,7 @@ export class EsportImportDialog {
 		const tick = interval(5_000).subscribe(() => this.now.set(Date.now()));
 		inject(DestroyRef).onDestroy(() => tick.unsubscribe());
 
-		this.api.getPandascoreWeek(this.data.week.id).subscribe({
+		this.api.getLiquipediaWeek(this.data.week.id).subscribe({
 			next: (view) => this.apply(view, true),
 			error: (err: unknown) => {
 				this.loading.set(false);
@@ -438,7 +440,7 @@ export class EsportImportDialog {
 	refresh(): void {
 		this.loading.set(true);
 		this.error.set(null);
-		this.api.refreshPandascoreWeek(this.data.week.id).subscribe({
+		this.api.refreshLiquipediaWeek(this.data.week.id).subscribe({
 			next: (view) => this.apply(view, false),
 			error: (err: unknown) => {
 				this.loading.set(false);
@@ -447,7 +449,7 @@ export class EsportImportDialog {
 		});
 	}
 
-	toggle(id: number, checked: boolean): void {
+	toggle(id: string, checked: boolean): void {
 		const next = new Set(this.selected());
 		if (checked) next.add(id);
 		else next.delete(id);
@@ -466,29 +468,37 @@ export class EsportImportDialog {
 		});
 	}
 
-	time(match: PandascoreMatchDto): string {
+	time(match: LiquipediaMatchDto): string {
 		const instant = new Date(match.scheduledAt);
 		return (isEsportNight(instant) ? '🌙 ' : '') + zonedTimeOfDay(instant, ESPORT_TIME_ZONE);
 	}
 
-	region(match: PandascoreMatchDto): string | null {
+	region(match: LiquipediaMatchDto): string | null {
 		return esportRegionLabel(match.region);
 	}
 
-	format(match: PandascoreMatchDto): string | null {
+	format(match: LiquipediaMatchDto): string | null {
 		return esportFormatLabel(match.format, match.games);
 	}
 
-	statusLabel(status: string): string {
-		return PANDASCORE_STATUS_LABELS[status] ?? status;
+	statusLabel(status: LiquipediaMatchStatus): string {
+		return LIQUIPEDIA_STATUS_LABELS[status] ?? status;
+	}
+
+	pageUrl(page: string): string {
+		return liquipediaPageUrl(page);
+	}
+
+	pageLabel(page: string): string {
+		return liquipediaPageLabel(page);
 	}
 
 	/**
-	 * Au premier affichage, coche les nouveaux matchs des series suivies, sauf
-	 * annules ou reportes. Une actualisation garde ce que le staff a coche, en
-	 * retirant ce qui a disparu de la semaine.
+	 * Au premier affichage, coche les nouveaux matchs des competitions suivies,
+	 * sauf ceux que Liquipedia note « non joue ». Une actualisation garde ce que
+	 * le staff a coche, en retirant ce qui a disparu de la semaine.
 	 */
-	private apply(view: PandascoreWeekDto, first: boolean): void {
+	private apply(view: LiquipediaWeekDto, first: boolean): void {
 		this.view.set(view);
 		this.loading.set(false);
 		this.now.set(Date.now());
@@ -501,8 +511,7 @@ export class EsportImportDialog {
 							(match) =>
 								match.followed &&
 								!match.importedMatchId &&
-								match.status !== 'canceled' &&
-								match.status !== 'postponed',
+								match.status !== 'notplayed',
 						)
 						.map((match) => match.id),
 				)

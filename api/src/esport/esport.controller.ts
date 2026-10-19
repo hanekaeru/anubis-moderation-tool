@@ -17,8 +17,8 @@ import {
 	type EsportTeamDto,
 	type EsportWeekDto,
 	type EsportWeekSummaryDto,
-	type PandascoreResultSuggestionDto,
-	type PandascoreWeekDto,
+	type LiquipediaScoresDto,
+	type LiquipediaWeekDto,
 } from "@anubis/shared";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../common/decorators/require-permissions.decorator";
@@ -40,8 +40,9 @@ import { EsportService } from "./esport.service";
  *
  * Trois niveaux : lire (`esport:read`), composer et envoyer (`esport:write`),
  * regler et **retirer un message publie** (`esport:manage`). Rien ici ne parle
- * a Discord : l'API met en file, le bot publie. L'import PandaScore demande
- * `esport:write`, comme la saisie : il ne fait que preremplir la semaine.
+ * a Discord : l'API met en file, le bot publie. L'import Liquipedia et la
+ * recuperation des scores demandent `esport:write`, comme la saisie : ils ne
+ * font que preremplir, et « Terminer » reste le seul chemin vers un score.
  */
 @Controller("esport")
 export class EsportController {
@@ -177,17 +178,27 @@ export class EsportController {
 		return this.esport.addMatch(id, dto, actor);
 	}
 
-	/** Matchs PandaScore de la semaine, depuis le cache (un appel s'il est vide). */
-	@Get("semaines/:id/pandascore")
+	/** Matchs Liquipedia de la semaine, depuis le cache (un appel s'il est vide). */
+	@Get("semaines/:id/liquipedia")
 	@RequirePermissions(Permission.ESPORT_WRITE)
-	pandascoreWeek(@Param("id", ParseUUIDPipe) id: string): Promise<PandascoreWeekDto> {
+	liquipediaWeek(@Param("id", ParseUUIDPipe) id: string): Promise<LiquipediaWeekDto> {
 		return this.imports.weekView(id);
 	}
 
-	@Post("semaines/:id/pandascore/actualisation")
+	@Post("semaines/:id/liquipedia/actualisation")
 	@RequirePermissions(Permission.ESPORT_WRITE)
-	refreshPandascore(@Param("id", ParseUUIDPipe) id: string): Promise<PandascoreWeekDto> {
+	refreshLiquipedia(@Param("id", ParseUUIDPipe) id: string): Promise<LiquipediaWeekDto> {
 		return this.imports.refresh(id);
+	}
+
+	/** Pose les scores de Liquipedia en propositions ; rien n'est publie. */
+	@Post("semaines/:id/liquipedia/scores")
+	@RequirePermissions(Permission.ESPORT_WRITE)
+	fetchScores(
+		@Param("id", ParseUUIDPipe) id: string,
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<LiquipediaScoresDto> {
+		return this.imports.fetchScores(id, actor);
 	}
 
 	@Post("semaines/:id/import")
@@ -200,10 +211,14 @@ export class EsportController {
 		return this.imports.import(id, dto.ids, actor);
 	}
 
-	@Get("matchs/:id/pandascore")
+	/** Ecarte le score propose par Liquipedia, sans toucher au match. */
+	@Delete("matchs/:id/proposition")
 	@RequirePermissions(Permission.ESPORT_WRITE)
-	pandascoreResult(@Param("id", ParseUUIDPipe) id: string): Promise<PandascoreResultSuggestionDto> {
-		return this.imports.resultSuggestion(id);
+	dismissSuggestion(
+		@Param("id", ParseUUIDPipe) id: string,
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<EsportWeekDto> {
+		return this.imports.dismissSuggestion(id, actor);
 	}
 
 	@Patch("matchs/:id")

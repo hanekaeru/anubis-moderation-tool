@@ -97,28 +97,35 @@ const toHex = (color: number) => `#${color.toString(16).padStart(6, '0')}`;
 					<button matButton type="button" (click)="resetRegionColors()">Rétablir les couleurs par défaut</button>
 				</div>
 
-				<h3 class="section">Import PandaScore</h3>
-				@if (!data.pandascore.available) {
+				<h3 class="section">Import Liquipedia</h3>
+				@if (!data.liquipedia.available) {
 					<p class="hint warning">
-						Aucun jeton PandaScore n'est configuré sur l'API (<code>PANDASCORE_TOKEN</code>) :
-						l'import est désactivé, la saisie manuelle reste disponible.
+						Aucune clé Liquipedia n'est configurée sur l'API (<code>LIQUIPEDIA_API_KEY</code>) :
+						l'import et la récupération des scores sont désactivés, la saisie manuelle reste disponible.
 					</p>
 				}
 
 				<mat-form-field>
-					<mat-label>Ligues PandaScore</mat-label>
-					<input matInput formControlName="leagueIds" placeholder="5223" />
-					<mat-hint>Identifiants séparés par des virgules. 5223 : Overwatch Champions Series.</mat-hint>
-					@if (form.controls.leagueIds.hasError('pattern')) {
-						<mat-error>Des nombres séparés par des virgules sont attendus.</mat-error>
+					<mat-label>Séries Liquipedia</mat-label>
+					<input matInput formControlName="series" placeholder="Overwatch Champions Series" />
+					<mat-hint>Noms exacts, séparés par des virgules (champ « series » des matchs Liquipedia).</mat-hint>
+					@if (form.controls.series.hasError('pattern')) {
+						<mat-error>Les crochets et la barre verticale ne sont pas acceptés.</mat-error>
 					}
 				</mat-form-field>
 
 				<mat-form-field>
-					<mat-label>Séries suivies (facultatif)</mat-label>
-					<input matInput formControlName="series" placeholder="EMEA, North America" />
-					<mat-hint>Mots-clés séparés par des virgules. Vide : toutes les séries sont proposées.</mat-hint>
+					<mat-label>Compétitions suivies (facultatif)</mat-label>
+					<input matInput formControlName="keywords" placeholder="EMEA, NA" />
+					<mat-hint>Mots-clés séparés par des virgules. Vide : toutes les compétitions sont proposées.</mat-hint>
 				</mat-form-field>
+
+				<mat-slide-toggle formControlName="firstTo">
+					Lire les BO impairs en « premier à » (BO5 → FT3, format de l'OWCS)
+				</mat-slide-toggle>
+				<p class="hint">
+					Liquipedia n'écrit que des « BO » : un FT3 de l'OWCS y est noté BO5.
+				</p>
 			</form>
 
 			@if (error(); as message) {
@@ -237,11 +244,9 @@ export class EsportConfigDialog {
 		spoilerScores: [this.data.spoilerScores],
 		title: [this.data.title, [Validators.required, Validators.maxLength(200)]],
 		color: [`#${this.data.color.toString(16).padStart(6, '0')}`],
-		leagueIds: [
-			this.data.pandascore.leagueIds.join(', '),
-			[Validators.pattern(/^\s*(\d+\s*([,;\s]\s*\d+\s*)*)?$/)],
-		],
-		series: [this.data.pandascore.series.join(', ')],
+		series: [this.data.liquipedia.series.join(', '), [Validators.pattern(/^[^[\]|]*$/)]],
+		keywords: [this.data.liquipedia.keywords.join(', ')],
+		firstTo: [this.data.liquipedia.firstTo],
 		regionColors: inject(FormBuilder).nonNullable.group(
 			Object.fromEntries(
 				ESPORT_REGIONS.map((region) => [region.code, [toHex(this.data.regionColors[region.code])]]),
@@ -284,14 +289,15 @@ export class EsportConfigDialog {
 				regionColors: Object.fromEntries(
 					Object.entries(raw.regionColors).map(([code, hex]) => [code, parseInt(hex.slice(1), 16)]),
 				),
-				pandascoreLeagueIds: raw.leagueIds
-					.split(/[,;\s]+/)
-					.filter(Boolean)
-					.map(Number),
-				pandascoreSeries: raw.series
+				liquipediaSeries: raw.series
+					.split(/[,;]+/)
+					.map((serie) => serie.trim())
+					.filter(Boolean),
+				liquipediaKeywords: raw.keywords
 					.split(/[,;]+/)
 					.map((motCle) => motCle.trim())
 					.filter(Boolean),
+				liquipediaFirstTo: raw.firstTo,
 			})
 			.subscribe({
 				next: (config) => this.dialogRef.close(config),

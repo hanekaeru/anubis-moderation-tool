@@ -45,7 +45,7 @@ services:
             BATTLENET_REDIRECT_URI: https://${APP_DOMAIN}/api/verification/battlenet/callback
             # Import des matchs esport (facultatif). Vide : l'import est
             # annonce indisponible, la saisie manuelle reste entiere.
-            PANDASCORE_TOKEN: ${PANDASCORE_TOKEN:-}
+            LIQUIPEDIA_API_KEY: ${LIQUIPEDIA_API_KEY:-}
 
     webapp:
         build:

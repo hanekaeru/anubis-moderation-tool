@@ -47,7 +47,7 @@ function baseConfig(): AppConfig {
 			redirectUri: "",
 			available: false,
 		},
-		pandascore: { token: "", available: false },
+		liquipedia: { apiKey: "", available: false },
 	};
 }
 

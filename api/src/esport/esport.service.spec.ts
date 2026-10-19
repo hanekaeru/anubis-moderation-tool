@@ -64,7 +64,7 @@ function makeService(overrides: Record<string, unknown> = {}) {
 	const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
 
 	const config = {
-		get: () => ({ pandascore: { token: "", available: false } }),
+		get: () => ({ liquipedia: { apiKey: "", available: false } }),
 	} as unknown as ConfigService<{ app: AppConfig }, true>;
 
 	return {
