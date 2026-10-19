@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
 	detectEsportRegion,
 	LIQUIPEDIA_WIKI,
@@ -46,17 +45,10 @@ export interface LiquipediaRawOpponent {
 	type?: string | null;
 	name?: string | null;
 	template?: string | null;
-	icon?: string | null;
-	icondark?: string | null;
-	iconurl?: string | null;
-	icondarkurl?: string | null;
 	score?: number | string | null;
 	status?: string | null;
-	teamtemplate?: {
-		name?: string | null;
-		imageurl?: string | null;
-		imagedarkurl?: string | null;
-	} | null;
+	/** Le reste (logos, joueurs…) n'est pas lu. */
+	[cle: string]: unknown;
 }
 
 /** Champs lus dans la reponse ; le reste est garde tel quel dans le cache. */
@@ -217,36 +209,14 @@ export function trimLiquipediaMatch(raw: LiquipediaRawMatch): LiquipediaRawMatch
 }
 
 /**
- * Adresse d'un fichier de Liquipedia Commons, ou vivent les logos d'equipe.
- * MediaWiki range ses fichiers sous les deux premiers caracteres du MD5 de leur
- * nom (espaces en `_`, premiere lettre en majuscule).
+ * Equipe d'un adversaire, **sans logo** : Liquipedia refuse ses images a tout
+ * autre site (403), dashboard comme proxy de Discord. Un logo se saisit a la
+ * main sur l'equipe, et survit aux imports suivants.
  */
-export function commonsFileUrl(fichier: string): string | null {
-	let nom = fichier.trim().replace(/^File:/i, "").replace(/ /g, "_");
-	if (!nom) return null;
-	nom = nom.charAt(0).toUpperCase() + nom.slice(1);
-	const hash = createHash("md5").update(nom).digest("hex");
-	return `https://liquipedia.net/commons/images/${hash[0]}/${hash.slice(0, 2)}/${encodeURIComponent(nom)}`;
-}
-
-const http = (url: string | null | undefined) => (url && /^https?:\/\//.test(url) ? url : null);
-
 function team(opponent: LiquipediaRawOpponent | undefined): LiquipediaTeamDto | null {
 	const nom = opponent?.name?.trim();
 	if (!nom || nom.toLowerCase() === "tbd" || opponent?.template?.toLowerCase() === "tbd") return null;
-	// Discord est le plus souvent en theme sombre : le logo clair y disparait.
-	const logo =
-		http(opponent?.teamtemplate?.imagedarkurl) ??
-		http(opponent?.icondarkurl) ??
-		(opponent?.icondark ? commonsFileUrl(opponent.icondark) : null) ??
-		http(opponent?.teamtemplate?.imageurl) ??
-		http(opponent?.iconurl) ??
-		(opponent?.icon ? commonsFileUrl(opponent.icon) : null);
-	return {
-		key: nom.slice(0, 120),
-		name: nom.slice(0, 80),
-		logoUrl: logo?.slice(0, 500) ?? null,
-	};
+	return { key: nom.slice(0, 120), name: nom.slice(0, 80) };
 }
 
 /**

@@ -483,7 +483,7 @@ export class EsportImportService {
 	 *
 	 * Par nom Liquipedia d'abord ; puis par nom affiche, pour relier une equipe
 	 * saisie a la main avant l'import (elle garde son emoji et son logo) ; sinon
-	 * creee avec le nom et le logo de Liquipedia, que le staff peut modifier.
+	 * creee avec le nom de Liquipedia et sans logo, que le staff peut ajouter.
 	 * Une equipe reliee mais archivee est restauree : elle rejoue.
 	 */
 	private async equipe(tx: Tx, team: LiquipediaTeamDto | null): Promise<string | null> {
@@ -511,7 +511,7 @@ export class EsportImportService {
 		if (homonyme) {
 			await tx.esportTeam.update({
 				where: { id: homonyme.id },
-				data: { liquipediaName: team.key, logoUrl: homonyme.logoUrl ?? team.logoUrl },
+				data: { liquipediaName: team.key },
 			});
 			return homonyme.id;
 		}
@@ -524,7 +524,6 @@ export class EsportImportService {
 			data: {
 				guildId,
 				name: (pris ? `${team.name} (Liquipedia)` : team.name).slice(0, 80),
-				logoUrl: team.logoUrl?.slice(0, 500) ?? null,
 				liquipediaName: team.key,
 			},
 		});
