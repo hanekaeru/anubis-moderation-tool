@@ -55,7 +55,7 @@ function embedMatch(row: MatchRow): EsportEmbedMatch {
 		format: row.format,
 		bestOf: row.bestOf,
 		streamUrl: row.streamUrl,
-		pandascoreId: row.pandascoreId,
+		liquipediaPage: row.liquipediaPage,
 		finished: row.finishedAt !== null,
 		scoreA: row.scoreA,
 		scoreB: row.scoreB,

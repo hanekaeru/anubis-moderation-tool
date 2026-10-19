@@ -166,10 +166,10 @@ export interface MatchDialogData {
 				</mat-form-field>
 			</form>
 
-			@if (data.match?.pandascoreId) {
+			@if (data.match?.liquipediaId) {
 				<p class="hint">
-					Match importé depuis PandaScore. Vos modifications sont conservées ; seul un nouvel
-					import de ce match, demandé depuis « Importer depuis PandaScore », les remplacerait.
+					Match importé depuis Liquipedia. Vos modifications sont conservées ; seul un nouvel
+					import de ce match, demandé depuis « Importer depuis Liquipedia », les remplacerait.
 				</p>
 			}
 

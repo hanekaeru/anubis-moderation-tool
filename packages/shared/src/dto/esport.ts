@@ -50,12 +50,14 @@ export function esportCalendarDay(dayKey: string, time: string): string {
 
 /**
  * Regions des circuits, dans l'ordre ou le dashboard les propose. Les
- * mots-cles reconnaissent la region dans les intitules de PandaScore
- * (« EMEA Stage 3 », « North America Stage 3 »…) a l'import.
+ * mots-cles reconnaissent la region dans les intitules et les pages de
+ * Liquipedia (« OWCS EMEA Stage 3 », « Overwatch_Champions_Series/2026/NA/… »)
+ * a l'import. Ils se comparent **mot a mot** : « na » ne doit pas se lire dans
+ * « Finals ».
  */
 export const ESPORT_REGIONS = [
 	{ code: "EMEA", label: "EMEA", emoji: "🇪🇺", color: 0x3b82f6, keywords: ["emea", "europe"] },
-	{ code: "NA", label: "Amérique du Nord", emoji: "🇺🇸", color: 0xe5484d, keywords: ["north america", "americas"] },
+	{ code: "NA", label: "Amérique du Nord", emoji: "🇺🇸", color: 0xe5484d, keywords: ["north america", "americas", "na"] },
 	{ code: "KR", label: "Corée", emoji: "🇰🇷", color: 0x8e4ec6, keywords: ["korea"] },
 	{ code: "CN", label: "Chine", emoji: "🇨🇳", color: 0xf5a524, keywords: ["china"] },
 	{ code: "JP", label: "Japon", emoji: "🇯🇵", color: 0xe93d82, keywords: ["japan"] },
@@ -95,10 +97,23 @@ export function esportRegionLabel(code: string | null | undefined): string | nul
 	return region ? `${region.emoji} ${region.label}` : null;
 }
 
+/**
+ * Mot-cle cherche comme un mot entier : precede et suivi d'autre chose qu'une
+ * lettre ou un chiffre. Les `_` et `/` des noms de page comptent donc comme des
+ * separateurs. Le groupe 1 garde le caractere qui precede, pour un remplacement.
+ */
+function keywordPattern(motCle: string): RegExp {
+	const echappe = motCle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "[\\s_]+");
+	return new RegExp(`(^|[^\\p{L}\\p{N}])${echappe}(?=$|[^\\p{L}\\p{N}])`, "giu");
+}
+
 /** Region reconnue dans un intitule ; la premiere qui correspond l'emporte. */
 export function detectEsportRegion(text: string): EsportRegion | null {
-	const texte = text.toLowerCase();
-	return ESPORT_REGIONS.find((region) => region.keywords.some((motCle) => texte.includes(motCle)))?.code ?? null;
+	return (
+		ESPORT_REGIONS.find((region) =>
+			region.keywords.some((motCle) => keywordPattern(motCle).test(text)),
+		)?.code ?? null
+	);
 }
 
 /** Au-dela, le recapitulatif deborderait des 6000 caracteres d'un embed. */
@@ -110,19 +125,66 @@ export const DEFAULT_ESPORT_COLOR = 0x5865f2;
 /** Plus que de quoi ecrire un score de carte ou de manche. */
 export const MAX_ESPORT_SCORE = 99;
 
-/**
- * Mention de la source, ajoutee au pied des embeds des qu'un match affiche
- * vient de PandaScore — c'est la condition de reutilisation de leurs donnees.
- */
-export const PANDASCORE_SOURCE_LABEL = "Source : PandaScore";
+/** Wiki Liquipedia interroge, et dont les pages sont citees. */
+export const LIQUIPEDIA_WIKI = "overwatch";
 
 /**
- * Delai minimal entre deux appels a PandaScore pour une meme semaine.
+ * Mention de la licence, au pied des embeds des qu'un match affiche vient de
+ * Liquipedia. Le lien vers la page du tournoi, lui, va dans la description :
+ * Discord ne rend aucun lien dans un pied d'embed.
+ */
+export const LIQUIPEDIA_SOURCE_LABEL = "Données : Liquipedia (CC BY-SA 3.0)";
+
+/**
+ * Delai minimal entre deux appels a Liquipedia pour une meme semaine.
  *
  * Le cache rend l'ouverture de l'import gratuite ; ce delai empeche seulement
- * qu'une serie de clics sur « Actualiser » vide le quota horaire.
+ * qu'une serie de clics sur « Actualiser » vide le quota de la cle.
  */
-export const PANDASCORE_REFRESH_COOLDOWN_MS = 2 * 60_000;
+export const LIQUIPEDIA_REFRESH_COOLDOWN_MS = 2 * 60_000;
+
+/** Adresse d'une page du wiki (`Overwatch_Champions_Series/2026/EMEA/Stage_3`). */
+export function liquipediaPageUrl(page: string): string {
+	const chemin = page
+		.trim()
+		.replace(/ /g, "_")
+		.split("/")
+		.map((segment) => encodeURIComponent(segment))
+		.join("/");
+	return `https://liquipedia.net/${LIQUIPEDIA_WIKI}/${chemin}`;
+}
+
+/** Abreviations d'usage : un nom de page complet alourdirait chaque embed. */
+const LIQUIPEDIA_SERIES_ABBREVIATIONS: Record<string, string> = {
+	"Overwatch Champions Series": "OWCS",
+};
+
+/**
+ * Libelle lisible d'une page : « OWCS 2026 EMEA Stage 3 » pour
+ * `Overwatch_Champions_Series/2026/EMEA/Stage_3`.
+ */
+export function liquipediaPageLabel(page: string): string {
+	const segments = page
+		.split("/")
+		.map((segment) => segment.replace(/_/g, " ").trim())
+		.filter(Boolean);
+	if (!segments.length) return page;
+	segments[0] = LIQUIPEDIA_SERIES_ABBREVIATIONS[segments[0]!] ?? segments[0]!;
+	return segments.join(" ");
+}
+
+/**
+ * « 📚 Source : [Liquipedia · OWCS 2026 EMEA Stage 3](…) », un lien par page
+ * distincte ; `null` si aucun match ne vient de Liquipedia.
+ */
+export function liquipediaSourceLine(pages: readonly (string | null | undefined)[]): string | null {
+	const uniques = [...new Set(pages.filter((page): page is string => !!page?.trim()))];
+	if (!uniques.length) return null;
+	const liens = uniques.map(
+		(page) => `[Liquipedia · ${escapeMarkdown(liquipediaPageLabel(page))}](${liquipediaPageUrl(page)})`,
+	);
+	return `📚 Source : ${liens.join(", ")}`;
+}
 
 export const ESPORT_MATCH_FORMAT_LABELS: Record<EsportMatchFormat, string> = {
 	BEST_OF: "Au meilleur des (BO)",
@@ -138,13 +200,17 @@ export function esportFormatLabel(
 	return `${format === "FIRST_TO" ? "FT" : "BO"}${games}`;
 }
 
-/** Statuts d'un match chez PandaScore, tels que le dashboard les affiche. */
-export const PANDASCORE_STATUS_LABELS: Record<string, string> = {
-	not_started: "À venir",
-	running: "En cours",
+/**
+ * Statut d'un match Liquipedia, deduit de `finished`, `status` et de l'heure :
+ * Liquipedia ne distingue pas « a venir » d'« en cours ».
+ */
+export type LiquipediaMatchStatus = "upcoming" | "live" | "finished" | "notplayed";
+
+export const LIQUIPEDIA_STATUS_LABELS: Record<LiquipediaMatchStatus, string> = {
+	upcoming: "À venir",
+	live: "En cours",
 	finished: "Terminé",
-	canceled: "Annulé",
-	postponed: "Reporté",
+	notplayed: "Non joué",
 };
 
 /**
@@ -177,8 +243,8 @@ export interface EsportTeamDto {
 	logoUrl: string | null;
 	highlighted: boolean;
 	archived: boolean;
-	/** Equipe PandaScore reliee ; `null` pour une equipe saisie a la main. */
-	pandascoreId: number | null;
+	/** Equipe Liquipedia reliee (nom de sa page) ; `null` pour une equipe saisie a la main. */
+	liquipediaName: string | null;
 }
 
 export interface EsportTeamPayload {
@@ -200,20 +266,24 @@ export interface EsportConfigDto {
 	/** Couleur de l'embed de chaque region, defauts compris. */
 	regionColors: Record<EsportRegion, number>;
 	title: string;
-	pandascore: {
-		/** Jeton present dans l'environnement de l'API. */
+	liquipedia: {
+		/** Cle presente dans l'environnement de l'API. */
 		available: boolean;
-		leagueIds: number[];
-		/** Mots-cles des series suivies ; vide pour toutes. */
+		/** Series interrogees (champ `series` des matchs Liquipedia). */
 		series: string[];
+		/** Mots-cles des competitions suivies ; vide pour toutes. */
+		keywords: string[];
+		/** Un BO impair de Liquipedia se lit en « premier a » (BO5 -> FT3). */
+		firstTo: boolean;
 	};
 	updatedAt: IsoDateString | null;
 }
 
 export type UpdateEsportConfigRequest = Partial<
-	Omit<EsportConfigDto, "updatedAt" | "pandascore" | "regionColors"> & {
-		pandascoreLeagueIds: number[];
-		pandascoreSeries: string[];
+	Omit<EsportConfigDto, "updatedAt" | "liquipedia" | "regionColors"> & {
+		liquipediaSeries: string[];
+		liquipediaKeywords: string[];
+		liquipediaFirstTo: boolean;
 		/** Couleur par code de region ; une couleur egale au defaut n'est pas gardee. */
 		regionColors: Partial<Record<string, number>>;
 	}
@@ -231,8 +301,10 @@ export interface EsportMatchDto {
 	format: EsportMatchFormat;
 	bestOf: number | null;
 	streamUrl: string | null;
-	/** Match PandaScore d'origine ; `null` pour un match saisi a la main. */
-	pandascoreId: number | null;
+	/** Match Liquipedia d'origine (`match2id`) ; `null` pour un match saisi a la main. */
+	liquipediaId: string | null;
+	/** Page Liquipedia du tournoi, citee sous les embeds. */
+	liquipediaPage: string | null;
 	finished: boolean;
 	scoreA: number | null;
 	scoreB: number | null;
@@ -240,6 +312,16 @@ export interface EsportMatchDto {
 	spoiler: boolean | null;
 	/** Le resultat a son propre message, en plus du score dans le recapitulatif. */
 	announceResult: boolean;
+	/**
+	 * Score releve sur Liquipedia, a valider par « Terminer » (ou « Corriger »
+	 * s'il differe d'un score deja saisi). N'a encore rien change nulle part.
+	 */
+	suggestion: {
+		scoreA: number;
+		scoreB: number;
+		forfeit: boolean;
+		at: IsoDateString;
+	} | null;
 	/**
 	 * Message de resultat ; `null` sans annonce demandee ni message publie.
 	 */
@@ -302,78 +384,82 @@ export interface UpdateEsportWeekRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Import PandaScore
+// Import Liquipedia
 // ---------------------------------------------------------------------------
 
-export interface PandascoreTeamDto {
-	id: number;
+export interface LiquipediaTeamDto {
+	/** Nom de l'adversaire chez Liquipedia (sa page) : la cle de rapprochement. */
+	key: string;
 	name: string;
-	acronym: string | null;
-	/** Logo pour fond sombre quand PandaScore en fournit un, clair sinon. */
+	/** Logo pour fond sombre quand Liquipedia en fournit un, clair sinon. */
 	logoUrl: string | null;
 }
 
 /**
- * Match lu dans le cache PandaScore, mis en regard de la semaine composee.
- * Rien ici n'est modifiable : c'est la donnee de PandaScore telle que recue.
+ * Match lu dans le cache Liquipedia, mis en regard de la semaine composee.
+ * Rien ici n'est modifiable : c'est la donnee de Liquipedia telle que recue.
  */
-export interface PandascoreMatchDto {
-	id: number;
+export interface LiquipediaMatchDto {
+	/** `match2id`. */
+	id: string;
 	scheduledAt: IsoDateString;
-	/** Horaire deplace par l'organisateur depuis l'annonce initiale. */
-	rescheduled: boolean;
-	/** Cle de `PANDASCORE_STATUS_LABELS`. */
-	status: string;
-	/** Intitule que portera le match importe (« OWCS EMEA Stage 3 »). */
+	/** Horaire exact ; faux : Liquipedia n'a qu'une estimation. */
+	dateExact: boolean;
+	status: LiquipediaMatchStatus;
+	/** Intitule que portera le match importe (« OWCS EMEA Stage 3 - Regular Season »). */
 	competition: string;
-	/** Region reconnue dans l'intitule de la serie. */
+	/** Region reconnue dans l'intitule ou la page du tournoi. */
 	region: string | null;
-	serie: string | null;
+	/** Nom complet du tournoi. */
 	tournament: string | null;
+	/** Page du tournoi (le Stage), citee comme source. */
+	page: string | null;
 	format: EsportMatchFormat;
 	games: number | null;
-	teamA: PandascoreTeamDto | null;
-	teamB: PandascoreTeamDto | null;
-	/** Manches gagnees ; seulement une fois le match termine chez PandaScore. */
+	teamA: LiquipediaTeamDto | null;
+	teamB: LiquipediaTeamDto | null;
+	/** Manches gagnees ; seulement une fois le match termine chez Liquipedia. */
 	score: { a: number; b: number } | null;
 	forfeit: boolean;
 	streamUrl: string | null;
-	/** Fait partie des series suivies dans les reglages. */
+	/** Fait partie des competitions suivies dans les reglages. */
 	followed: boolean;
 	/** Match de la semaine deja importe depuis celui-ci. */
 	importedMatchId: string | null;
 	/**
-	 * Ce qui differe entre PandaScore et le match importe : une modification du
-	 * staff, ou un changement chez PandaScore depuis l'import.
+	 * Ce qui differe entre Liquipedia et le match importe : une modification du
+	 * staff, ou un changement chez Liquipedia depuis l'import.
 	 */
 	differences: string[];
 }
 
-export interface PandascoreWeekDto {
-	/** Jeton PandaScore configure sur l'API. */
+export interface LiquipediaWeekDto {
+	/** Cle Liquipedia configuree sur l'API. */
 	available: boolean;
 	fetchedAt: IsoDateString | null;
 	/** Avant cette date, une actualisation serait refusee. */
 	refreshableAt: IsoDateString | null;
-	matches: PandascoreMatchDto[];
-	/** Matchs importes que PandaScore ne place plus dans cette semaine. */
+	matches: LiquipediaMatchDto[];
+	/** Matchs importes que Liquipedia ne place plus dans cette semaine. */
 	missing: { matchId: string; label: string }[];
 }
 
 export interface EsportImportRequest {
-	/** Identifiants PandaScore. Un match deja importe est mis a jour. */
-	ids: number[];
+	/** Identifiants Liquipedia (`match2id`). Un match deja importe est mis a jour. */
+	ids: string[];
 }
 
-/** Score propose a la fin d'un match importe, dans l'ordre des equipes locales. */
-export interface PandascoreResultSuggestionDto {
-	available: boolean;
+/**
+ * Resultat de « Recuperer les scores » : des propositions posees sur les
+ * matchs, rien de plus. Ni score, ni recapitulatif, ni message ne bougent.
+ */
+export interface LiquipediaScoresDto {
+	week: EsportWeekDto;
 	fetchedAt: IsoDateString | null;
-	refreshableAt: IsoDateString | null;
-	/** `null` : le match n'est plus dans le cache de sa semaine. */
-	status: string | null;
-	score: { a: number; b: number } | null;
-	forfeit: boolean;
+	/** Liquipedia a ete rappele ; faux : les donnees avaient moins de deux minutes. */
+	refreshed: boolean;
+	/** Matchs portant desormais une proposition. */
+	suggested: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -396,8 +482,8 @@ export interface EsportEmbedMatch {
 	format: EsportMatchFormat;
 	bestOf: number | null;
 	streamUrl: string | null;
-	/** Renseigne : le match vient de PandaScore, et la source est citee. */
-	pandascoreId: number | null;
+	/** Renseigne : le match vient de Liquipedia, et cette page est citee. */
+	liquipediaPage: string | null;
 	finished: boolean;
 	scoreA: number | null;
 	scoreB: number | null;
@@ -486,8 +572,8 @@ function competitionLabel(competition: string, regionCode: string | null | undef
 	// « World Finals » ou « Midseason » nomment l'evenement : rien a retirer.
 	if (!region || region.code === "INTL") return competition;
 	let texte = competition;
-	for (const mot of [region.label, ...region.keywords]) {
-		texte = texte.replace(new RegExp(mot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " ");
+	for (const mot of [region.label, region.code, ...region.keywords]) {
+		texte = texte.replace(keywordPattern(mot), "$1 ");
 	}
 	return texte.replace(/\s+/g, " ").trim() || competition;
 }
@@ -601,8 +687,10 @@ function sharedDetails(group: readonly EsportEmbedMatch[]): { shared: SharedDeta
  * Les regions suivent l'ordre de `ESPORT_REGIONS`, « Autres » en dernier.
  * Dans chaque embed, un champ par journee esport (qui finit a 06:00, voir
  * `ESPORT_DAY_START`). Une semaine sans aucune region garde un embed unique,
- * a la couleur des reglages. Le pied (fuseau, source) ne figure que sur le
- * dernier embed : il vaut pour tout le message.
+ * a la couleur des reglages. Le pied (fuseau, licence) ne figure que sur le
+ * dernier embed : il vaut pour tout le message. Le lien vers la page
+ * Liquipedia est dans la description de chaque region : un pied d'embed
+ * n'affiche aucun lien.
  */
 export function buildEsportWeekEmbeds(
 	week: {
@@ -620,7 +708,7 @@ export function buildEsportWeekEmbeds(
 	).toLowerCase()}`;
 
 	const pied = ["Horaires affichés dans votre fuseau horaire"];
-	if (week.matches.some((match) => match.pandascoreId !== null)) pied.push(PANDASCORE_SOURCE_LABEL);
+	if (week.matches.some((match) => match.liquipediaPage)) pied.push(LIQUIPEDIA_SOURCE_LABEL);
 	const footer = { text: pied.join(" · ") };
 
 	const tries = [...week.matches].sort(
@@ -631,7 +719,12 @@ export function buildEsportWeekEmbeds(
 		return [
 			{
 				title: titreSemaine,
-				description: [intro, range, tries.length ? null : "Aucun match prévu cette semaine."]
+				description: [
+					intro,
+					range,
+					tries.length ? null : "Aucun match prévu cette semaine.",
+					liquipediaSourceLine(tries.map((match) => match.liquipediaPage)),
+				]
 					.filter((part): part is string => !!part)
 					.join("\n\n"),
 				color: settings.color,
@@ -656,11 +749,18 @@ export function buildEsportWeekEmbeds(
 
 	const embeds = groupes.map((groupe, index): EsportEmbed => {
 		const details = sharedDetails(groupe.matches);
+		// Chaque region cite la page de son propre tournoi : « Liquipedia » seul
+		// ne dirait pas ou verifier un horaire.
+		const source = liquipediaSourceLine(groupe.matches.map((match) => match.liquipediaPage));
 		return {
 			author: { name: titreSemaine },
 			title: groupe.titre,
 			// L'introduction n'est ecrite qu'une fois, en tete du message.
-			description: [index === 0 ? intro : null, [range, details.text].filter(Boolean).join("\n")]
+			description: [
+				index === 0 ? intro : null,
+				[range, details.text].filter(Boolean).join("\n"),
+				source,
+			]
 				.filter((part): part is string => !!part)
 				.join("\n\n"),
 			color: groupe.color,
@@ -702,7 +802,7 @@ export function buildEsportResultEmbed(
 		esportRegionLabel(match.region),
 		jour,
 		esportFormatLabel(match.format, match.bestOf),
-		match.pandascoreId !== null ? PANDASCORE_SOURCE_LABEL : null,
+		match.liquipediaPage ? LIQUIPEDIA_SOURCE_LABEL : null,
 	]
 		.filter((part): part is string => !!part)
 		.join(" · ");
@@ -711,7 +811,13 @@ export function buildEsportResultEmbed(
 		title: match.competition
 			? `🏁 Résultat — ${match.competition}`
 			: "🏁 Résultat du match",
-		description: `${teamLabel(match.teamA)} ${scoreText(match, spoiler)} ${teamLabel(match.teamB)}\n\n${verdict}`,
+		description: [
+			`${teamLabel(match.teamA)} ${scoreText(match, spoiler)} ${teamLabel(match.teamB)}`,
+			verdict,
+			liquipediaSourceLine([match.liquipediaPage]),
+		]
+			.filter((part): part is string => !!part)
+			.join("\n\n"),
 		color: settings.color,
 		fields: [],
 		footer: { text: pied },

@@ -140,7 +140,8 @@ mat-card-title {
 		grid-template-areas:
 			'when teams actions'
 			'when meta actions'
-			'failure failure failure';
+			'failure failure failure'
+			'suggestion suggestion suggestion';
 		align-items: center;
 		column-gap: var(--space-4);
 		row-gap: var(--space-1);
@@ -156,7 +157,7 @@ mat-card-title {
 	@media (max-width: 640px) {
 		> li {
 			grid-template-columns: 1fr;
-			grid-template-areas: 'when' 'teams' 'meta' 'failure' 'actions';
+			grid-template-areas: 'when' 'teams' 'meta' 'failure' 'suggestion' 'actions';
 		}
 	}
 }
@@ -234,6 +235,29 @@ mat-card-title {
 
 .matches .failure {
 	grid-area: failure;
+}
+
+/* Score releve sur Liquipedia : une proposition, pas encore un resultat. */
+.suggestion {
+	grid-area: suggestion;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	padding: 6px 6px 6px 10px;
+	border-radius: 8px;
+	background: var(--mat-sys-tertiary-container);
+	color: var(--mat-sys-on-tertiary-container);
+	font-size: 0.85rem;
+
+	p {
+		flex: 1;
+		margin: 0;
+	}
+
+	.muted {
+		opacity: 0.8;
+	}
 }
 
 .row-actions {

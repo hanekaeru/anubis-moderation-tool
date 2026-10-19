@@ -205,8 +205,18 @@
 										@if (formatLabel(match); as format) {
 											<span>{{ format }}</span>
 										}
-										@if (match.pandascoreId) {
-											<span class="tag source" matTooltip="Importé depuis PandaScore, modifiable librement">PandaScore</span>
+										@if (match.liquipediaId) {
+											@if (match.liquipediaPage) {
+												<a
+													class="tag source"
+													[href]="liquipediaUrl(match.liquipediaPage)"
+													target="_blank"
+													rel="noopener"
+													matTooltip="Importé depuis Liquipedia, modifiable librement. Ouvre la page du tournoi."
+												>Liquipedia</a>
+											} @else {
+												<span class="tag source" matTooltip="Importé depuis Liquipedia, modifiable librement">Liquipedia</span>
+											}
 										}
 										@if (match.streamUrl) {
 											<a [href]="match.streamUrl" target="_blank" rel="noopener">Stream</a>
@@ -220,6 +230,27 @@
 
 									@if (match.result?.status === 'FAILED' && match.result?.error) {
 										<p class="failure">Annonce refusée par Discord : {{ match.result?.error }}</p>
+									}
+
+									@if (match.suggestion; as s) {
+										<div class="suggestion">
+											<mat-icon>pending_actions</mat-icon>
+											<p>
+												Liquipedia {{ match.finished ? 'indique' : 'donne' }}
+												<strong>{{ s.scoreA }} – {{ s.scoreB }}</strong>
+												@if (s.forfeit) {
+													(forfait)
+												}
+												<span class="muted">· relevé le {{ s.at | frDate }} · à valider, rien n'est publié</span>
+											</p>
+											@if (canWrite) {
+												<button matButton (click)="dismissSuggestion(match)">Ignorer</button>
+												<button matButton="tonal" (click)="openResult(match, true)">
+													<mat-icon>check</mat-icon>
+													Valider
+												</button>
+											}
+										</div>
 									}
 
 									@if (canWrite) {
@@ -274,8 +305,19 @@
 							@if (canImport()) {
 								<button matButton="outlined" [disabled]="busy()" (click)="openImport()">
 									<mat-icon>cloud_download</mat-icon>
-									Importer depuis PandaScore
+									Importer depuis Liquipedia
 								</button>
+								@if (hasImported()) {
+									<button
+										matButton="outlined"
+										[disabled]="busy()"
+										matTooltip="Relève les scores sur Liquipedia et les propose à la validation. Rien n'est publié."
+										(click)="fetchScores()"
+									>
+										<mat-icon>sync</mat-icon>
+										Récupérer les scores
+									</button>
+								}
 							}
 						</div>
 					</mat-card-content>
@@ -328,8 +370,8 @@
 						@if (team.highlighted) {
 							<mat-icon class="star" matTooltip="Équipe suivie">star</mat-icon>
 						}
-						@if (team.pandascoreId) {
-							<span class="tag source" matTooltip="Reliée à PandaScore : reconnue d'un import à l'autre">PandaScore</span>
+						@if (team.liquipediaName) {
+							<span class="tag source" [matTooltip]="'Reliée à Liquipedia (' + team.liquipediaName + ') : reconnue d’un import à l’autre'">Liquipedia</span>
 						}
 						@if (team.archived) {
 							<span class="tag">Archivée</span>

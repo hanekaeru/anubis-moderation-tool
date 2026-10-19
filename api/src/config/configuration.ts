@@ -66,14 +66,15 @@ export interface AppConfig {
 		available: boolean;
 	};
 	/**
-	 * Jeton PandaScore, pour l'import des matchs esport.
+	 * Cle de l'API Liquipedia DB (v3), pour l'import des matchs esport et la
+	 * recuperation des scores.
 	 *
-	 * Dans l'environnement et jamais en base, comme le client Battle.net : il
-	 * donne acces au compte PandaScore de l'association. Absent, l'import est
-	 * annonce indisponible et la saisie manuelle reste entiere.
+	 * Dans l'environnement et jamais en base, comme le client Battle.net : elle
+	 * engage le compte API de l'association. Absente, l'import est annonce
+	 * indisponible et la saisie manuelle reste entiere.
 	 */
-	pandascore: {
-		token: string;
+	liquipedia: {
+		apiKey: string;
 		available: boolean;
 	};
 }
@@ -152,7 +153,7 @@ export function loadConfiguration(): AppConfig {
 	const battlenetClientId = env.BATTLENET_CLIENT_ID?.trim() ?? "";
 	const battlenetClientSecret = env.BATTLENET_CLIENT_SECRET?.trim() ?? "";
 	const battlenetRedirectUri = env.BATTLENET_REDIRECT_URI?.trim() ?? "";
-	const pandascoreToken = env.PANDASCORE_TOKEN?.trim() ?? "";
+	const liquipediaApiKey = env.LIQUIPEDIA_API_KEY?.trim() ?? "";
 
 	return {
 		nodeEnv,
@@ -194,9 +195,9 @@ export function loadConfiguration(): AppConfig {
 				battlenetClientId && battlenetClientSecret && battlenetRedirectUri,
 			),
 		},
-		pandascore: {
-			token: pandascoreToken,
-			available: pandascoreToken.length > 0,
+		liquipedia: {
+			apiKey: liquipediaApiKey,
+			available: liquipediaApiKey.length > 0,
 		},
 	};
 }

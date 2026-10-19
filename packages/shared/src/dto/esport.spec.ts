@@ -6,6 +6,8 @@ import {
 	esportDayKey,
 	esportDayLabel,
 	esportWeekStart,
+	liquipediaPageLabel,
+	liquipediaPageUrl,
 	type EsportEmbedMatch,
 } from "./esport";
 
@@ -25,7 +27,7 @@ function match(overrides: Partial<EsportEmbedMatch> = {}): EsportEmbedMatch {
 		format: "BEST_OF",
 		bestOf: 5,
 		streamUrl: null,
-		pandascoreId: null,
+		liquipediaPage: null,
 		finished: false,
 		scoreA: null,
 		scoreB: null,
@@ -143,10 +145,13 @@ describe("buildEsportWeekEmbeds", () => {
 	});
 
 	it("ne met le pied que sur le dernier embed", () => {
-		const resultat = embeds([match({ region: "EMEA" }), match({ region: "NA", pandascoreId: 1 })]);
+		const resultat = embeds([
+			match({ region: "EMEA" }),
+			match({ region: "NA", liquipediaPage: "Overwatch_Champions_Series/2026/NA/Stage_3" }),
+		]);
 
 		expect(resultat[0]!.footer).toBeUndefined();
-		expect(resultat[1]!.footer!.text).toContain("Source : PandaScore");
+		expect(resultat[1]!.footer!.text).toContain("Liquipedia (CC BY-SA 3.0)");
 	});
 
 	// Ce que toute la region partage n'est ecrit qu'une fois.
@@ -208,12 +213,28 @@ describe("buildEsportWeekEmbeds", () => {
 		expect(field!.value).not.toContain("BO3");
 	});
 
-	// Condition de reutilisation des donnees PandaScore.
-	it("cite PandaScore des qu'un match en vient, et seulement alors", () => {
-		expect(semaine([match()]).footer!.text).not.toContain("PandaScore");
-		expect(semaine([match(), match({ pandascoreId: 1713048 })]).footer!.text).toContain(
-			"Source : PandaScore",
+	// Condition de reutilisation des donnees Liquipedia (CC BY-SA) : la source
+	// est citee, avec le lien de la page du tournoi.
+	it("cite Liquipedia des qu'un match en vient, et seulement alors", () => {
+		expect(semaine([match()]).footer!.text).not.toContain("Liquipedia");
+		expect(semaine([match()]).description).not.toContain("Liquipedia");
+
+		const cite = semaine([match(), match({ liquipediaPage: "Overwatch_Champions_Series/2026/EMEA/Stage_3" })]);
+		expect(cite.footer!.text).toContain("Liquipedia (CC BY-SA 3.0)");
+		expect(cite.description).toContain(
+			"📚 Source : [Liquipedia · OWCS 2026 EMEA Stage 3](https://liquipedia.net/overwatch/Overwatch_Champions_Series/2026/EMEA/Stage_3)",
 		);
+	});
+
+	it("cite dans chaque region la page de son propre tournoi, une seule fois", () => {
+		const emea = { region: "EMEA", liquipediaPage: "Overwatch_Champions_Series/2026/EMEA/Stage_3" };
+		const na = { region: "NA", liquipediaPage: "Overwatch_Champions_Series/2026/NA/Stage_3" };
+		const [embedEmea, embedNa] = embeds([match(emea), match(emea), match(na)]);
+
+		expect(embedEmea!.description!.split("Liquipedia ·").length - 1).toBe(1);
+		expect(embedEmea!.description).toContain("EMEA Stage 3");
+		expect(embedEmea!.description).not.toContain("NA Stage 3");
+		expect(embedNa!.description).toContain("OWCS 2026 NA Stage 3");
 	});
 });
 
@@ -235,10 +256,13 @@ describe("buildEsportResultEmbed", () => {
 		expect(embed.thumbnail).toEqual({ url: "https://exemple.fr/falcons.png" });
 	});
 
-	it("cite PandaScore pour un match importe", () => {
-		const embed = buildEsportResultEmbed({ ...fini, pandascoreId: 1713048 }, SETTINGS);
+	it("cite la page Liquipedia pour un match importe", () => {
+		const embed = buildEsportResultEmbed({ ...fini, liquipediaPage: "Overwatch_Champions_Series/2026/EMEA/Stage_3" }, SETTINGS);
 
-		expect(embed.footer!.text).toContain("Source : PandaScore");
+		expect(embed.footer!.text).toContain("Liquipedia (CC BY-SA 3.0)");
+		expect(embed.description).toContain(
+			"(https://liquipedia.net/overwatch/Overwatch_Champions_Series/2026/EMEA/Stage_3)",
+		);
 	});
 });
 
@@ -260,11 +284,29 @@ describe("journee esport", () => {
 		expect(esportCalendarDay("2026-10-18", "19:00")).toBe("2026-10-18");
 	});
 
-	it("reconnait la region dans un intitule PandaScore", () => {
+	it("reconnait la region dans un intitule ou une page Liquipedia", () => {
 		expect(detectEsportRegion("OWCS North America Stage 3")).toBe("NA");
+		expect(detectEsportRegion("OWCS NA Stage 3 - Regular Season")).toBe("NA");
+		expect(detectEsportRegion("Overwatch_Champions_Series/2026/NA/Stage_3")).toBe("NA");
 		expect(detectEsportRegion("OWCS EMEA Stage 3")).toBe("EMEA");
+		expect(detectEsportRegion("Overwatch_Champions_Series/2026/Asia/Stage_3/Korea")).toBe("KR");
 		expect(detectEsportRegion("OWCS World Finals")).toBe("INTL");
 		expect(detectEsportRegion("Coupe locale")).toBeNull();
+	});
+
+	// « na » se compare mot a mot : il ne doit pas se lire dans « Finals ».
+	it("ne lit pas une region a l'interieur d'un mot", () => {
+		expect(detectEsportRegion("Grand Finals")).toBe("INTL");
+		expect(detectEsportRegion("Banana Cup")).toBeNull();
+	});
+});
+
+describe("pages Liquipedia", () => {
+	it("compose l'adresse et un libelle court de la page d'un Stage", () => {
+		expect(liquipediaPageUrl("Overwatch Champions Series/2026/EMEA/Stage 3")).toBe(
+			"https://liquipedia.net/overwatch/Overwatch_Champions_Series/2026/EMEA/Stage_3",
+		);
+		expect(liquipediaPageLabel("Overwatch_Champions_Series/2026/EMEA/Stage_3")).toBe("OWCS 2026 EMEA Stage 3");
 	});
 });
 

@@ -741,7 +741,7 @@ le dev avec rechargement).
     `esportDayKey`/`esportWeekStart`) : les matchs nord-americains du dimanche
     se jouent a 1 h lundi, heure de Paris, et doivent rester dans la journee du
     dimanche et dans sa semaine — une semaine va donc du lundi 06:00 au lundi
-    suivant 05:59, appel PandaScore compris. Ces matchs portent un 🌙. La
+    suivant 05:59, appel Liquipedia compris. Ces matchs portent un 🌙. La
     saisie suit la meme logique : on choisit une journee puis une heure, et
     « dimanche, 01:00 » est converti en lundi 01:00 (`esportCalendarDay`). Le
     calcul se fait sur l'heure **locale**, jamais en retranchant six heures a
@@ -755,8 +755,9 @@ le dev avec rechargement).
     n'est que sur le premier et le pied que sur le dernier. Chaque region a sa
     couleur, modifiable (`EsportConfig.regionColors`, qui ne garde que les
     ecarts au defaut). Sans aucune region dans la semaine, un embed unique comme
-    avant. A l'import, la region est reconnue dans l'intitule de la serie
-    (`detectEsportRegion`).
+    avant. A l'import, la region est reconnue dans l'intitule et la page du
+    tournoi (`detectEsportRegion`), **mot a mot** : « NA » est un mot-cle de
+    l'Amerique du Nord, et ne doit pas se lire dans « Finals ».
     **Ce que toute la region partage va dans la description de son embed**
     (competition sans le nom de la region, format, stream) : le staff trouvait
     le recapitulatif trop dense quand chaque ligne repetait « OWCS North
@@ -777,40 +778,60 @@ le dev avec rechargement).
     les recapitulatifs publies de la semaine en cours et des suivantes, pas
     ceux du passe.
   Les formats distinguent **BO** et **FT** (`EsportMatch.format`) : l'OWCS se
-  joue en « premier a trois » (FT3), que PandaScore ecrit `match_type:
-  first_to`. `bestOf` reste le nombre de manches dans les deux cas.
+  joue en « premier a trois » (FT3), que Liquipedia ecrit `bestof=5` — il n'a
+  aucune notion de « premier a ». D'ou `EsportConfig.liquipediaFirstTo` (vrai
+  par defaut) : un BO impair importe se lit FT (BO5 -> FT3). `bestOf` reste le
+  nombre de manches du format dans les deux cas.
 
-  **Import PandaScore** (`api/src/esport/esport-import.service.ts`,
-  `pandascore.client.ts`, `features/esport/import-dialog.ts`) : il preremplit,
+  **Import Liquipedia** (`api/src/esport/esport-import.service.ts`,
+  `liquipedia.client.ts`, `features/esport/import-dialog.ts`) : API Liquipedia
+  DB v3 (`/match`, wiki `overwatch`), qui a remplace PandaScore. Il preremplit,
   il ne decide rien. Le proprietaire veut garder la main — **ne jamais ajouter
-  d'appel planifie, de creation de match ni de publication automatique**.
-  Cinq points a garder :
-  - **trois couches distinctes**. Le cache (`pandascore_matches`, la reponse
-    brute) n'est jamais modifie par le staff ; la semaine en recoit des
-    **copies** que le staff corrige librement ; seul un nouvel import, coche
-    explicitement avec ses differences affichees, ecrase une copie — et jamais
-    son score, son spoiler ni ses messages.
-  - **un appel par semaine** : `/ow/matches` filtre par ligue et par
-    `range[scheduled_at]` ramene matchs a venir, en cours et termines. Il part
-    a l'ouverture de l'import d'une semaine jamais recuperee, ou sur
-    « Actualiser », refuse a moins de deux minutes du precedent
-    (`pandascore_fetches`, `PANDASCORE_REFRESH_COOLDOWN_MS`). L'import lui-meme
-    lit le cache, jamais PandaScore : on importe ce qu'on a vu.
-  - **`scheduled_at`, jamais `begin_at`** (l'heure reelle de lancement), et
-    aucun score avant `status: finished` — PandaScore ecrit 0 - 0 d'avance.
-    Le score n'est qu'une **proposition** dans « Terminer », qui reste le seul
-    chemin vers une annonce de resultat.
-  - les equipes se reconnaissent par **`pandascoreId`**, puis par nom pour
-    relier une equipe saisie a la main avant l'import (elle garde son emoji et
-    son logo). Le logo importe est la version **sombre** quand elle existe :
-    Discord est le plus souvent en theme sombre.
-  - **la source est citee** (« Source : PandaScore », `PANDASCORE_SOURCE_LABEL`)
-    au pied de tout embed qui affiche un match importe — condition de
-    reutilisation de leurs donnees. Le rendu le fait seul, a partir de
-    `pandascoreId`.
-  `PANDASCORE_TOKEN` vit dans l'environnement de l'API, jamais en base ; absent,
-  le bouton d'import disparait et la saisie manuelle reste entiere — c'est le
-  chemin qui doit marcher le jour ou la source tombe.
+  d'appel planifie, de creation de match, de score ni de publication
+  automatique**. Six points a garder :
+  - **trois couches distinctes**. Le cache (`liquipedia_matches`, la reponse
+    allegee des manches et des joueurs) n'est jamais modifie par le staff ; la
+    semaine en recoit des **copies** que le staff corrige librement ; seul un
+    nouvel import, coche explicitement avec ses differences affichees, ecrase
+    une copie — et jamais son score, son spoiler ni ses messages.
+  - **un appel par semaine** : `/match` filtre par `series`
+    (`EsportConfig.liquipediaSeries`, « Overwatch Champions Series ») et par
+    date ramene matchs a venir, en cours et termines. Il part a l'ouverture de
+    l'import d'une semaine jamais recuperee, sur « Actualiser » (refuse a moins
+    de deux minutes du precedent, `liquipedia_fetches`,
+    `LIQUIPEDIA_REFRESH_COOLDOWN_MS`) ou sur « Recuperer les scores ». L'import
+    lui-meme lit le cache, jamais Liquipedia : on importe ce qu'on a vu.
+  - les dates de Liquipedia sont en **UTC** (`AAAA-MM-JJ HH:MM:SS`), 1970 pour
+    « sans horaire » ; un score n'existe qu'avec `finished` a 1 **et** le statut
+    `S` des deux adversaires — en cours de match, le score monte carte par
+    carte. `W`/`FF`/`DQ`/`L` disent un forfait : le score propose est alors le
+    minimum qu'il fallait pour gagner.
+  - **« Recuperer les scores » ne pose que des propositions**
+    (`EsportMatch.suggestedScoreA/B`, `suggestedAt`) : ni le score, ni le
+    recapitulatif, ni Discord ne bougent, et `resynchroniser` n'est pas appele.
+    Le staff valide match par match par « Terminer » (prerempli), qui efface la
+    proposition, ou l'ecarte par « Ignorer ». Une proposition n'est posee que
+    si elle apporte quelque chose (match non termine, ou score saisi
+    different). Le bouton rappelle Liquipedia si le cache a plus de deux
+    minutes et se contente du cache sinon : il ne repond jamais par un refus.
+  - les equipes se reconnaissent par **`liquipediaName`** (le nom de
+    l'adversaire, c'est-a-dire sa page), puis par nom affiche pour relier une
+    equipe saisie a la main (elle garde son emoji et son logo). Le logo est la
+    version **sombre** quand elle existe ; Liquipedia ne donne qu'un nom de
+    fichier, l'adresse Commons se reconstruit par le MD5 du nom
+    (`commonsFileUrl`).
+  - **la source est citee avec son lien** (licence CC BY-SA) : la page du
+    **tournoi** (`EsportMatch.liquipediaPage`, champ `parent` — la page du
+    Stage, pas la sous-page « Regular Season » ou vit le match) est liee dans
+    la description de l'embed de sa region et de l'annonce de resultat
+    (`liquipediaSourceLine`), et `LIQUIPEDIA_SOURCE_LABEL` va au pied. Le lien
+    est dans la description parce que **Discord n'affiche aucun lien dans un
+    pied d'embed**.
+  `LIQUIPEDIA_API_KEY` vit dans l'environnement de l'API, jamais en base ;
+  absente, les boutons d'import et de scores disparaissent et la saisie
+  manuelle reste entiere — c'est le chemin qui doit marcher le jour ou la
+  source tombe. La migration qui a quitte PandaScore n'a rien converti : les
+  identifiants des deux sources ne se correspondent pas.
 - **Ce qui n'est PAS rattrape automatiquement.** Le patron `discordSyncedAt`
   couvre sanctions, avertissements (message prive), tickets, anti-raid,
   quarantine (etapes et levees), signalements de compte, concours et messages

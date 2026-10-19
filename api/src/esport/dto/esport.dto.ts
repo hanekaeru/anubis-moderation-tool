@@ -74,20 +74,29 @@ export class UpdateEsportConfigDto {
 	@MaxLength(200)
 	title?: string;
 
-	/** Remplace la liste entiere ; `[]` coupe l'import sans retirer le jeton. */
+	/**
+	 * Remplace la liste entiere ; `[]` coupe l'import sans retirer la cle. Les
+	 * crochets et la barre verticale sont refuses : la valeur part telle quelle
+	 * dans une condition Liquipedia (`[[series::…]]`).
+	 */
 	@IsOptional()
 	@IsArray()
 	@ArrayMaxSize(10)
-	@IsInt({ each: true, message: "Identifiant de ligue PandaScore invalide." })
-	@Min(1, { each: true })
-	pandascoreLeagueIds?: number[];
+	@IsString({ each: true })
+	@MaxLength(200, { each: true })
+	@Matches(/^[^[\]|]+$/, { each: true, message: "Nom de série Liquipedia invalide." })
+	liquipediaSeries?: string[];
 
 	@IsOptional()
 	@IsArray()
 	@ArrayMaxSize(20)
 	@IsString({ each: true })
 	@MaxLength(60, { each: true })
-	pandascoreSeries?: string[];
+	liquipediaKeywords?: string[];
+
+	@IsOptional()
+	@IsBoolean()
+	liquipediaFirstTo?: boolean;
 
 	/** `{ code de region: couleur }` ; codes et valeurs verifies par le service. */
 	@IsOptional()
@@ -99,9 +108,10 @@ export class EsportImportDtoIn {
 	@IsArray()
 	@ArrayMinSize(1, { message: "Choisissez au moins un match à importer." })
 	@ArrayMaxSize(MAX_ESPORT_MATCHES_PER_WEEK)
-	@IsInt({ each: true })
-	@Min(1, { each: true })
-	ids!: number[];
+	@IsString({ each: true })
+	@MinLength(1, { each: true })
+	@MaxLength(100, { each: true })
+	ids!: string[];
 }
 
 export class EsportTeamDtoIn {
