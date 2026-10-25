@@ -884,6 +884,29 @@ le dev avec rechargement).
   (`packages/shared/src/duration.ts`), qui **refuse toute saisie qu'il ne
   comprend pas entierement** : poser un rappel a une heure inattendue est pire
   que le refuser. Livraison en message prive, repli sur le salon d'origine.
+- **OWdle** (`/owdle essai|stats|classement`, `/owdle_salon`,
+  `src/collectors/owdle.ts`, `packages/shared/src/owdle.ts`) : un heros a
+  retrouver par jour et par serveur, le jour commencant a minuit heure de
+  Paris. Quatre points a garder :
+  - **la liste des heros et la comparaison vivent dans `@anubis/shared`**,
+    meme raison que `renderXpLevelUpMessage`. Une `key` stockee en base ne se
+    renomme jamais : `heroDuJour` refuse une cle disparue plutot que de changer
+    la reponse en pleine journee. Le test « aucun heros indiscernable » a deja
+    servi — Cassidy et Soldat : 76 avaient les memes attributs, d'ou
+    l'affiliation « Autre » de Cassidy. Les heros de 2026 restent a ajouter.
+  - **le heros du jour est tire et enregistre** (`owdle_days`), jamais deduit
+    de la date : ajouter un heros a la liste rebattrait sinon le tirage du jour
+    en cours. Le tirage ecarte les heros des 30 derniers jours.
+  - **tout ce qui montre la partie est ephemere** ; seule la victoire est
+    annoncee publiquement, avec une grille sans nom ni valeur. L'annonce part
+    a la victoire posee par un `updateMany` filtre sur `solvedAt: null`, lu a
+    son `count` — deux validations simultanees n'en font qu'une.
+  - `/owdle_salon` est une **commande a part** et non une sous-commande :
+    Discord ne regle les permissions qu'a l'echelle d'une commande entiere.
+  C'est aussi la premiere commande a **autocompletion** : `Command.autocomplete`
+  est route par `interactionCreate.ts`, sans cooldown (une requete par frappe).
+  Une suggestion n'engage rien cote client, d'ou `resolveOwdleHero` a la
+  reception.
 - **`/clear`** : `bulkDelete` refuse les messages de plus de 14 jours, la
   commande le dit plutot que de laisser remonter une erreur opaque. Avec
   l'option `membre`, elle relit 100 messages pour en trouver N de cette

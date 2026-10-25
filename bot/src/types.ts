@@ -1,4 +1,5 @@
 import type {
+	AutocompleteInteraction,
 	ChatInputCommandInteraction,
 	Client,
 	ClientEvents,
@@ -17,6 +18,12 @@ export interface Command {
 		| SlashCommandOptionsOnlyBuilder
 		| SlashCommandSubcommandsOnlyBuilder;
 	execute(interaction: ChatInputCommandInteraction): Promise<void>;
+	/**
+	 * Suggestions d'une option declaree avec `setAutocomplete(true)`. Discord
+	 * n'attend la reponse que trois secondes : rien d'autre qu'une recherche en
+	 * memoire ne doit s'y faire.
+	 */
+	autocomplete?(interaction: AutocompleteInteraction): Promise<void>;
 	cooldown?: number;
 }
 
