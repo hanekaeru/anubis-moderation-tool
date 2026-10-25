@@ -221,6 +221,9 @@ model Guild {
   esportWeeks            EsportWeek[]
   moderationPoints       ModerationPointsConfig?
   staffReminders         StaffReminder[]
+  owdleConfig            OwdleConfig?
+  owdleDays              OwdleDay[]
+  owdleGames             OwdleGame[]
 
   @@map("guilds")
 }
@@ -270,6 +273,7 @@ model DiscordUser {
   attachmentsUploaded     ModerationAttachment[]       @relation("AttachmentDiscordUploader")
   giveawayEntries         GiveawayEntry[]
   staffReminders          StaffReminder[]
+  owdleGames              OwdleGame[]
 
   @@index([username])
   @@map("discord_users")
@@ -2070,4 +2074,69 @@ model StaffReminder {
   /// non encore livres.
   @@index([deliveredAt, remindAt])
   @@map("staff_reminders")
+}
+
+// ---------------------------------------------------------------------------
+// OWdle
+// ---------------------------------------------------------------------------
+
+/// Reglage de l'OWdle, une ligne par serveur.
+///
+/// L'absence de ligne ne coupe rien : l'annonce part alors dans le salon ou la
+/// partie a ete gagnee. Le jeu est ouvert des que la commande est publiee ; le
+/// fermer se fait depuis les reglages d'integration de Discord.
+model OwdleConfig {
+  guildId   String   @id @map("guild_id") @db.VarChar(20)
+  /// Salon des annonces de victoire. `null` = le salon de la partie.
+  channelId String?  @map("channel_id") @db.VarChar(20)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("owdle_config")
+}
+
+/// Heros du jour, tire a la premiere partie de la journee.
+///
+/// Tire et **enregistre** plutot que deduit de la date : un calcul sur la date
+/// changerait de reponse en pleine journee des qu'un heros est ajoute a la
+/// liste, et l'historique permet d'ecarter les heros recents du tirage.
+model OwdleDay {
+  guildId   String   @map("guild_id") @db.VarChar(20)
+  /// Jour a l'heure de Paris (`OWDLE_TIME_ZONE`).
+  day       DateTime @db.Date
+  /// Cle de `OWDLE_HEROES`, jamais le nom affiche.
+  heroKey   String   @map("hero_key") @db.VarChar(40)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, day])
+  @@map("owdle_days")
+}
+
+/// Partie d'un membre pour un jour donne.
+///
+/// En base et non en memoire : une partie commencee doit survivre a un
+/// redeploiement du bot, meme raison que les rappels du staff.
+model OwdleGame {
+  guildId  String    @map("guild_id") @db.VarChar(20)
+  userId   String    @map("user_id") @db.VarChar(20)
+  day      DateTime  @db.Date
+  /// Cles des heros proposes, dans l'ordre.
+  guesses  String[]  @default([])
+  /// Pose une seule fois, par une mise a jour filtree sur `solvedAt: null` :
+  /// c'est ce qui garantit une seule annonce par victoire.
+  solvedAt DateTime? @map("solved_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId, day])
+  /// Rang du jour et classement du mois.
+  @@index([guildId, day])
+  @@map("owdle_games")
 }
