@@ -2089,11 +2089,107 @@ model OwdleConfig {
   guildId   String   @id @map("guild_id") @db.VarChar(20)
   /// Salon des annonces de victoire. `null` = le salon de la partie.
   channelId String?  @map("channel_id") @db.VarChar(20)
+  /// Experience gagnee a la victoire, indexee par le nombre d'essais : la
+  /// premiere valeur pour une victoire du premier coup, la derniere pour tout
+  /// essai au-dela de la liste. Memes valeurs que `OWDLE_DEFAULT_XP_BY_GUESSES`.
+  xpByGuesses Int[]  @default([100, 80, 60, 50, 40, 30]) @map("xp_by_guesses")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@map("owdle_config")
+}
+
+enum OwdleRole {
+  TANK
+  DAMAGE
+  SUPPORT
+}
+
+/// Sous-role du jeu (saison 1 de 2026). Chacun appartient a un seul role :
+/// `OWDLE_SUB_ROLE_ROLE` (`@anubis/shared`) fait foi, l'API le verifie.
+enum OwdleSubRole {
+  BRUISER
+  INITIATOR
+  STALWART
+  FLANKER
+  RECON
+  SHARPSHOOTER
+  SPECIALIST
+  MEDIC
+  SURVIVOR
+  TACTICIAN
+}
+
+enum OwdleSpecies {
+  HUMAN
+  OMNIC
+  ANIMAL
+}
+
+enum OwdleRegion {
+  EUROPE
+  AMERICAS
+  ASIA
+  AFRICA
+  OCEANIA
+  SPACE
+  UNKNOWN
+}
+
+/// Affiliations proposees pour les heros, gerees depuis le dashboard.
+///
+/// Une liste et non un texte libre : la case 🚩 compare a l'identique, et
+/// « Overwatch » saisi « overwatch » sur un heros donnerait un 🟥 a tort sans
+/// que personne ne le voie. Le staff ajoute ce qu'il veut, puis choisit dans
+/// la liste.
+///
+/// La `key` est tiree du libelle a la creation et ne bouge plus ; renommer ne
+/// touche que `label`, et vaut pour tous les heros d'un coup. Une affiliation
+/// portee par un heros ne se supprime pas (`ON DELETE RESTRICT`).
+model OwdleAffiliation {
+  key   String @id @db.VarChar(40)
+  label String @unique @db.VarChar(60)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  heroes OwdleHero[]
+
+  @@map("owdle_affiliations")
+}
+
+/// Heros jouables a l'OWdle, modifiables depuis le dashboard.
+///
+/// **Commune a tous les serveurs** : ce sont des faits du jeu, pas un reglage
+/// de communaute. La migration qui l'a creee l'a pre-remplie.
+///
+/// Un heros ne se supprime pas, il se desactive : sa cle vit dans
+/// `owdle_days.hero_key` et dans les essais de `owdle_games`, et une partie
+/// passee doit pouvoir se relire. Desactive, il n'est plus ni tire ni
+/// proposable.
+model OwdleHero {
+  /// Identifiant stable, choisi a la creation et jamais modifie.
+  key         String           @id @db.VarChar(40)
+  /// Nom affiche, celui du client francais.
+  name        String           @unique @db.VarChar(60)
+  role        OwdleRole
+  subRole     OwdleSubRole     @map("sub_role")
+  species     OwdleSpecies
+  /// Pays ou lieu d'origine, compare tel quel.
+  origin      String           @db.VarChar(60)
+  /// Sert au 🟨 : meme continent, pays different.
+  region      OwdleRegion
+  affiliationKey String       @map("affiliation_key") @db.VarChar(40)
+  releaseYear Int              @map("release_year")
+  enabled     Boolean          @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  affiliation OwdleAffiliation @relation(fields: [affiliationKey], references: [key], onDelete: Restrict)
+
+  @@map("owdle_heroes")
 }
 
 /// Heros du jour, tire a la premiere partie de la journee.
@@ -2105,7 +2201,7 @@ model OwdleDay {
   guildId   String   @map("guild_id") @db.VarChar(20)
   /// Jour a l'heure de Paris (`OWDLE_TIME_ZONE`).
   day       DateTime @db.Date
-  /// Cle de `OWDLE_HEROES`, jamais le nom affiche.
+  /// Cle de `owdle_heroes`, jamais le nom affiche.
   heroKey   String   @map("hero_key") @db.VarChar(40)
   createdAt DateTime @default(now()) @map("created_at")
 

@@ -158,6 +158,12 @@ const NAV_SECTIONS: NavSection[] = [
         permissions: [Permission.XP_READ],
       },
       {
+        path: '/owdle',
+        label: 'OWdle',
+        icon: 'quiz',
+        permissions: [Permission.OWDLE_READ],
+      },
+      {
         path: '/esport',
         label: 'Esport',
         icon: 'sports_esports',

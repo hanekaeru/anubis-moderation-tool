@@ -71,6 +71,12 @@ export const Permission = {
 	EMBEDS_WRITE: "embeds:write",
 	XP_READ: "xp:read",
 	XP_MANAGE: "xp:manage",
+	OWDLE_READ: "owdle:read",
+	/**
+	 * Corriger les heros et regler l'experience gagnee. Le bareme pese sur les
+	 * niveaux de tout le serveur : meme rang que `XP_MANAGE`.
+	 */
+	OWDLE_MANAGE: "owdle:manage",
 	ESPORT_READ: "esport:read",
 	/** Composer les semaines, gerer les equipes, envoyer, saisir les scores. */
 	ESPORT_WRITE: "esport:write",
@@ -105,6 +111,9 @@ const VIEWER_PERMISSIONS: Permission[] = [
 	// Le classement d'experience ne dit rien de sensible : c'est la meme
 	// information que `/rank` rend deja publique sur le serveur.
 	Permission.XP_READ,
+	// La page ne montre jamais le heros du jour : seulement la liste et le
+	// bareme, que tout joueur finit par connaitre.
+	Permission.OWDLE_READ,
 	Permission.ESPORT_READ,
 ];
 
@@ -175,6 +184,7 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	// Les paliers de recompense modifient les roles de tout le serveur des que
 	// le bot repasse : un reglage structurant, au meme titre que l'automod.
 	Permission.XP_MANAGE,
+	Permission.OWDLE_MANAGE,
 	Permission.ESPORT_MANAGE,
 ];
 

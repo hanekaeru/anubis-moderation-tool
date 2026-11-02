@@ -1,0 +1,151 @@
+/* --- Bareme --------------------------------------------------------------- */
+
+.steps {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: var(--space-3) var(--space-4);
+
+	> li {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+	}
+}
+
+.step-label {
+	min-width: 112px;
+	font-variant-numeric: tabular-nums;
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.9rem;
+}
+
+.step-field {
+	width: 120px;
+}
+
+.channel {
+	width: 100%;
+	max-width: 420px;
+}
+
+.aide {
+	margin: var(--space-3) 0 0;
+	font-size: 0.85rem;
+	color: var(--mat-sys-on-surface-variant);
+}
+
+.sous-titre {
+	margin: var(--space-5) 0 var(--space-2);
+	font-size: 0.95rem;
+	font-weight: 500;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	margin-top: var(--space-3);
+}
+
+/* --- Heros ---------------------------------------------------------------- */
+
+.toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-3) var(--space-4);
+	margin-bottom: var(--space-4);
+
+	.search {
+		width: 220px;
+	}
+}
+
+.warn {
+	margin: 0 0 var(--space-3);
+	padding: 8px 10px;
+	border-radius: 8px;
+	background: var(--mat-sys-error-container);
+	color: var(--mat-sys-on-error-container);
+	font-size: 0.85rem;
+}
+
+.hero-name {
+	font-weight: 500;
+}
+
+.key {
+	display: block;
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.78rem;
+}
+
+.tag {
+	display: inline-block;
+	margin-left: var(--space-2);
+	padding: 1px 8px;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	background: var(--mat-sys-surface-variant);
+}
+
+td.disabled .hero-name {
+	color: var(--mat-sys-on-surface-variant);
+	text-decoration: line-through;
+}
+
+/* --- Affiliations --------------------------------------------------------- */
+
+.affiliation-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: var(--space-2) var(--space-4);
+
+	> li {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: 4px 4px 4px 14px;
+		border: 1px solid var(--mat-sys-outline-variant);
+		border-radius: 12px;
+	}
+}
+
+.affiliation-label {
+	font-weight: 500;
+}
+
+.count {
+	color: var(--mat-sys-on-surface-variant);
+	font-size: 0.78rem;
+}
+
+.spacer {
+	flex: 1;
+}
+
+.danger-text {
+	color: var(--mat-sys-error);
+}
+
+.nowrap {
+	white-space: nowrap;
+}
+
+.empty-state {
+	padding: 24px;
+	text-align: center;
+	color: var(--mat-sys-on-surface-variant);
+}
+
+@media (max-width: 600px) {
+	.toolbar .search {
+		width: 100%;
+	}
+}

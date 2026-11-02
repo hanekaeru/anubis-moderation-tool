@@ -1,0 +1,268 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>OWdle</h1>
+			<p class="subtitle">
+				Les héros que le bot fait deviner, et l'expérience gagnée en trouvant. Le héros du jour
+				n'est affiché nulle part ici : l'équipe joue aussi.
+			</p>
+		</div>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	<mat-card appearance="outlined" [formGroup]="configForm">
+		<mat-card-header>
+			<mat-card-title>Expérience à la victoire</mat-card-title>
+			<mat-card-subtitle>
+				Créditée une seule fois par jour et par membre, au moment où il trouve. Elle compte pour
+				les niveaux et les paliers de récompense comme celle des messages.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<ol class="steps" formArrayName="xpByGuesses">
+				@for (step of xpSteps.controls; track $index) {
+					<li>
+						<span class="step-label">{{ stepLabel($index) }}</span>
+						<mat-form-field class="step-field" subscriptSizing="dynamic">
+							<input
+								matInput
+								type="number"
+								[formControlName]="$index"
+								min="0"
+								[max]="maxXp"
+								[attr.aria-label]="'XP pour ' + stepLabel($index)"
+							/>
+							<span matTextSuffix>XP</span>
+							@if (step.invalid) {
+								<mat-error>Entre 0 et {{ maxXp }}.</mat-error>
+							}
+						</mat-form-field>
+					</li>
+				}
+			</ol>
+
+			<p class="aide">
+				La dernière ligne vaut pour tous les essais au-delà. Mettre 0 pour ne rien donner.
+			</p>
+
+			<div class="actions" *appHasPermission="Permission.OWDLE_MANAGE">
+				<button
+					matButton
+					type="button"
+					[disabled]="xpSteps.length >= maxSteps"
+					(click)="addStep()"
+				>
+					<mat-icon>add</mat-icon>
+					Ajouter une ligne
+				</button>
+				<button matButton type="button" [disabled]="xpSteps.length <= 1" (click)="removeStep()">
+					<mat-icon>remove</mat-icon>
+					Retirer la dernière
+				</button>
+			</div>
+
+			<h3 class="sous-titre">Annonce des victoires</h3>
+			<mat-form-field class="channel">
+				<mat-label>Identifiant du salon</mat-label>
+				<input matInput formControlName="channelId" placeholder="Vide : le salon de la partie" />
+				<mat-hint>Même réglage que la commande /owdle_salon.</mat-hint>
+				@if (configForm.controls.channelId.hasError('pattern')) {
+					<mat-error>Identifiant de salon attendu (17 à 20 chiffres).</mat-error>
+				}
+			</mat-form-field>
+
+			<div class="actions" *appHasPermission="Permission.OWDLE_MANAGE">
+				<button
+					matButton="filled"
+					type="button"
+					[disabled]="savingConfig() || configForm.pristine"
+					(click)="saveConfig()"
+				>
+					Enregistrer
+				</button>
+			</div>
+		</mat-card-content>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Héros</mat-card-title>
+			<mat-card-subtitle>
+				{{ activeCount() }} actif(s) sur {{ heroes().length }}. Une correction s'applique d'ici
+				30 secondes, parties en cours comprises. Un héros ne se supprime pas : il se désactive,
+				pour que les parties passées restent lisibles.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			@for (group of twins(); track group) {
+				<!-- Six cases vertes sans etre le heros du jour : jouable, mais la
+				     grille ne peut plus aider le joueur a choisir entre eux. -->
+				<p class="warn">Indiscernables dans la grille : {{ group }}.</p>
+			}
+
+			<div class="toolbar">
+				<mat-button-toggle-group
+					[value]="roleFilter()"
+					(change)="setRoleFilter($event.value)"
+					aria-label="Filtrer par rôle"
+				>
+					<mat-button-toggle value="ALL">Tous</mat-button-toggle>
+					@for (role of roles; track role) {
+						<mat-button-toggle [value]="role">{{ roleLabels[role] }}</mat-button-toggle>
+					}
+				</mat-button-toggle-group>
+
+				<mat-form-field class="search" subscriptSizing="dynamic">
+					<mat-label>Rechercher</mat-label>
+					<input matInput [value]="search()" (input)="onSearch($event)" />
+				</mat-form-field>
+
+				<mat-slide-toggle [checked]="showDisabled()" (change)="showDisabled.set($event.checked)">
+					Afficher les désactivés
+				</mat-slide-toggle>
+
+				<span class="spacer"></span>
+
+				<button
+					*appHasPermission="Permission.OWDLE_MANAGE"
+					matButton="filled"
+					type="button"
+					(click)="openHero(null)"
+				>
+					<mat-icon>add</mat-icon>
+					Ajouter un héros
+				</button>
+			</div>
+
+			<div class="table-scroll">
+				<table mat-table [dataSource]="visibleHeroes()">
+					<ng-container matColumnDef="name">
+						<th mat-header-cell *matHeaderCellDef>Héros</th>
+						<td mat-cell *matCellDef="let hero" [class.disabled]="!hero.enabled">
+							<span class="hero-name">{{ hero.name }}</span>
+							@if (!hero.enabled) {
+								<span class="tag">Désactivé</span>
+							}
+							<span class="key">{{ hero.key }}</span>
+						</td>
+					</ng-container>
+
+					<ng-container matColumnDef="role">
+						<th mat-header-cell *matHeaderCellDef>Rôle</th>
+						<td mat-cell *matCellDef="let hero" class="nowrap">{{ roleLabels[hero.role] }}</td>
+					</ng-container>
+
+					<ng-container matColumnDef="subRole">
+						<th mat-header-cell *matHeaderCellDef>Sous-rôle</th>
+						<td mat-cell *matCellDef="let hero" class="nowrap">{{ subRoleLabels[hero.subRole] }}</td>
+					</ng-container>
+
+					<ng-container matColumnDef="species">
+						<th mat-header-cell *matHeaderCellDef>Espèce</th>
+						<td mat-cell *matCellDef="let hero" class="nowrap">{{ speciesLabels[hero.species] }}</td>
+					</ng-container>
+
+					<ng-container matColumnDef="origin">
+						<th mat-header-cell *matHeaderCellDef>Origine</th>
+						<td mat-cell *matCellDef="let hero">
+							{{ hero.origin }}
+							<span class="key">{{ regionLabels[hero.region] }}</span>
+						</td>
+					</ng-container>
+
+					<ng-container matColumnDef="affiliation">
+						<th mat-header-cell *matHeaderCellDef>Affiliation</th>
+						<td mat-cell *matCellDef="let hero" class="nowrap">{{ hero.affiliation.label }}</td>
+					</ng-container>
+
+					<ng-container matColumnDef="releaseYear">
+						<th mat-header-cell *matHeaderCellDef>Sortie</th>
+						<td mat-cell *matCellDef="let hero" class="nowrap">{{ hero.releaseYear }}</td>
+					</ng-container>
+
+					<ng-container matColumnDef="actions">
+						<th mat-header-cell *matHeaderCellDef></th>
+						<td mat-cell *matCellDef="let hero" class="nowrap">
+							<button
+								*appHasPermission="Permission.OWDLE_MANAGE"
+								matIconButton
+								type="button"
+								matTooltip="Modifier"
+								[attr.aria-label]="'Modifier ' + hero.name"
+								(click)="openHero(hero)"
+							>
+								<mat-icon>edit</mat-icon>
+							</button>
+						</td>
+					</ng-container>
+
+					<tr mat-header-row *matHeaderRowDef="columns"></tr>
+					<tr mat-row *matRowDef="let row; columns: columns"></tr>
+				</table>
+			</div>
+
+			@if (!loading() && visibleHeroes().length === 0) {
+				<p class="empty-state">Aucun héros ne correspond.</p>
+			}
+		</mat-card-content>
+	</mat-card>
+
+	<mat-card appearance="outlined">
+		<mat-card-header>
+			<mat-card-title>Affiliations</mat-card-title>
+			<mat-card-subtitle>
+				Les seules valeurs proposées dans la fiche d'un héros. Renommer une affiliation la
+				renomme pour tous ses héros ; elle ne peut être supprimée que si aucun ne la porte.
+			</mat-card-subtitle>
+		</mat-card-header>
+
+		<mat-card-content>
+			<ul class="affiliation-list">
+				@for (affiliation of affiliations(); track affiliation.key) {
+					<li>
+						<span class="affiliation-label">{{ affiliation.label }}</span>
+						<span class="count">{{ affiliation.heroCount }} héros</span>
+						<span class="spacer"></span>
+						<ng-container *appHasPermission="Permission.OWDLE_MANAGE">
+							<button
+								matIconButton
+								type="button"
+								matTooltip="Renommer"
+								[attr.aria-label]="'Renommer ' + affiliation.label"
+								(click)="openAffiliation(affiliation)"
+							>
+								<mat-icon>edit</mat-icon>
+							</button>
+							<!-- Desactive plutot que masque : un bouton absent ne dirait
+							     pas pourquoi on ne peut pas supprimer. -->
+							<span [matTooltip]="deleteTooltip(affiliation)">
+								<button
+									matIconButton
+									type="button"
+									class="danger-text"
+									[disabled]="affiliation.heroCount > 0"
+									[attr.aria-label]="'Supprimer ' + affiliation.label"
+									(click)="removeAffiliation(affiliation)"
+								>
+									<mat-icon>delete</mat-icon>
+								</button>
+							</span>
+						</ng-container>
+					</li>
+				}
+			</ul>
+
+			<div class="actions" *appHasPermission="Permission.OWDLE_MANAGE">
+				<button matButton="filled" type="button" (click)="openAffiliation(null)">
+					<mat-icon>add</mat-icon>
+					Ajouter une affiliation
+				</button>
+			</div>
+		</mat-card-content>
+	</mat-card>
+</div>

@@ -431,8 +431,9 @@ le dev avec rechargement).
   - **le role mentionne recoit l'acces au salon du ticket**, en plus de ceux
     qui portent `ModerateMembers`. Appeler une equipe dans un salon qu'elle ne
     voit pas serait pire que ne pas l'appeler.
-  - `LOG_MENTION_MEMBERS` est **le seul reglage du depot dont le defaut ne
-    reproduit pas le comportement anterieur** : absent, il vaut « ne pas
+  - `LOG_MENTION_MEMBERS` est **l'un des deux reglages du depot dont le defaut
+    ne reproduit pas le comportement anterieur** (l'autre est le bareme d'XP de
+    l'OWdle, voir plus bas) : absent, il vaut « ne pas
     mentionner ». Un salon vocal anime produit une entree par arrivee et par
     depart, et l'identifiant reste ecrit dans les deux cas — c'est lui qui
     permet de retrouver un compte renomme, et il survit au depart du membre.
@@ -887,16 +888,41 @@ le dev avec rechargement).
 - **OWdle** (`/owdle essai|stats|classement`, `/owdle_salon`,
   `src/collectors/owdle.ts`, `packages/shared/src/owdle.ts`) : un heros a
   retrouver par jour et par serveur, le jour commencant a minuit heure de
-  Paris. Quatre points a garder :
-  - **la liste des heros et la comparaison vivent dans `@anubis/shared`**,
-    meme raison que `renderXpLevelUpMessage`. Une `key` stockee en base ne se
-    renomme jamais : `heroDuJour` refuse une cle disparue plutot que de changer
-    la reponse en pleine journee. Deux heros peuvent avoir les memes attributs
-    (Genji et Hanzo) : la victoire se lit sur la `key`, une ligne toute verte
-    qui n'est pas le heros du jour coute un essai et ne laisse que l'autre. Le
-    test d'indiscernabilite n'accepte que les jumeaux **declares** — il a deja
-    attrape une paire accidentelle (Cassidy et Soldat : 76). Le role suit le jeu **actuel** :
-    Sombra est passee soutien a la saison 5 de 2026, sa ligne avec elle.
+  Paris. Six points a garder :
+  - **les heros vivent en base** (`owdle_heroes`, commune a tous les serveurs,
+    pre-remplie par sa migration) et se corrigent depuis la page OWdle du
+    dashboard (`api/src/owdle/`, `features/owdle/`). La comparaison reste dans
+    `@anubis/shared`, dont les fonctions **recoivent la liste en parametre** ;
+    le bot la relit avec un cache de 30s (l'autocompletion l'interroge a chaque
+    frappe). Une `key` ne se renomme ni ne se supprime jamais — elle vit dans
+    `owdle_days` et dans les essais : un heros **se desactive** (ni tire, ni
+    proposable, toujours lisible), et l'API refuse de desactiver le dernier
+    actif, sans quoi le tirage du lendemain echouerait. Un heros desactive en
+    cours de journee reste le heros du jour. Deux heros aux memes valeurs
+    restent jouables (la victoire se lit sur la `key`) ; le dashboard les
+    signale (`findOwdleTwins`). Le role suit le jeu **actuel** : Sombra est
+    passee soutien a la saison 5 de 2026.
+  - **le sous-role a remplace le type d'arme** : la moitie des heros
+    melangeaient deux types, et la case se jouait sur une convention
+    invisible. Chaque sous-role appartient a un seul role
+    (`OWDLE_SUB_ROLE_ROLE`), verifie par l'API **sur la fiche complete** —
+    changer le role sans le sous-role doit etre refuse aussi. Les libelles
+    sont ceux du client francais de Blizzard (« Colosse », « Fine gachette »…).
+  - **les affiliations sont une liste geree depuis le dashboard**
+    (`owdle_affiliations`), pas un texte libre : la case 🚩 compare a
+    l'identique, et une faute de casse donnerait un 🟥 a tort sans que
+    personne ne le voie. Le heros la designe par sa `key`, tiree du libelle a
+    la creation et jamais modifiee ; renommer ne touche que le `label` et vaut
+    pour tous ses heros. L'API refuse deux libelles qui ne different que par
+    la casse ou les accents, et la suppression d'une affiliation encore portee
+    (`ON DELETE RESTRICT`, doublee d'un 409 lisible).
+  - **trouver rapporte de l'experience** (`owdle_config.xp_by_guesses`, indexe
+    par le nombre d'essais, la derniere valeur valant pour tout essai au-dela).
+    Credite **apres** le `count` de la victoire, donc une seule fois ; une
+    erreur d'XP ne fait jamais perdre la victoire. Une montee de niveau suit le
+    meme chemin que celle des messages (`xpLevelUp.ts` : paliers puis
+    annonce). Exception assumee a la regle des defauts : sans ligne, le bareme
+    par defaut **donne** de l'XP — le proprietaire l'a demande.
   - **le heros du jour est tire et enregistre** (`owdle_days`), jamais deduit
     de la date : ajouter un heros a la liste rebattrait sinon le tirage du jour
     en cours. Le tirage ecarte les heros des 30 derniers jours.

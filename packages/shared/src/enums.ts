@@ -173,6 +173,45 @@ export const XpAnnouncementMode = {
 export type XpAnnouncementMode =
 	(typeof XpAnnouncementMode)[keyof typeof XpAnnouncementMode];
 
+export const OwdleRole = {
+	TANK: "TANK",
+	DAMAGE: "DAMAGE",
+	SUPPORT: "SUPPORT",
+} as const;
+export type OwdleRole = (typeof OwdleRole)[keyof typeof OwdleRole];
+
+export const OwdleSubRole = {
+	BRUISER: "BRUISER",
+	INITIATOR: "INITIATOR",
+	STALWART: "STALWART",
+	FLANKER: "FLANKER",
+	RECON: "RECON",
+	SHARPSHOOTER: "SHARPSHOOTER",
+	SPECIALIST: "SPECIALIST",
+	MEDIC: "MEDIC",
+	SURVIVOR: "SURVIVOR",
+	TACTICIAN: "TACTICIAN",
+} as const;
+export type OwdleSubRole = (typeof OwdleSubRole)[keyof typeof OwdleSubRole];
+
+export const OwdleSpecies = {
+	HUMAN: "HUMAN",
+	OMNIC: "OMNIC",
+	ANIMAL: "ANIMAL",
+} as const;
+export type OwdleSpecies = (typeof OwdleSpecies)[keyof typeof OwdleSpecies];
+
+export const OwdleRegion = {
+	EUROPE: "EUROPE",
+	AMERICAS: "AMERICAS",
+	ASIA: "ASIA",
+	AFRICA: "AFRICA",
+	OCEANIA: "OCEANIA",
+	SPACE: "SPACE",
+	UNKNOWN: "UNKNOWN",
+} as const;
+export type OwdleRegion = (typeof OwdleRegion)[keyof typeof OwdleRegion];
+
 export const VoicePlacementMode = {
 	FIXED_CATEGORY: "FIXED_CATEGORY",
 	RANK_CATEGORY: "RANK_CATEGORY",
