@@ -181,7 +181,10 @@ export interface OwdleComparison {
 	affiliation: OwdleMatch;
 	releaseYear: OwdleYearMatch;
 	weapon: OwdleMatch;
-	/** Tout correspond : c'est le heros du jour. */
+	/**
+	 * C'est le heros du jour. Se lit sur la cle, pas sur les attributs : deux
+	 * jumeaux (Genji et Hanzo) ont six cases vertes sans etre le meme heros.
+	 */
 	solved: boolean;
 }
 

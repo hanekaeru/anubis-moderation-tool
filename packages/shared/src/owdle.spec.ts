@@ -24,16 +24,18 @@ describe("OWDLE_HEROES", () => {
 		expect(new Set(OWDLE_HEROES.map((h) => h.name)).size).toBe(OWDLE_HEROES.length);
 	});
 
-	it("n'a aucun heros indiscernable d'un autre", () => {
-		// Deux heros aux attributs identiques rendraient la partie injouable :
-		// aucun essai ne permettrait de les departager.
+	it("n'a de heros indiscernables que les jumeaux declares", () => {
+		// Des jumeaux restent jouables — une ligne toute verte qui n'est pas le
+		// heros du jour coute un essai, et il ne reste que l'autre. La liste
+		// existe pour qu'une faute de frappe ne fabrique pas une paire en silence.
+		const JUMEAUX = [["genji", "hanzo"]];
 		const signature = (h: (typeof OWDLE_HEROES)[number]) =>
 			[h.role, h.species, h.origin, h.affiliation, h.releaseYear, h.weapon].join("|");
-		const vus = new Map<string, string>();
+		const groupes = new Map<string, string[]>();
 		for (const h of OWDLE_HEROES) {
-			expect([vus.get(signature(h)), h.key]).toEqual([undefined, h.key]);
-			vus.set(signature(h), h.key);
+			groupes.set(signature(h), [...(groupes.get(signature(h)) ?? []), h.key]);
 		}
+		expect([...groupes.values()].filter((keys) => keys.length > 1)).toEqual(JUMEAUX);
 	});
 });
 
@@ -44,6 +46,14 @@ describe("compareOwdleGuess", () => {
 		expect(renderOwdleShareGrid([c])).toBe("🟩🟩🟩🟩🟩🟩");
 	});
 
+	it("ne donne pas la victoire a un jumeau", () => {
+		// Six cases vertes, mais ce n'est pas le heros du jour : la victoire se
+		// lit sur l'identite, jamais sur les attributs.
+		const c = compareOwdleGuess(hero("genji"), hero("hanzo"));
+		expect(renderOwdleShareGrid([c])).toBe("🟩🟩🟩🟩🟩🟩");
+		expect(c.solved).toBe(false);
+	});
+
 	it("marque en partiel une origine du meme continent", () => {
 		// Ashe (Etats-Unis) contre Sojourn (Canada) : meme continent.
 		expect(compareOwdleGuess(hero("ashe"), hero("sojourn")).origin).toBe("PARTIAL");
@@ -52,8 +62,8 @@ describe("compareOwdleGuess", () => {
 	});
 
 	it("ne rapproche pas deux origines inconnues", () => {
-		expect(compareOwdleGuess(hero("bastion"), hero("ramattra")).origin).toBe("EXACT");
-		expect(compareOwdleGuess(hero("echo"), hero("dva")).origin).toBe("WRONG");
+		expect(compareOwdleGuess(hero("bastion"), hero("jetpack-cat")).origin).toBe("EXACT");
+		expect(compareOwdleGuess(hero("bastion"), hero("ramattra")).origin).toBe("WRONG");
 	});
 
 	it("ouvre la ligne d'essai par les cases, quelle que soit la longueur du nom", () => {
@@ -61,7 +71,7 @@ describe("compareOwdleGuess", () => {
 		// alignees sous l'en-tete, et garder les valeurs dans l'ordre des colonnes.
 		const ligne = renderOwdleGuessLine(hero("ana"), compareOwdleGuess(hero("ana"), hero("soldier-76")));
 		expect(ligne.split("\n")).toEqual([
-			"🟥🟩🟥🟩🟩🟥 **Ana**",
+			"🟥🟩🟥🟥🟩🟥 **Ana**",
 			"-# Soutien · Humain · Égypte · Overwatch · 2016 · Projectile",
 		]);
 		expect(OWDLE_COLUMN_HEADER).toBe("🎭🧬🌍🚩📅🎯");

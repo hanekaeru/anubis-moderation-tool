@@ -891,9 +891,11 @@ le dev avec rechargement).
   - **la liste des heros et la comparaison vivent dans `@anubis/shared`**,
     meme raison que `renderXpLevelUpMessage`. Une `key` stockee en base ne se
     renomme jamais : `heroDuJour` refuse une cle disparue plutot que de changer
-    la reponse en pleine journee. Le test « aucun heros indiscernable » a deja
-    servi — Cassidy et Soldat : 76 avaient les memes attributs, d'ou
-    l'affiliation « Autre » de Cassidy. Le role suit le jeu **actuel** :
+    la reponse en pleine journee. Deux heros peuvent avoir les memes attributs
+    (Genji et Hanzo) : la victoire se lit sur la `key`, une ligne toute verte
+    qui n'est pas le heros du jour coute un essai et ne laisse que l'autre. Le
+    test d'indiscernabilite n'accepte que les jumeaux **declares** — il a deja
+    attrape une paire accidentelle (Cassidy et Soldat : 76). Le role suit le jeu **actuel** :
     Sombra est passee soutien a la saison 5 de 2026, sa ligne avec elle.
   - **le heros du jour est tire et enregistre** (`owdle_days`), jamais deduit
     de la date : ajouter un heros a la liste rebattrait sinon le tirage du jour
