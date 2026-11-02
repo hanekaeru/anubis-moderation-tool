@@ -893,7 +893,8 @@ le dev avec rechargement).
     renomme jamais : `heroDuJour` refuse une cle disparue plutot que de changer
     la reponse en pleine journee. Le test « aucun heros indiscernable » a deja
     servi — Cassidy et Soldat : 76 avaient les memes attributs, d'ou
-    l'affiliation « Autre » de Cassidy. Les heros de 2026 restent a ajouter.
+    l'affiliation « Autre » de Cassidy. Le role suit le jeu **actuel** :
+    Sombra est passee soutien a la saison 5 de 2026, sa ligne avec elle.
   - **le heros du jour est tire et enregistre** (`owdle_days`), jamais deduit
     de la date : ajouter un heros a la liste rebattrait sinon le tirage du jour
     en cours. Le tirage ecarte les heros des 30 derniers jours.
@@ -903,6 +904,10 @@ le dev avec rechargement).
     son `count` — deux validations simultanees n'en font qu'une.
   - `/owdle_salon` est une **commande a part** et non une sous-commande :
     Discord ne regle les permissions qu'a l'echelle d'une commande entiere.
+  La grille s'intitule par une **ligne d'icones** (`OWDLE_COLUMN_HEADER`), pas
+  par des mots : Discord rend tout emoji a la meme largeur, l'en-tete reste donc
+  aligne sur les cases, et chaque essai **commence** par ses cases pour qu'un nom
+  long ne puisse pas les decaler. Les valeurs suivent en sous-texte (`-#`).
   C'est aussi la premiere commande a **autocompletion** : `Command.autocomplete`
   est route par `interactionCreate.ts`, sans cooldown (une requete par frappe).
   Une suggestion n'engage rien cote client, d'ou `resolveOwdleHero` a la

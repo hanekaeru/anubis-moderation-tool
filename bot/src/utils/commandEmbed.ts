@@ -10,15 +10,15 @@ import * as colors from "./constantes";
  * Squelette d'embed commun a toutes les commandes de moderation, sur le
  * modele deja en place dans `/shadowban` et `/mute` : couleur `info` par
  * defaut, a rebasculer en `success`/`danger` selon l'issue.
+ *
+ * Pas de pied « ouvre un ticket » : ces reponses sont ephemeres et ne sont lues
+ * que par le staff qui a lance la commande.
  */
 export function baseCommandEmbed(commandName: string): EmbedBuilder {
 	return new EmbedBuilder()
 		.setColor(colors.info)
-		.setTitle(`Anubis - /${commandName}`)
-		.setTimestamp()
-		.setFooter({
-			text: "En cas de problème, vous pouvez ouvrir un ticket ou en parler aux administrateurs.",
-		});
+		.setTitle(`/${commandName}`)
+		.setTimestamp();
 }
 
 /**

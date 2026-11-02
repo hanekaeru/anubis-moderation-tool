@@ -6,6 +6,8 @@ import {
 	SlashCommandBuilder,
 } from "discord.js";
 import {
+	OWDLE_COLUMN_HEADER,
+	OWDLE_COLUMNS,
 	type OwdleHero,
 	compareOwdleGuess,
 	owdleDayKey,
@@ -30,24 +32,29 @@ const ESSAIS_AFFICHES = 20;
 /** Meme raison pour l'annonce publique, limitee a 2000 caracteres. */
 const LIGNES_PARTAGEES = 40;
 
+// L'en-tete d'icones vit en haut de la grille ; le pied ne fait que le
+// traduire, pour qui ne l'a pas encore retenu.
 const LEGENDE =
-	"🟩 identique · 🟨 même continent · 🟥 différent · ⬆️⬇️ sorti plus tard / plus tôt\n" +
-	"Colonnes : rôle · espèce · origine · affiliation · sortie · tir principal";
+	OWDLE_COLUMNS.map((c) => `${c.icon} ${c.label}`).join(" · ") +
+	"\n🟩 identique · 🟨 même continent (origine) · 🟥 différent · ⬆️⬇️ sorti plus tard / plus tôt";
 
 const jourAffiche = (key: string) => key.split("-").reverse().join("/");
 
 function grilleJoueur(guesses: readonly OwdleHero[], target: OwdleHero): EmbedBuilder {
 	const lignes = guesses.map((g) => renderOwdleGuessLine(g, compareOwdleGuess(g, target)));
 	const masquees = lignes.length - ESSAIS_AFFICHES;
-	const description = [
-		...(masquees > 0 ? [`*… ${masquees} essai(s) précédent(s)*`] : []),
-		...lignes.slice(-ESSAIS_AFFICHES),
-	].join("\n");
+	const description = lignes.length
+		? [
+				OWDLE_COLUMN_HEADER,
+				...(masquees > 0 ? [`-# … ${masquees} essai(s) précédent(s)`] : []),
+				...lignes.slice(-ESSAIS_AFFICHES),
+			].join("\n")
+		: "Aucun essai pour l'instant.";
 
 	return new EmbedBuilder()
 		.setColor(colors.info)
 		.setTitle(`OWdle du ${jourAffiche(owdleDayKey(new Date()))}`)
-		.setDescription(description || "Aucun essai pour l'instant.")
+		.setDescription(description)
 		.setFooter({ text: `${LEGENDE}\nEssais : ${guesses.length}` });
 }
 
@@ -75,7 +82,7 @@ async function annoncerVictoire(
 	const rang = rank === 1 ? " — **premier du serveur** aujourd'hui !" : rank ? ` — ${rank}ᵉ du serveur aujourd'hui.` : "";
 
 	await salon.send({
-		content: `🎉 ${interaction.user} a trouvé l'OWdle du jour en **${n}** essai${n > 1 ? "s" : ""}${rang}\n${grille}`,
+		content: `🎉 ${interaction.user} a trouvé l'OWdle du jour en **${n}** essai${n > 1 ? "s" : ""}${rang}\n${OWDLE_COLUMN_HEADER}\n${grille}`,
 		// La mention identifie le joueur sans le notifier : il vient de jouer.
 		allowedMentions: { parse: [] },
 	});

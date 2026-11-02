@@ -81,7 +81,7 @@ describe("QuarantineService.getConfig", () => {
 		expect(config.guildId).toBe(GUILD_ID);
 		expect(config.enabled).toBe(false);
 		expect(config.roleId).toBeNull();
-		expect(config.buttonLabel).toBe("J'accepte le reglement");
+		expect(config.buttonLabel).toBe("J'accepte le règlement");
 	});
 
 	// Le bot itere sur ces listes a chaque levee : un `undefined` la ferait
@@ -108,7 +108,7 @@ describe("QuarantineService.updateConfig", () => {
 					roleId: null,
 					channelId: null,
 					message: null,
-					buttonLabel: "J'accepte le reglement",
+					buttonLabel: "J'accepte le règlement",
 					releaseAddRoleIds: [],
 					releaseRemoveRoleIds: [],
 					updatedAt: new Date("2026-08-18T10:00:00.000Z"),
@@ -134,7 +134,7 @@ describe("QuarantineService.updateConfig", () => {
 					roleId: null,
 					channelId: null,
 					message: null,
-					buttonLabel: "J'accepte le reglement",
+					buttonLabel: "J'accepte le règlement",
 					releaseAddRoleIds: ["136122497891303425"],
 					releaseRemoveRoleIds: [],
 					updatedAt: new Date("2026-08-18T10:00:00.000Z"),

@@ -106,6 +106,7 @@ const command: Command = {
 			await notifyMember(
 				target.user,
 				`Tu as reçu un avertissement sur **${interaction.guild.name}**.\nMotif : ${reason}`,
+				"AVERTISSEMENT",
 			);
 		}
 

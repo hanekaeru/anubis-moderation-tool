@@ -1,10 +1,12 @@
 import {
+	OWDLE_COLUMN_HEADER,
 	OWDLE_HEROES,
 	compareOwdleGuess,
 	findOwdleHero,
 	owdleDayKey,
 	owdleStreaks,
 	pickOwdleHero,
+	renderOwdleGuessLine,
 	renderOwdleShareGrid,
 	resolveOwdleHero,
 	searchOwdleHeroes,
@@ -54,6 +56,17 @@ describe("compareOwdleGuess", () => {
 		expect(compareOwdleGuess(hero("echo"), hero("dva")).origin).toBe("WRONG");
 	});
 
+	it("ouvre la ligne d'essai par les cases, quelle que soit la longueur du nom", () => {
+		// Ana contre Soldat : 76 — la ligne doit commencer par les six cases,
+		// alignees sous l'en-tete, et garder les valeurs dans l'ordre des colonnes.
+		const ligne = renderOwdleGuessLine(hero("ana"), compareOwdleGuess(hero("ana"), hero("soldier-76")));
+		expect(ligne.split("\n")).toEqual([
+			"🟥🟩🟥🟩🟩🟥 **Ana**",
+			"-# Soutien · Humain · Égypte · Overwatch · 2016 · Projectile",
+		]);
+		expect(OWDLE_COLUMN_HEADER).toBe("🎭🧬🌍🚩📅🎯");
+	});
+
 	it("indique le sens de l'annee de sortie", () => {
 		expect(compareOwdleGuess(hero("tracer"), hero("kiriko")).releaseYear).toBe("HIGHER");
 		expect(compareOwdleGuess(hero("kiriko"), hero("tracer")).releaseYear).toBe("LOWER");
@@ -82,8 +95,10 @@ describe("searchOwdleHeroes", () => {
 });
 
 describe("pickOwdleHero", () => {
-	const premier = hero("dva");
-	const dernier = hero("zenyatta");
+	// Les bornes de la liste, pas des heros nommes : ajouter un heros ne doit pas
+	// casser ce test.
+	const premier = OWDLE_HEROES[0]!;
+	const dernier = OWDLE_HEROES[OWDLE_HEROES.length - 1]!;
 
 	it("ecarte les heros recents", () => {
 		const recents = OWDLE_HEROES.slice(1).map((h) => h.key);

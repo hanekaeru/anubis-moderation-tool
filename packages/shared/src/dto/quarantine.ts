@@ -1,20 +1,20 @@
 import { IsoDateString, Snowflake } from "./common";
 
 /** Doit rester identique au `@default` de `QuarantineConfig.buttonLabel`. */
-export const DEFAULT_QUARANTINE_BUTTON_LABEL = "J'accepte le reglement";
+export const DEFAULT_QUARANTINE_BUTTON_LABEL = "J'accepte le règlement";
 
 /**
  * Doit rester identique au `@default` de
  * `QuarantineConfig.battlenetButtonLabel`.
  */
 export const DEFAULT_QUARANTINE_BATTLENET_BUTTON_LABEL =
-	"Verifier mon compte Battle.net";
+	"Vérifier mon compte Battle.net";
 
 export const DEFAULT_QUARANTINE_MESSAGE =
-	"Bienvenue ! Prends connaissance du reglement, puis clique sur le bouton ci-dessous pour acceder au serveur.";
+	"Bienvenue ! Prends connaissance du règlement, puis clique sur le bouton ci-dessous pour accéder au serveur.";
 
 export const DEFAULT_QUARANTINE_BATTLENET_MESSAGE =
-	"Derniere etape : lie ton compte Battle.net pour ouvrir l'acces complet au serveur.";
+	"Dernière étape : lie ton compte Battle.net pour ouvrir l'accès complet au serveur.";
 
 /**
  * Plafond par liste de roles appliques a la levee.

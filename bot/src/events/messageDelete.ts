@@ -13,11 +13,8 @@ const event: BotEvent<typeof Events.MessageDelete> = {
 	async execute(message) {
 		const editedMessageEmbed = new EmbedBuilder()
 			.setColor(colors.danger)
-			.setTitle(`Anubis - :wastebasket: Suppression d'un message`)
-			.setTimestamp()
-			.setFooter({
-				text: "En cas de problème, vous pouvez ouvrir un ticket ou en parler aux administrateurs.",
-			});
+			.setTitle("🗑️ Suppression d'un message")
+			.setTimestamp();
 
 		if (!message?.guild || message.author?.bot) return;
 
