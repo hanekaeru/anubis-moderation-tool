@@ -1,7 +1,7 @@
-import { EmbedBuilder, type Client } from "discord.js";
+import type { Client } from "discord.js";
 import { WARNING_SEVERITY_LABELS } from "@anubis/shared";
 import prisma from "../prisma";
-import * as colors from "../utils/constantes";
+import { memberNoticeEmbed } from "../utils/notifyMember";
 
 /**
  * Previent sur Discord un membre averti depuis la webapp.
@@ -37,21 +37,16 @@ export async function checkPendingWarningNotices(client: Client): Promise<void> 
 			const user = await client.users.fetch(warning.userId).catch(() => null);
 
 			if (user) {
-				const embed = new EmbedBuilder()
-					.setColor(colors.warning)
-					.setTitle("Anubis - Nouvel avertissement")
-					.setDescription(
-						`Tu as reçu un avertissement sur **${guild.name}**.\nMotif : ${warning.reason}`,
-					)
+				const embed = memberNoticeEmbed(
+					"AVERTISSEMENT",
+					`Tu as reçu un avertissement sur **${guild.name}**.\nMotif : ${warning.reason}`,
+				)
 					.addFields({
 						name: "Gravité",
 						value: WARNING_SEVERITY_LABELS[warning.severity],
 						inline: true,
 					})
-					.setTimestamp(warning.createdAt)
-					.setFooter({
-						text: "En cas de problème, vous pouvez ouvrir un ticket ou en parler aux administrateurs.",
-					});
+					.setTimestamp(warning.createdAt);
 
 				await user.send({ embeds: [embed] }).catch(() => undefined);
 			}

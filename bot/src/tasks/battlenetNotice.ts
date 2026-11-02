@@ -89,7 +89,7 @@ async function journaliser(
 
 	const embed = new EmbedBuilder()
 		.setColor(colors.success)
-		.setTitle("Anubis - :white_check_mark: Compte Battle.net vérifié")
+		.setTitle("✅ Compte Battle.net vérifié")
 		.setDescription(`<@${userId}> | \`${username}\` | \`${userId}\``)
 		.setFooter({
 			text: "Le BattleTag lié n'est pas consultable depuis le dashboard pour des raisons de sécurité.",

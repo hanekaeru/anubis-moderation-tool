@@ -92,6 +92,7 @@ const command: Command = {
 		await notifyMember(
 			target.user,
 			`Ton exclusion temporaire sur **${interaction.guild.name}** a été levée.\nMotif : ${reason}`,
+			"LEVEE",
 		);
 
 		const note = revoked

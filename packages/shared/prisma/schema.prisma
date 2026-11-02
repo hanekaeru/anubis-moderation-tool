@@ -935,7 +935,7 @@ model QuarantineConfig {
   /// Salon ou le message de reglement (embed + bouton) est publie.
   channelId            String?  @map("channel_id") @db.VarChar(20)
   message              String?  @db.Text
-  buttonLabel          String   @default("J'accepte le reglement") @map("button_label")
+  buttonLabel          String   @default("J'accepte le règlement") @map("button_label")
   /// Roles donnes au membre a la levee de la quarantaine (acceptation du
   /// reglement ou deblocage depuis la webapp) — typiquement le role qui ouvre
   /// reellement le serveur.
@@ -955,7 +955,7 @@ model QuarantineConfig {
   /// que la levee complete ne soit prononcee. A `false`, l'acceptation du
   /// reglement suffit — le comportement d'avant ce reglage.
   battlenetRequired    Boolean  @default(false) @map("battlenet_required")
-  battlenetButtonLabel String   @default("Verifier mon compte Battle.net") @map("battlenet_button_label")
+  battlenetButtonLabel String   @default("Vérifier mon compte Battle.net") @map("battlenet_button_label")
   /// Texte du bloc de verification, sous le reglement. `null` = texte par defaut.
   battlenetMessage     String?  @map("battlenet_message") @db.Text
   updatedAt            DateTime @updatedAt @map("updated_at")

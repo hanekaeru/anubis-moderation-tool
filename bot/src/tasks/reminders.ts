@@ -24,7 +24,7 @@ export async function deliverDueReminders(client: Client): Promise<void> {
 	for (const rappel of dus) {
 		const embed = new EmbedBuilder()
 			.setColor(colors.info)
-			.setTitle("Anubis - Rappel")
+			.setTitle("⏰ Rappel")
 			.setDescription(rappel.message)
 			.setTimestamp(rappel.createdAt)
 			.setFooter({ text: "Rappel que tu t'es posé" });

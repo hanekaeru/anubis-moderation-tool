@@ -37,7 +37,9 @@ export type OwdleAffiliation =
 	| "JUNKERS"
 	| "VISHKAR"
 	| "NONE"
-	| "OTHER";
+	| "OTHER"
+	| "MEKA"
+	| "YOKAI";
 export type OwdleWeapon = "HITSCAN" | "PROJECTILE" | "BEAM" | "MELEE";
 
 export interface OwdleHero {
@@ -78,6 +80,8 @@ export const OWDLE_AFFILIATION_LABELS: Record<OwdleAffiliation, string> = {
 	VISHKAR: "Vishkar",
 	NONE: "Aucune",
 	OTHER: "Autre",
+	MEKA: "Escouade MEKA",
+	YOKAI: "Yokai"
 };
 
 export const OWDLE_WEAPON_LABELS: Record<OwdleWeapon, string> = {
@@ -90,61 +94,79 @@ export const OWDLE_WEAPON_LABELS: Record<OwdleWeapon, string> = {
 /**
  * Liste des heros jouables a l'OWdle.
  *
- * Les heros de 2026 n'y sont pas encore : leurs attributs restent a renseigner
- * par le staff. En ajouter un ne demande qu'une ligne, et le tirage le prend en
- * compte des le lendemain.
+ * A jour de la saison 5 de 2026 (Doctrine, octobre 2026). En ajouter un ne
+ * demande qu'une ligne, et le tirage le prend en compte des le lendemain.
+ *
+ * Le role suit le jeu **actuel** : un heros retravaille change de colonne (Sombra
+ * est passee soutien a la saison 5 de 2026). Sa cle, elle, ne bouge jamais.
  */
 export const OWDLE_HEROES: readonly OwdleHero[] = [
 	// Tanks
-	{ key: "dva", name: "D.Va", role: "TANK", species: "HUMAN", origin: "Corée du Sud", region: "ASIA", affiliation: "OTHER", releaseYear: 2016, weapon: "HITSCAN" },
-	{ key: "doomfist", name: "Doomfist", role: "TANK", species: "HUMAN", origin: "Nigeria", region: "AFRICA", affiliation: "TALON", releaseYear: 2017, weapon: "HITSCAN" },
-	{ key: "hazard", name: "Danger", role: "TANK", species: "HUMAN", origin: "Royaume-Uni", region: "EUROPE", affiliation: "NONE", releaseYear: 2024, weapon: "PROJECTILE" },
+	{ key: "dmon", name: "D.Mon", role: "TANK", species: "HUMAN", origin: "Corée du Sud", region: "ASIA", affiliation: "OTHER", releaseYear: 2026, weapon: "MELEE" },
+	{ key: "domina", name: "Domina", role: "TANK", species: "HUMAN", origin: "Inde", region: "ASIA", affiliation: "VISHKAR", releaseYear: 2026, weapon: "BEAM" },
+	{ key: "dva", name: "D.Va", role: "TANK", species: "HUMAN", origin: "Corée du Sud", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "HITSCAN" },
+	{ key: "doomfist", name: "Doomfist", role: "TANK", species: "HUMAN", origin: "Nigeria", region: "AFRICA", affiliation: "TALON", releaseYear: 2017, weapon: "MELEE" },
+	{ key: "hazard", name: "Danger", role: "TANK", species: "HUMAN", origin: "Royaume-Uni", region: "EUROPE", affiliation: "OTHER", releaseYear: 2024, weapon: "PROJECTILE" },
 	{ key: "junker-queen", name: "Reine des Junkers", role: "TANK", species: "HUMAN", origin: "Australie", region: "OCEANIA", affiliation: "JUNKERS", releaseYear: 2022, weapon: "HITSCAN" },
 	{ key: "mauga", name: "Mauga", role: "TANK", species: "HUMAN", origin: "Samoa", region: "OCEANIA", affiliation: "TALON", releaseYear: 2023, weapon: "HITSCAN" },
-	{ key: "orisa", name: "Orisa", role: "TANK", species: "OMNIC", origin: "Nigeria", region: "AFRICA", affiliation: "NONE", releaseYear: 2017, weapon: "PROJECTILE" },
-	{ key: "ramattra", name: "Ramattra", role: "TANK", species: "OMNIC", origin: "Inconnue", region: "UNKNOWN", affiliation: "OTHER", releaseYear: 2022, weapon: "PROJECTILE" },
+	{ key: "orisa", name: "Orisa", role: "TANK", species: "OMNIC", origin: "Numbani", region: "AFRICA", affiliation: "OVERWATCH", releaseYear: 2017, weapon: "PROJECTILE" },
+	{ key: "ramattra", name: "Ramattra", role: "TANK", species: "OMNIC", origin: "Népal", region: "ASIA", affiliation: "OTHER", releaseYear: 2022, weapon: "PROJECTILE" },
 	{ key: "reinhardt", name: "Reinhardt", role: "TANK", species: "HUMAN", origin: "Allemagne", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "MELEE" },
 	{ key: "roadhog", name: "Chopper", role: "TANK", species: "HUMAN", origin: "Australie", region: "OCEANIA", affiliation: "JUNKERS", releaseYear: 2016, weapon: "PROJECTILE" },
 	{ key: "sigma", name: "Sigma", role: "TANK", species: "HUMAN", origin: "Pays-Bas", region: "EUROPE", affiliation: "TALON", releaseYear: 2019, weapon: "PROJECTILE" },
 	{ key: "winston", name: "Winston", role: "TANK", species: "ANIMAL", origin: "Lune", region: "SPACE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "BEAM" },
-	{ key: "wrecking-ball", name: "Bouldozer", role: "TANK", species: "ANIMAL", origin: "Lune", region: "SPACE", affiliation: "NONE", releaseYear: 2018, weapon: "HITSCAN" },
-	{ key: "zarya", name: "Zarya", role: "TANK", species: "HUMAN", origin: "Russie", region: "EUROPE", affiliation: "OTHER", releaseYear: 2016, weapon: "BEAM" },
+	{ key: "wrecking-ball", name: "Bouldozer", role: "TANK", species: "ANIMAL", origin: "Lune", region: "SPACE", affiliation: "JUNKERS", releaseYear: 2018, weapon: "HITSCAN" },
+	{ key: "zarya", name: "Zarya", role: "TANK", species: "HUMAN", origin: "Russie", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "BEAM" },
 
 	// Degats
+	{ key: "anran", name: "Anran", role: "DAMAGE", species: "HUMAN", origin: "Chine", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2026, weapon: "PROJECTILE" },
 	{ key: "ashe", name: "Ashe", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "OTHER", releaseYear: 2018, weapon: "HITSCAN" },
 	{ key: "bastion", name: "Bastion", role: "DAMAGE", species: "OMNIC", origin: "Inconnue", region: "UNKNOWN", affiliation: "NONE", releaseYear: 2016, weapon: "HITSCAN" },
 	// Blackwatch et le gang Deadlock plutot qu'Overwatch : avec « Overwatch »,
 	// Cassidy et Soldat : 76 avaient les memes attributs et devenaient
 	// impossibles a departager.
-	{ key: "cassidy", name: "Cassidy", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "OTHER", releaseYear: 2016, weapon: "HITSCAN" },
-	{ key: "echo", name: "Écho", role: "DAMAGE", species: "OMNIC", origin: "Inconnue", region: "UNKNOWN", affiliation: "OVERWATCH", releaseYear: 2020, weapon: "PROJECTILE" },
+	{ key: "cassidy", name: "Cassidy", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "HITSCAN" },
+	{ key: "echo", name: "Écho", role: "DAMAGE", species: "OMNIC", origin: "Singapour", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2020, weapon: "PROJECTILE" },
+	// Ancien d'Overwatch passe chez Vendetta : c'est son camp actuel qui compte.
+	{ key: "emre", name: "Emre", role: "DAMAGE", species: "HUMAN", origin: "Turquie", region: "EUROPE", affiliation: "TALON", releaseYear: 2026, weapon: "HITSCAN" },
 	{ key: "freja", name: "Freja", role: "DAMAGE", species: "HUMAN", origin: "Danemark", region: "EUROPE", affiliation: "NONE", releaseYear: 2025, weapon: "PROJECTILE" },
-	{ key: "genji", name: "Genji", role: "DAMAGE", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "hanzo", name: "Hanzo", role: "DAMAGE", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "OTHER", releaseYear: 2016, weapon: "PROJECTILE" },
+	{ key: "genji", name: "Genji", role: "DAMAGE", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "YOKAI", releaseYear: 2016, weapon: "PROJECTILE" },
+	{ key: "hanzo", name: "Hanzo", role: "DAMAGE", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "YOKAI", releaseYear: 2016, weapon: "PROJECTILE" },
 	{ key: "junkrat", name: "Chacal", role: "DAMAGE", species: "HUMAN", origin: "Australie", region: "OCEANIA", affiliation: "JUNKERS", releaseYear: 2016, weapon: "PROJECTILE" },
 	{ key: "mei", name: "Mei", role: "DAMAGE", species: "HUMAN", origin: "Chine", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "BEAM" },
-	{ key: "pharah", name: "Pharah", role: "DAMAGE", species: "HUMAN", origin: "Égypte", region: "AFRICA", affiliation: "OTHER", releaseYear: 2016, weapon: "PROJECTILE" },
+	{ key: "pharah", name: "Pharah", role: "DAMAGE", species: "HUMAN", origin: "Égypte", region: "AFRICA", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "PROJECTILE" },
 	{ key: "reaper", name: "Faucheur", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "TALON", releaseYear: 2016, weapon: "HITSCAN" },
+	// Le clan Hashimoto, allie de la Griffe sans en faire partie : « Autre ».
+	{ key: "shion", name: "Shion", role: "DAMAGE", species: "OMNIC", origin: "Japon", region: "ASIA", affiliation: "OTHER", releaseYear: 2026, weapon: "HITSCAN" },
+	{ key: "sierra", name: "Sierra", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2026, weapon: "PROJECTILE" },
 	{ key: "sojourn", name: "Sojourn", role: "DAMAGE", species: "HUMAN", origin: "Canada", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2022, weapon: "PROJECTILE" },
-	{ key: "soldier-76", name: "Soldat : 76", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "HITSCAN" },
-	{ key: "sombra", name: "Sombra", role: "DAMAGE", species: "HUMAN", origin: "Mexique", region: "AMERICAS", affiliation: "OTHER", releaseYear: 2016, weapon: "HITSCAN" },
+	{ key: "soldier-76", name: "Soldat : 76", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "NONE", releaseYear: 2016, weapon: "HITSCAN" },
 	{ key: "symmetra", name: "Symmetra", role: "DAMAGE", species: "HUMAN", origin: "Inde", region: "ASIA", affiliation: "VISHKAR", releaseYear: 2016, weapon: "BEAM" },
 	{ key: "torbjorn", name: "Torbjörn", role: "DAMAGE", species: "HUMAN", origin: "Suède", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "tracer", name: "Tracer", role: "DAMAGE", species: "HUMAN", origin: "Royaume-Uni", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "HITSCAN" },
+	{ key: "tracer", name: "Tracer", role: "DAMAGE", species: "HUMAN", origin: "Angleterre", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "HITSCAN" },
+	{ key: "vendetta", name: "Vendetta", role: "DAMAGE", species: "HUMAN", origin: "Italie", region: "EUROPE", affiliation: "TALON", releaseYear: 2025, weapon: "MELEE" },
 	{ key: "venture", name: "Venture", role: "DAMAGE", species: "HUMAN", origin: "Canada", region: "AMERICAS", affiliation: "NONE", releaseYear: 2024, weapon: "PROJECTILE" },
 	{ key: "widowmaker", name: "Fatale", role: "DAMAGE", species: "HUMAN", origin: "France", region: "EUROPE", affiliation: "TALON", releaseYear: 2016, weapon: "HITSCAN" },
 
 	// Soutiens
 	{ key: "ana", name: "Ana", role: "SUPPORT", species: "HUMAN", origin: "Égypte", region: "AFRICA", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "baptiste", name: "Baptiste", role: "SUPPORT", species: "HUMAN", origin: "Haïti", region: "AMERICAS", affiliation: "OTHER", releaseYear: 2019, weapon: "HITSCAN" },
+	{ key: "baptiste", name: "Baptiste", role: "SUPPORT", species: "HUMAN", origin: "Haïti", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2019, weapon: "HITSCAN" },
 	{ key: "brigitte", name: "Brigitte", role: "SUPPORT", species: "HUMAN", origin: "Suède", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2018, weapon: "MELEE" },
+	// Libere par Doomfist et les anciens de la Griffe : meme camp que lui.
+	{ key: "doctrine", name: "Doctrine", role: "SUPPORT", species: "HUMAN", origin: "Zimbabwe", region: "AFRICA", affiliation: "TALON", releaseYear: 2026, weapon: "PROJECTILE" },
 	{ key: "illari", name: "Illari", role: "SUPPORT", species: "HUMAN", origin: "Pérou", region: "AMERICAS", affiliation: "OTHER", releaseYear: 2023, weapon: "HITSCAN" },
-	{ key: "juno", name: "Juno", role: "SUPPORT", species: "HUMAN", origin: "Mars", region: "SPACE", affiliation: "NONE", releaseYear: 2024, weapon: "PROJECTILE" },
-	{ key: "kiriko", name: "Kiriko", role: "SUPPORT", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "NONE", releaseYear: 2022, weapon: "PROJECTILE" },
-	{ key: "lifeweaver", name: "Vital", role: "SUPPORT", species: "HUMAN", origin: "Thaïlande", region: "ASIA", affiliation: "VISHKAR", releaseYear: 2023, weapon: "PROJECTILE" },
-	{ key: "lucio", name: "Lúcio", role: "SUPPORT", species: "HUMAN", origin: "Brésil", region: "AMERICAS", affiliation: "NONE", releaseYear: 2016, weapon: "PROJECTILE" },
+	// Chatte errante recueillie a Gibraltar, dont on ne sait rien d'autre.
+	{ key: "jetpack-cat", name: "Jetpack Cat", role: "SUPPORT", species: "ANIMAL", origin: "Inconnue", region: "UNKNOWN", affiliation: "OVERWATCH", releaseYear: 2026, weapon: "PROJECTILE" },
+	{ key: "juno", name: "Juno", role: "SUPPORT", species: "HUMAN", origin: "Mars", region: "SPACE", affiliation: "OVERWATCH", releaseYear: 2024, weapon: "PROJECTILE" },
+	{ key: "kiriko", name: "Kiriko", role: "SUPPORT", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "YOKAI", releaseYear: 2022, weapon: "PROJECTILE" },
+	{ key: "lifeweaver", name: "Vital", role: "SUPPORT", species: "HUMAN", origin: "Thaïlande", region: "ASIA", affiliation: "OTHER", releaseYear: 2023, weapon: "PROJECTILE" },
+	{ key: "lucio", name: "Lúcio", role: "SUPPORT", species: "HUMAN", origin: "Brésil", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "PROJECTILE" },
 	{ key: "mercy", name: "Ange", role: "SUPPORT", species: "HUMAN", origin: "Suisse", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "BEAM" },
+	{ key: "mizuki", name: "Mizuki", role: "SUPPORT", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2026, weapon: "PROJECTILE" },
 	{ key: "moira", name: "Moira", role: "SUPPORT", species: "HUMAN", origin: "Irlande", region: "EUROPE", affiliation: "TALON", releaseYear: 2017, weapon: "BEAM" },
+	// Soutien depuis la saison 5 de 2026, degats auparavant.
+	{ key: "sombra", name: "Sombra", role: "SUPPORT", species: "HUMAN", origin: "Mexique", region: "AMERICAS", affiliation: "TALON", releaseYear: 2016, weapon: "HITSCAN" },
+	{ key: "wuyang", name: "Wuyang", role: "SUPPORT", species: "HUMAN", origin: "Chine", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2025, weapon: "PROJECTILE" },
 	{ key: "zenyatta", name: "Zenyatta", role: "SUPPORT", species: "OMNIC", origin: "Népal", region: "ASIA", affiliation: "OTHER", releaseYear: 2016, weapon: "PROJECTILE" },
 ];
 
@@ -159,7 +181,10 @@ export interface OwdleComparison {
 	affiliation: OwdleMatch;
 	releaseYear: OwdleYearMatch;
 	weapon: OwdleMatch;
-	/** Tout correspond : c'est le heros du jour. */
+	/**
+	 * C'est le heros du jour. Se lit sur la cle, pas sur les attributs : deux
+	 * jumeaux (Genji et Hanzo) ont six cases vertes sans etre le meme heros.
+	 */
 	solved: boolean;
 }
 
@@ -249,18 +274,55 @@ const YEAR_EMOJI: Record<OwdleYearMatch, string> = {
 	LOWER: "⬇️",
 };
 
-/** Ligne d'un essai, avec les valeurs : visible du seul joueur. */
-export function renderOwdleGuessLine(guess: OwdleHero, comparison: OwdleComparison): string {
-	const c = comparison;
+/**
+ * Colonnes de la grille, dans l'ordre des cases.
+ *
+ * Chaque colonne a son icone parce que Discord affiche tout emoji a la meme
+ * largeur, sur ordinateur comme sur mobile : une ligne d'icones posee au-dessus
+ * des cases reste alignee avec elles, la ou des intitules en texte se
+ * decalaient des que le nom d'un heros etait un peu long.
+ */
+export const OWDLE_COLUMNS = [
+	{ icon: "🎭", label: "rôle" },
+	{ icon: "🧬", label: "espèce" },
+	{ icon: "🌍", label: "origine" },
+	{ icon: "🚩", label: "affiliation" },
+	{ icon: "📅", label: "sortie" },
+	{ icon: "🎯", label: "tir principal" },
+] as const;
+
+/** En-tete de la grille : une icone au-dessus de chaque case. */
+export const OWDLE_COLUMN_HEADER = OWDLE_COLUMNS.map((c) => c.icon).join("");
+
+/** Les six cases d'un essai, sans separateur pour rester sous l'en-tete. */
+function renderOwdleCells(c: OwdleComparison): string {
 	return [
-		`**${guess.name}**`,
-		`${MATCH_EMOJI[c.role]} ${OWDLE_ROLE_LABELS[guess.role]}`,
-		`${MATCH_EMOJI[c.species]} ${OWDLE_SPECIES_LABELS[guess.species]}`,
-		`${MATCH_EMOJI[c.origin]} ${guess.origin}`,
-		`${MATCH_EMOJI[c.affiliation]} ${OWDLE_AFFILIATION_LABELS[guess.affiliation]}`,
-		`${YEAR_EMOJI[c.releaseYear]} ${guess.releaseYear}`,
-		`${MATCH_EMOJI[c.weapon]} ${OWDLE_WEAPON_LABELS[guess.weapon]}`,
-	].join(" · ");
+		MATCH_EMOJI[c.role],
+		MATCH_EMOJI[c.species],
+		MATCH_EMOJI[c.origin],
+		MATCH_EMOJI[c.affiliation],
+		YEAR_EMOJI[c.releaseYear],
+		MATCH_EMOJI[c.weapon],
+	].join("");
+}
+
+/**
+ * Un essai, avec les valeurs : visible du seul joueur.
+ *
+ * Deux lignes : les cases puis le nom, et les valeurs en petit dessous. Les
+ * cases ouvrent la ligne pour que la longueur du nom ne puisse jamais les
+ * decaler, et les valeurs suivent l'ordre des colonnes.
+ */
+export function renderOwdleGuessLine(guess: OwdleHero, comparison: OwdleComparison): string {
+	const valeurs = [
+		OWDLE_ROLE_LABELS[guess.role],
+		OWDLE_SPECIES_LABELS[guess.species],
+		guess.origin,
+		OWDLE_AFFILIATION_LABELS[guess.affiliation],
+		String(guess.releaseYear),
+		OWDLE_WEAPON_LABELS[guess.weapon],
+	];
+	return `${renderOwdleCells(comparison)} **${guess.name}**\n-# ${valeurs.join(" · ")}`;
 }
 
 /**
@@ -269,18 +331,7 @@ export function renderOwdleGuessLine(guess: OwdleHero, comparison: OwdleComparis
  * Les fleches de l'annee restent : elles disent une direction, pas une reponse.
  */
 export function renderOwdleShareGrid(comparisons: readonly OwdleComparison[]): string {
-	return comparisons
-		.map((c) =>
-			[
-				MATCH_EMOJI[c.role],
-				MATCH_EMOJI[c.species],
-				MATCH_EMOJI[c.origin],
-				MATCH_EMOJI[c.affiliation],
-				YEAR_EMOJI[c.releaseYear],
-				MATCH_EMOJI[c.weapon],
-			].join(""),
-		)
-		.join("\n");
+	return comparisons.map(renderOwdleCells).join("\n");
 }
 
 /** Jour de l'OWdle auquel appartient un instant. */

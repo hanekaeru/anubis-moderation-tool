@@ -12,11 +12,8 @@ const event: BotEvent<typeof Events.MessageUpdate> = {
 	async execute(ancien, nouveau) {
 		const editedMessageEmbed = new EmbedBuilder()
 			.setColor(colors.info)
-			.setTitle(`Anubis - :pencil: Édition d'un message`)
-			.setTimestamp()
-			.setFooter({
-				text: "En cas de problème, vous pouvez ouvrir un ticket ou en parler aux administrateurs.",
-			});
+			.setTitle("✏️ Édition d'un message")
+			.setTimestamp();
 		const message = nouveau ?? ancien;
 		if (!message?.guild || message.author?.bot) return;
 

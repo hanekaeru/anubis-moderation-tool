@@ -167,7 +167,7 @@ async function journaliser(
 
 	const embed = new EmbedBuilder()
 		.setColor(colors.warning)
-		.setTitle("Anubis - Nettoyage de salon")
+		.setTitle("🧹 Nettoyage de salon")
 		.setDescription(
 			`<@${details.auteur}> a supprimé ${details.supprimes} message(s) dans <#${details.salon}>.`,
 		)

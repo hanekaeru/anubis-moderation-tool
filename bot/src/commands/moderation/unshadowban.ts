@@ -96,6 +96,7 @@ const command: Command = {
 		await notifyMember(
 			target.user,
 			`La restriction de ton accès à **${interaction.guild.name}** a été levée.\nMotif : ${reason}`,
+			"LEVEE",
 		);
 
 		const note = revoked
