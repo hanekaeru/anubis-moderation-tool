@@ -6,7 +6,7 @@ import * as automod from "../collectors/automod";
 import * as referentiel from "../collectors/referentiel";
 import * as tickets from "../collectors/tickets";
 import * as xpAnnounce from "../collectors/xpAnnounce";
-import * as xpRewards from "../collectors/xpRewards";
+import { celebrerMontee } from "../collectors/xpLevelUp";
 import { readInt } from "../env";
 
 const cooldowns = new Set<string>();
@@ -93,26 +93,7 @@ const event: BotEvent<typeof Events.MessageCreate> = {
 				(await message.guild.members.fetch(message.author.id).catch(() => null));
 			if (!member) return;
 
-			// Les roles de palier sont poses avant l'annonce, pour pouvoir la
-			// completer : « tu passes niveau 10 » et le role qui va avec se lisent
-			// mieux ensemble qu'en deux messages a quelques secondes d'ecart.
-			const earned = await xpRewards
-				.applyForMember(member, after.level)
-				.catch((err) => {
-					console.error("[XP] Attribution des paliers échouée :", err);
-					return [] as string[];
-				});
-
-			await xpAnnounce
-				.announceLevelUp({
-					member,
-					level: after.level,
-					earnedRoleIds: earned,
-					origin: message.channel,
-				})
-				.catch((err) => {
-					console.error("[XP] Annonce de montée de niveau échouée :", err);
-				});
+			await celebrerMontee(member, after.level, message.channel);
 		}
 	},
 };

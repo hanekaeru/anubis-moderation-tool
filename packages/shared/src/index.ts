@@ -38,3 +38,4 @@ export * from "./dto/session";
 export * from "./dto/xp";
 export * from "./dto/welcome";
 export * from "./dto/esport";
+export * from "./dto/owdle";

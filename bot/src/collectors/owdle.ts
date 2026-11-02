@@ -1,17 +1,21 @@
 import type { User } from "discord.js";
 import {
+	OWDLE_DEFAULT_XP_BY_GUESSES,
 	OWDLE_RECENT_EXCLUSION_DAYS,
 	type OwdleHero,
+	type XpProgress,
 	addDaysToKey,
-	findOwdleHero,
 	owdleDayKey,
 	owdleStreaks,
+	owdleXpForGuesses,
 	pickOwdleHero,
 	resolveOwdleHero,
+	searchOwdleHeroes,
 } from "@anubis/shared";
 import { Prisma } from "@anubis/shared/prisma";
 import prisma from "../prisma";
 import * as referentiel from "./referentiel";
+import xpManager from "./xp";
 
 /**
  * OWdle : heros du jour, parties et statistiques.
@@ -21,6 +25,42 @@ import * as referentiel from "./referentiel";
  * le quitte jamais avant d'etre trouvee : elle n'apparait dans aucun
  * identifiant de composant ni dans aucun message.
  */
+
+/**
+ * Les heros sont relus au plus toutes les 30 secondes, comme l'automod :
+ * l'autocompletion interroge la liste a chaque frappe, et une correction faite
+ * depuis le dashboard doit tout de meme arriver sans redemarrage.
+ */
+const HEROS_TTL_MS = 30_000;
+let herosEnCache: { lu: number; heros: OwdleHeroRow[] } | null = null;
+
+/** Le heros lu en base, avec son affiliation : la grille affiche son libelle. */
+type OwdleHeroRow = Prisma.OwdleHeroGetPayload<{ include: { affiliation: true } }>;
+
+/** Tous les heros, desactives compris : une partie passee doit se relire. */
+async function tousLesHeros(): Promise<OwdleHeroRow[]> {
+	if (herosEnCache && Date.now() - herosEnCache.lu < HEROS_TTL_MS) return herosEnCache.heros;
+	// Un libelle d'affiliation renomme depuis le dashboard arrive donc avec le
+	// meme delai qu'une correction de heros.
+	const heros = await prisma.owdleHero.findMany({ include: { affiliation: true }, orderBy: { name: "asc" } });
+	herosEnCache = { lu: Date.now(), heros };
+	return heros;
+}
+
+/** Heros qu'on peut tirer et proposer. */
+async function herosActifs(): Promise<OwdleHeroRow[]> {
+	return (await tousLesHeros()).filter((hero) => hero.enabled);
+}
+
+/** Suggestions de l'autocompletion, parmi les heros actifs. */
+export async function suggestions(saisie: string): Promise<OwdleHero[]> {
+	return searchOwdleHeroes(await herosActifs(), saisie);
+}
+
+/** Pour les tests : la liste est sinon gardee 30 secondes. */
+export function viderCacheHeros(): void {
+	herosEnCache = null;
+}
 
 /** `@db.Date` se lit et s'ecrit en minuit UTC : la cle `AAAA-MM-JJ` n'a pas de fuseau. */
 const versDate = (key: string) => new Date(`${key}T00:00:00Z`);
@@ -47,7 +87,7 @@ export async function heroDuJour(guildId: string, dayKey: string): Promise<Owdle
 			where: { guildId, day: { gte: versDate(addDaysToKey(dayKey, -OWDLE_RECENT_EXCLUSION_DAYS)) } },
 			select: { heroKey: true },
 		});
-		const tire = pickOwdleHero(recents.map((r) => r.heroKey));
+		const tire = pickOwdleHero(await herosActifs(), recents.map((r) => r.heroKey));
 		try {
 			ligne = await prisma.owdleDay.create({ data: { guildId, day, heroKey: tire.key } });
 		} catch (err) {
@@ -56,10 +96,12 @@ export async function heroDuJour(guildId: string, dayKey: string): Promise<Owdle
 		}
 	}
 
-	const hero = ligne && findOwdleHero(ligne.heroKey);
-	// Une cle retiree de `OWDLE_HEROES` casse la journee en cours : les cles ne
-	// se renomment jamais, elles s'ajoutent.
-	if (!hero) throw new Error(`[OWdle] Héros du jour inconnu : ${ligne?.heroKey}`);
+	// Desactive en cours de journee, le heros reste celui du jour : changer la
+	// reponse sous les pieds de ceux qui ont deja joue serait pire. Les cles
+	// ne se suppriment jamais, la recherche porte donc sur toute la table.
+	const cle = ligne?.heroKey;
+	const hero = (await tousLesHeros()).find((h) => h.key === cle);
+	if (!hero) throw new Error(`[OWdle] Héros du jour inconnu : ${cle}`);
 	return hero;
 }
 
@@ -74,10 +116,50 @@ export type GuessOutcome =
 			solved: boolean;
 			/** Rang parmi les gagnants du jour, seulement a la victoire. */
 			rank: number | null;
+			/** Experience gagnee, seulement a la victoire et si le bareme en donne. */
+			xp: XpGain | null;
 		};
 
-const versHeros = (keys: readonly string[]) =>
-	keys.map(findOwdleHero).filter((h): h is OwdleHero => h !== undefined);
+export interface XpGain {
+	amount: number;
+	before: XpProgress;
+	after: XpProgress;
+}
+
+async function versHeros(keys: readonly string[]): Promise<OwdleHero[]> {
+	const parCle = new Map((await tousLesHeros()).map((h) => [h.key, h]));
+	return keys.map((key) => parCle.get(key)).filter((h): h is OwdleHeroRow => h !== undefined);
+}
+
+/**
+ * Bareme d'experience du serveur.
+ *
+ * Lu sans cache : il ne sert qu'a une victoire, une fois par joueur et par
+ * jour. Sans ligne, le bareme par defaut — trouver l'OWdle rapporte de
+ * l'experience meme sur un serveur qui n'a jamais ouvert la page.
+ */
+async function bareme(guildId: string): Promise<readonly number[]> {
+	const config = await prisma.owdleConfig.findUnique({ where: { guildId }, select: { xpByGuesses: true } });
+	return config?.xpByGuesses ?? OWDLE_DEFAULT_XP_BY_GUESSES;
+}
+
+/**
+ * Credite l'experience d'une victoire.
+ *
+ * Une erreur ici ne doit jamais faire perdre la victoire, deja enregistree : le
+ * joueur la verrait refusee alors que l'annonce est partie.
+ */
+async function crediter(guildId: string, userId: string, essais: number): Promise<XpGain | null> {
+	try {
+		const amount = owdleXpForGuesses(await bareme(guildId), essais);
+		if (amount <= 0) return null;
+		const { before, after } = await xpManager.addXp(userId, guildId, amount);
+		return { amount, before, after };
+	} catch (err) {
+		console.error("[OWdle] Gain d'expérience échoué :", err);
+		return null;
+	}
+}
 
 /** Enregistre un essai du joueur pour la partie du jour. */
 export async function proposer(
@@ -86,7 +168,7 @@ export async function proposer(
 	saisie: string,
 	now = new Date(),
 ): Promise<GuessOutcome> {
-	const hero = resolveOwdleHero(saisie);
+	const hero = resolveOwdleHero(await herosActifs(), saisie);
 	if (!hero) return { kind: "UNKNOWN_HERO" };
 
 	const dayKey = owdleDayKey(now);
@@ -108,10 +190,10 @@ export async function proposer(
 	}
 
 	if (partie.solvedAt) {
-		return { kind: "ALREADY_SOLVED", target, guesses: versHeros(partie.guesses) };
+		return { kind: "ALREADY_SOLVED", target, guesses: await versHeros(partie.guesses) };
 	}
 	if (partie.guesses.includes(hero.key)) {
-		return { kind: "DUPLICATE", hero, target, guesses: versHeros(partie.guesses) };
+		return { kind: "DUPLICATE", hero, target, guesses: await versHeros(partie.guesses) };
 	}
 
 	const solved = hero.key === target.key;
@@ -124,7 +206,7 @@ export async function proposer(
 
 	const apres = await prisma.owdleGame.findUniqueOrThrow({ where: { guildId_userId_day: id } });
 	if (count === 0) {
-		return { kind: "ALREADY_SOLVED", target, guesses: versHeros(apres.guesses) };
+		return { kind: "ALREADY_SOLVED", target, guesses: await versHeros(apres.guesses) };
 	}
 
 	const rank = solved
@@ -133,7 +215,11 @@ export async function proposer(
 			})
 		: null;
 
-	return { kind: "PLAYED", target, guesses: versHeros(apres.guesses), solved, rank };
+	// Credite apres le `count` : seule la validation qui a pose la victoire
+	// rapporte, deux clics simultanes ne paient pas deux fois.
+	const xp = solved ? await crediter(guildId, user.id, apres.guesses.length) : null;
+
+	return { kind: "PLAYED", target, guesses: await versHeros(apres.guesses), solved, rank, xp };
 }
 
 export interface OwdleStats {

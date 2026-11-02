@@ -33,6 +33,7 @@ import { EsportModule } from "./esport/esport.module";
 import { VoiceModule } from "./voice/voice.module";
 import { WelcomeModule } from "./welcome/welcome.module";
 import { WikiModule } from "./wiki/wiki.module";
+import { OwdleModule } from "./owdle/owdle.module";
 import { XpModule } from "./xp/xp.module";
 
 @Module({
@@ -73,6 +74,7 @@ import { XpModule } from "./xp/xp.module";
 		SessionsModule,
 		EmbedsModule,
 		XpModule,
+		OwdleModule,
 		WelcomeModule,
 		EsportModule,
 	],

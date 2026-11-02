@@ -1,10 +1,13 @@
 import {
 	OWDLE_COLUMN_HEADER,
-	OWDLE_HEROES,
+	OWDLE_SUB_ROLE_ROLE,
+	type OwdleHero,
 	compareOwdleGuess,
-	findOwdleHero,
+	findOwdleTwins,
 	owdleDayKey,
 	owdleStreaks,
+	owdleSubRolesOf,
+	owdleXpForGuesses,
 	pickOwdleHero,
 	renderOwdleGuessLine,
 	renderOwdleShareGrid,
@@ -12,30 +15,53 @@ import {
 	searchOwdleHeroes,
 } from "./owdle";
 
+/**
+ * Quelques heros tels que la migration les a enregistres. Les heros vivent en
+ * base : ces tests portent sur la regle, pas sur l'exactitude de la liste.
+ */
+const HEROES: OwdleHero[] = [
+	{ key: "reinhardt", name: "Reinhardt", role: "TANK", subRole: "STALWART", species: "HUMAN", origin: "Allemagne", region: "EUROPE", affiliation: { key: "overwatch", label: "Overwatch" }, releaseYear: 2016 },
+	{ key: "junker-queen", name: "Reine des Junkers", role: "TANK", subRole: "STALWART", species: "HUMAN", origin: "Australie", region: "OCEANIA", affiliation: { key: "junkers", label: "Junkers" }, releaseYear: 2022 },
+	{ key: "ramattra", name: "Ramattra", role: "TANK", subRole: "STALWART", species: "OMNIC", origin: "Népal", region: "ASIA", affiliation: { key: "other", label: "Autre" }, releaseYear: 2022 },
+	{ key: "ashe", name: "Ashe", role: "DAMAGE", subRole: "SHARPSHOOTER", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: { key: "other", label: "Autre" }, releaseYear: 2018 },
+	{ key: "bastion", name: "Bastion", role: "DAMAGE", subRole: "SPECIALIST", species: "OMNIC", origin: "Inconnue", region: "UNKNOWN", affiliation: { key: "none", label: "Aucune" }, releaseYear: 2016 },
+	{ key: "cassidy", name: "Cassidy", role: "DAMAGE", subRole: "SHARPSHOOTER", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: { key: "overwatch", label: "Overwatch" }, releaseYear: 2016 },
+	{ key: "genji", name: "Genji", role: "DAMAGE", subRole: "FLANKER", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: { key: "yokai", label: "Yokai" }, releaseYear: 2016 },
+	{ key: "hanzo", name: "Hanzo", role: "DAMAGE", subRole: "SHARPSHOOTER", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: { key: "yokai", label: "Yokai" }, releaseYear: 2016 },
+	{ key: "reaper", name: "Faucheur", role: "DAMAGE", subRole: "FLANKER", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: { key: "talon", label: "La Griffe" }, releaseYear: 2016 },
+	{ key: "sojourn", name: "Sojourn", role: "DAMAGE", subRole: "SHARPSHOOTER", species: "HUMAN", origin: "Canada", region: "AMERICAS", affiliation: { key: "overwatch", label: "Overwatch" }, releaseYear: 2022 },
+	{ key: "soldier-76", name: "Soldat : 76", role: "DAMAGE", subRole: "SPECIALIST", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: { key: "none", label: "Aucune" }, releaseYear: 2016 },
+	{ key: "tracer", name: "Tracer", role: "DAMAGE", subRole: "FLANKER", species: "HUMAN", origin: "Angleterre", region: "EUROPE", affiliation: { key: "overwatch", label: "Overwatch" }, releaseYear: 2016 },
+	{ key: "ana", name: "Ana", role: "SUPPORT", subRole: "TACTICIAN", species: "HUMAN", origin: "Égypte", region: "AFRICA", affiliation: { key: "overwatch", label: "Overwatch" }, releaseYear: 2016 },
+	{ key: "jetpack-cat", name: "Jetpack Cat", role: "SUPPORT", subRole: "TACTICIAN", species: "ANIMAL", origin: "Inconnue", region: "UNKNOWN", affiliation: { key: "overwatch", label: "Overwatch" }, releaseYear: 2026 },
+	{ key: "kiriko", name: "Kiriko", role: "SUPPORT", subRole: "SURVIVOR", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: { key: "yokai", label: "Yokai" }, releaseYear: 2022 },
+	{ key: "lucio", name: "Lúcio", role: "SUPPORT", subRole: "TACTICIAN", species: "HUMAN", origin: "Brésil", region: "AMERICAS", affiliation: { key: "overwatch", label: "Overwatch" }, releaseYear: 2016 },
+];
+
 const hero = (key: string) => {
-	const found = findOwdleHero(key);
+	const found = HEROES.find((h) => h.key === key);
 	if (!found) throw new Error(`Heros inconnu : ${key}`);
 	return found;
 };
 
-describe("OWDLE_HEROES", () => {
-	it("n'a ni cle ni nom en double", () => {
-		expect(new Set(OWDLE_HEROES.map((h) => h.key)).size).toBe(OWDLE_HEROES.length);
-		expect(new Set(OWDLE_HEROES.map((h) => h.name)).size).toBe(OWDLE_HEROES.length);
+describe("sous-roles", () => {
+	it("rattache chaque sous-role a un seul role", () => {
+		const tous = [...owdleSubRolesOf("TANK"), ...owdleSubRolesOf("DAMAGE"), ...owdleSubRolesOf("SUPPORT")];
+		expect(new Set(tous).size).toBe(Object.keys(OWDLE_SUB_ROLE_ROLE).length);
+		expect(owdleSubRolesOf("TANK")).toEqual(["BRUISER", "INITIATOR", "STALWART"]);
+	});
+});
+
+describe("findOwdleTwins", () => {
+	it("ne trouve rien dans une liste sans doublon", () => {
+		expect(findOwdleTwins(HEROES)).toEqual([]);
 	});
 
-	it("n'a de heros indiscernables que les jumeaux declares", () => {
-		// Des jumeaux restent jouables — une ligne toute verte qui n'est pas le
-		// heros du jour coute un essai, et il ne reste que l'autre. La liste
-		// existe pour qu'une faute de frappe ne fabrique pas une paire en silence.
-		const JUMEAUX = [["genji", "hanzo"]];
-		const signature = (h: (typeof OWDLE_HEROES)[number]) =>
-			[h.role, h.species, h.origin, h.affiliation, h.releaseYear, h.weapon].join("|");
-		const groupes = new Map<string, string[]>();
-		for (const h of OWDLE_HEROES) {
-			groupes.set(signature(h), [...(groupes.get(signature(h)) ?? []), h.key]);
-		}
-		expect([...groupes.values()].filter((keys) => keys.length > 1)).toEqual(JUMEAUX);
+	it("signale deux heros aux memes valeurs", () => {
+		// Genji et Hanzo etaient jumeaux avec le type d'arme ; le sous-role les
+		// departage. Une fiche corrigee de travers doit se voir.
+		const copie = { ...hero("genji"), key: "genji-bis", name: "Genji bis" };
+		expect(findOwdleTwins([...HEROES, copie])).toEqual([["genji", "genji-bis"]]);
 	});
 });
 
@@ -46,12 +72,24 @@ describe("compareOwdleGuess", () => {
 		expect(renderOwdleShareGrid([c])).toBe("🟩🟩🟩🟩🟩🟩");
 	});
 
-	it("ne donne pas la victoire a un jumeau", () => {
+	it("ne donne pas la victoire a un heros aux memes valeurs", () => {
 		// Six cases vertes, mais ce n'est pas le heros du jour : la victoire se
 		// lit sur l'identite, jamais sur les attributs.
-		const c = compareOwdleGuess(hero("genji"), hero("hanzo"));
+		const copie = { ...hero("genji"), key: "genji-bis", name: "Genji bis" };
+		const c = compareOwdleGuess(copie, hero("genji"));
 		expect(renderOwdleShareGrid([c])).toBe("🟩🟩🟩🟩🟩🟩");
 		expect(c.solved).toBe(false);
+	});
+
+	it("compare l'affiliation sur sa cle, pas sur son libelle", () => {
+		// Un libelle renomme depuis le dashboard ne doit changer aucune case.
+		const renomme = { ...hero("ana"), affiliation: { key: "overwatch", label: "Overwatch (ancienne)" } };
+		expect(compareOwdleGuess(renomme, hero("tracer")).affiliation).toBe("EXACT");
+	});
+
+	it("compare le sous-role", () => {
+		expect(compareOwdleGuess(hero("genji"), hero("tracer")).subRole).toBe("EXACT");
+		expect(compareOwdleGuess(hero("genji"), hero("hanzo")).subRole).toBe("WRONG");
 	});
 
 	it("marque en partiel une origine du meme continent", () => {
@@ -71,10 +109,10 @@ describe("compareOwdleGuess", () => {
 		// alignees sous l'en-tete, et garder les valeurs dans l'ordre des colonnes.
 		const ligne = renderOwdleGuessLine(hero("ana"), compareOwdleGuess(hero("ana"), hero("soldier-76")));
 		expect(ligne.split("\n")).toEqual([
-			"🟥🟩🟥🟥🟩🟥 **Ana**",
-			"-# Soutien · Humain · Égypte · Overwatch · 2016 · Projectile",
+			"🟥🟥🟩🟥🟥🟩 **Ana**",
+			"-# Soutien · Tactique · Humain · Égypte · Overwatch · 2016",
 		]);
-		expect(OWDLE_COLUMN_HEADER).toBe("🎭🧬🌍🚩📅🎯");
+		expect(OWDLE_COLUMN_HEADER).toBe("🎭🧩🧬🌍🚩📅");
 	});
 
 	it("indique le sens de l'annee de sortie", () => {
@@ -85,40 +123,69 @@ describe("compareOwdleGuess", () => {
 
 describe("resolveOwdleHero", () => {
 	it("accepte la cle comme un nom tape a la main", () => {
-		expect(resolveOwdleHero("soldier-76")?.name).toBe("Soldat : 76");
-		expect(resolveOwdleHero("soldat 76")?.key).toBe("soldier-76");
-		expect(resolveOwdleHero("LUCIO")?.key).toBe("lucio");
-		expect(resolveOwdleHero("personne")).toBeUndefined();
-		expect(resolveOwdleHero("  ")).toBeUndefined();
+		expect(resolveOwdleHero(HEROES, "soldier-76")?.name).toBe("Soldat : 76");
+		expect(resolveOwdleHero(HEROES, "soldat 76")?.key).toBe("soldier-76");
+		expect(resolveOwdleHero(HEROES, "LUCIO")?.key).toBe("lucio");
+		expect(resolveOwdleHero(HEROES, "personne")).toBeUndefined();
+		expect(resolveOwdleHero(HEROES, "  ")).toBeUndefined();
+	});
+
+	it("ne trouve que dans la liste recue", () => {
+		// Le bot ne lui passe que les heros actifs : un heros desactive ne doit
+		// plus pouvoir etre propose, meme tape a la main.
+		expect(resolveOwdleHero(HEROES.filter((h) => h.key !== "ana"), "Ana")).toBeUndefined();
 	});
 });
 
 describe("searchOwdleHeroes", () => {
 	it("propose d'abord les noms qui commencent par la saisie", () => {
-		const noms = searchOwdleHeroes("re").map((h) => h.name);
+		const noms = searchOwdleHeroes(HEROES, "re").map((h) => h.name);
 		expect(noms.slice(0, 2)).toEqual(["Reine des Junkers", "Reinhardt"]);
 	});
 
-	it("respecte la limite de Discord", () => {
-		expect(searchOwdleHeroes("").length).toBe(25);
+	it("respecte la limite demandee", () => {
+		expect(searchOwdleHeroes(HEROES, "", 5).length).toBe(5);
 	});
 });
 
 describe("pickOwdleHero", () => {
 	// Les bornes de la liste, pas des heros nommes : ajouter un heros ne doit pas
 	// casser ce test.
-	const premier = OWDLE_HEROES[0]!;
-	const dernier = OWDLE_HEROES[OWDLE_HEROES.length - 1]!;
+	const premier = HEROES[0]!;
+	const dernier = HEROES[HEROES.length - 1]!;
 
 	it("ecarte les heros recents", () => {
-		const recents = OWDLE_HEROES.slice(1).map((h) => h.key);
-		expect(pickOwdleHero(recents, () => 0.99).key).toBe(premier.key);
+		const recents = HEROES.slice(1).map((h) => h.key);
+		expect(pickOwdleHero(HEROES, recents, () => 0.99).key).toBe(premier.key);
 	});
 
 	it("retombe sur la liste entiere si tout est exclu", () => {
-		const tous = OWDLE_HEROES.map((h) => h.key);
-		expect(pickOwdleHero(tous, () => 0).key).toBe(premier.key);
-		expect(pickOwdleHero([], () => 0.9999999).key).toBe(dernier.key);
+		const tous = HEROES.map((h) => h.key);
+		expect(pickOwdleHero(HEROES, tous, () => 0).key).toBe(premier.key);
+		expect(pickOwdleHero(HEROES, [], () => 0.9999999).key).toBe(dernier.key);
+	});
+
+	it("refuse une liste vide plutot que de tirer undefined", () => {
+		expect(() => pickOwdleHero([], [])).toThrow();
+	});
+});
+
+describe("owdleXpForGuesses", () => {
+	const bareme = [100, 80, 60];
+
+	it("lit le bareme par nombre d'essais", () => {
+		expect(owdleXpForGuesses(bareme, 1)).toBe(100);
+		expect(owdleXpForGuesses(bareme, 3)).toBe(60);
+	});
+
+	it("applique la derniere valeur au-dela de la liste", () => {
+		expect(owdleXpForGuesses(bareme, 4)).toBe(60);
+		expect(owdleXpForGuesses(bareme, 40)).toBe(60);
+	});
+
+	it("ne rapporte rien sans bareme", () => {
+		expect(owdleXpForGuesses([], 1)).toBe(0);
+		expect(owdleXpForGuesses(bareme, 0)).toBe(0);
 	});
 });
 

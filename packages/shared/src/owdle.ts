@@ -1,18 +1,29 @@
 /**
  * OWdle — retrouver le heros du jour, a la maniere de Wordle.
  *
- * La liste des heros et la regle de comparaison vivent ici plutot que dans le
- * bot : le jour ou le dashboard affichera l'historique ou un apercu, il doit
- * comparer exactement comme le bot, sans quoi une grille partagee ne
- * correspondrait plus a ce qu'a vu le joueur.
+ * La regle de comparaison vit ici plutot que dans le bot : le dashboard
+ * verifie les heros qu'on y saisit avec les memes fonctions, sans quoi il
+ * pourrait accepter une fiche que le bot lirait autrement.
+ *
+ * **Les heros vivent en base** (`owdle_heroes`), modifiables depuis le
+ * dashboard : toutes les fonctions qui en ont besoin recoivent la liste en
+ * parametre plutot que de lire une constante.
  *
  * **Les attributs sont choisis pour etre objectifs.** Pas de points de vie (ils
  * bougent a chaque patch, la liste deviendrait fausse sans que personne ne le
  * voie), pas d'age (inconnu pour la moitie des omniaques). L'affiliation retient
  * l'appartenance **principale** : la plupart des heros en ont traverse
- * plusieurs, et c'est au staff d'arbitrer quand le lore change.
+ * plusieurs, et c'est au staff d'arbitrer quand le lore change. Le type d'arme
+ * a ete remplace par le sous-role : la moitie des heros en melangeaient deux,
+ * et la case se jouait sur une convention que personne ne pouvait deviner.
  */
 
+import {
+	OwdleRegion,
+	OwdleRole,
+	OwdleSpecies,
+	OwdleSubRole,
+} from "./enums";
 import { zonedDateKey } from "./timezone";
 
 /** Le jour de l'OWdle commence a minuit, heure de Paris, pour tout le monde. */
@@ -21,26 +32,26 @@ export const OWDLE_TIME_ZONE = "Europe/Paris";
 /** Heros ecartes du tirage s'ils ont deja ete le heros du jour recemment. */
 export const OWDLE_RECENT_EXCLUSION_DAYS = 30;
 
-export type OwdleRole = "TANK" | "DAMAGE" | "SUPPORT";
-export type OwdleSpecies = "HUMAN" | "OMNIC" | "ANIMAL";
-export type OwdleRegion =
-	| "EUROPE"
-	| "AMERICAS"
-	| "ASIA"
-	| "AFRICA"
-	| "OCEANIA"
-	| "SPACE"
-	| "UNKNOWN";
-export type OwdleAffiliation =
-	| "OVERWATCH"
-	| "TALON"
-	| "JUNKERS"
-	| "VISHKAR"
-	| "NONE"
-	| "OTHER"
-	| "MEKA"
-	| "YOKAI";
-export type OwdleWeapon = "HITSCAN" | "PROJECTILE" | "BEAM" | "MELEE";
+/** Cle d'un heros : minuscules, chiffres et tirets, comme `soldier-76`. */
+export const OWDLE_HERO_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const MAX_OWDLE_HERO_KEY_LENGTH = 40;
+export const MAX_OWDLE_HERO_NAME_LENGTH = 60;
+export const MAX_OWDLE_ORIGIN_LENGTH = 60;
+/** Bornes de l'annee de sortie : le jeu est sorti en 2016. */
+export const MIN_OWDLE_RELEASE_YEAR = 2016;
+export const MAX_OWDLE_RELEASE_YEAR = 2100;
+export const MAX_OWDLE_AFFILIATION_LABEL_LENGTH = 60;
+
+/**
+ * Affiliation, telle que la table `owdle_affiliations` la porte.
+ *
+ * La comparaison se fait sur la `key` ; le `label` n'est qu'affiche, et le
+ * renommer depuis le dashboard ne change aucune case de la grille.
+ */
+export interface OwdleAffiliationRef {
+	key: string;
+	label: string;
+}
 
 export interface OwdleHero {
 	/** Identifiant stable, stocke en base : ne jamais le renommer. */
@@ -48,15 +59,15 @@ export interface OwdleHero {
 	/** Nom affiche, celui du client francais. */
 	name: string;
 	role: OwdleRole;
+	/** Doit appartenir au role : voir `OWDLE_SUB_ROLE_ROLE`. */
+	subRole: OwdleSubRole;
 	species: OwdleSpecies;
 	/** Pays ou lieu d'origine, compare tel quel. */
 	origin: string;
 	/** Sert au 🟨 : meme continent, pays different. */
 	region: OwdleRegion;
-	affiliation: OwdleAffiliation;
+	affiliation: OwdleAffiliationRef;
 	releaseYear: number;
-	/** Tir principal, celui que l'on voit le plus. */
-	weapon: OwdleWeapon;
 }
 
 export const OWDLE_ROLE_LABELS: Record<OwdleRole, string> = {
@@ -64,6 +75,44 @@ export const OWDLE_ROLE_LABELS: Record<OwdleRole, string> = {
 	DAMAGE: "Dégâts",
 	SUPPORT: "Soutien",
 };
+
+/**
+ * Role auquel appartient chaque sous-role.
+ *
+ * C'est ce qui empeche un « Tank Secouriste » : l'API refuse la fiche, le
+ * dashboard ne propose que les sous-roles du role choisi.
+ */
+export const OWDLE_SUB_ROLE_ROLE: Record<OwdleSubRole, OwdleRole> = {
+	BRUISER: "TANK",
+	INITIATOR: "TANK",
+	STALWART: "TANK",
+	FLANKER: "DAMAGE",
+	RECON: "DAMAGE",
+	SHARPSHOOTER: "DAMAGE",
+	SPECIALIST: "DAMAGE",
+	MEDIC: "SUPPORT",
+	SURVIVOR: "SUPPORT",
+	TACTICIAN: "SUPPORT",
+};
+
+/** Noms du client francais, tels que Blizzard les a traduits. */
+export const OWDLE_SUB_ROLE_LABELS: Record<OwdleSubRole, string> = {
+	BRUISER: "Colosse",
+	INITIATOR: "Engagement",
+	STALWART: "Indéfectible",
+	FLANKER: "Attaque par les flancs",
+	RECON: "Reconnaissance",
+	SHARPSHOOTER: "Fine gâchette",
+	SPECIALIST: "Spécialiste",
+	MEDIC: "Secouriste",
+	SURVIVOR: "Survie",
+	TACTICIAN: "Tactique",
+};
+
+/** Sous-roles d'un role, dans l'ordre de l'enum. */
+export function owdleSubRolesOf(role: OwdleRole): OwdleSubRole[] {
+	return Object.values(OwdleSubRole).filter((sub) => OWDLE_SUB_ROLE_ROLE[sub] === role);
+}
 
 export const OWDLE_SPECIES_LABELS: Record<OwdleSpecies, string> = {
 	HUMAN: "Humain",
@@ -73,102 +122,20 @@ export const OWDLE_SPECIES_LABELS: Record<OwdleSpecies, string> = {
 	ANIMAL: "Animal",
 };
 
-export const OWDLE_AFFILIATION_LABELS: Record<OwdleAffiliation, string> = {
-	OVERWATCH: "Overwatch",
-	TALON: "La Griffe",
-	JUNKERS: "Junkers",
-	VISHKAR: "Vishkar",
-	NONE: "Aucune",
-	OTHER: "Autre",
-	MEKA: "Escouade MEKA",
-	YOKAI: "Yokai"
+export const OWDLE_REGION_LABELS: Record<OwdleRegion, string> = {
+	EUROPE: "Europe",
+	AMERICAS: "Amériques",
+	ASIA: "Asie",
+	AFRICA: "Afrique",
+	OCEANIA: "Océanie",
+	SPACE: "Espace",
+	UNKNOWN: "Inconnue",
 };
 
-export const OWDLE_WEAPON_LABELS: Record<OwdleWeapon, string> = {
-	HITSCAN: "Hitscan",
-	PROJECTILE: "Projectile",
-	BEAM: "Faisceau",
-	MELEE: "Mêlée",
-};
-
-/**
- * Liste des heros jouables a l'OWdle.
- *
- * A jour de la saison 5 de 2026 (Doctrine, octobre 2026). En ajouter un ne
- * demande qu'une ligne, et le tirage le prend en compte des le lendemain.
- *
- * Le role suit le jeu **actuel** : un heros retravaille change de colonne (Sombra
- * est passee soutien a la saison 5 de 2026). Sa cle, elle, ne bouge jamais.
- */
-export const OWDLE_HEROES: readonly OwdleHero[] = [
-	// Tanks
-	{ key: "dmon", name: "D.Mon", role: "TANK", species: "HUMAN", origin: "Corée du Sud", region: "ASIA", affiliation: "OTHER", releaseYear: 2026, weapon: "MELEE" },
-	{ key: "domina", name: "Domina", role: "TANK", species: "HUMAN", origin: "Inde", region: "ASIA", affiliation: "VISHKAR", releaseYear: 2026, weapon: "BEAM" },
-	{ key: "dva", name: "D.Va", role: "TANK", species: "HUMAN", origin: "Corée du Sud", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "HITSCAN" },
-	{ key: "doomfist", name: "Doomfist", role: "TANK", species: "HUMAN", origin: "Nigeria", region: "AFRICA", affiliation: "TALON", releaseYear: 2017, weapon: "MELEE" },
-	{ key: "hazard", name: "Danger", role: "TANK", species: "HUMAN", origin: "Royaume-Uni", region: "EUROPE", affiliation: "OTHER", releaseYear: 2024, weapon: "PROJECTILE" },
-	{ key: "junker-queen", name: "Reine des Junkers", role: "TANK", species: "HUMAN", origin: "Australie", region: "OCEANIA", affiliation: "JUNKERS", releaseYear: 2022, weapon: "HITSCAN" },
-	{ key: "mauga", name: "Mauga", role: "TANK", species: "HUMAN", origin: "Samoa", region: "OCEANIA", affiliation: "TALON", releaseYear: 2023, weapon: "HITSCAN" },
-	{ key: "orisa", name: "Orisa", role: "TANK", species: "OMNIC", origin: "Numbani", region: "AFRICA", affiliation: "OVERWATCH", releaseYear: 2017, weapon: "PROJECTILE" },
-	{ key: "ramattra", name: "Ramattra", role: "TANK", species: "OMNIC", origin: "Népal", region: "ASIA", affiliation: "OTHER", releaseYear: 2022, weapon: "PROJECTILE" },
-	{ key: "reinhardt", name: "Reinhardt", role: "TANK", species: "HUMAN", origin: "Allemagne", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "MELEE" },
-	{ key: "roadhog", name: "Chopper", role: "TANK", species: "HUMAN", origin: "Australie", region: "OCEANIA", affiliation: "JUNKERS", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "sigma", name: "Sigma", role: "TANK", species: "HUMAN", origin: "Pays-Bas", region: "EUROPE", affiliation: "TALON", releaseYear: 2019, weapon: "PROJECTILE" },
-	{ key: "winston", name: "Winston", role: "TANK", species: "ANIMAL", origin: "Lune", region: "SPACE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "BEAM" },
-	{ key: "wrecking-ball", name: "Bouldozer", role: "TANK", species: "ANIMAL", origin: "Lune", region: "SPACE", affiliation: "JUNKERS", releaseYear: 2018, weapon: "HITSCAN" },
-	{ key: "zarya", name: "Zarya", role: "TANK", species: "HUMAN", origin: "Russie", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "BEAM" },
-
-	// Degats
-	{ key: "anran", name: "Anran", role: "DAMAGE", species: "HUMAN", origin: "Chine", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2026, weapon: "PROJECTILE" },
-	{ key: "ashe", name: "Ashe", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "OTHER", releaseYear: 2018, weapon: "HITSCAN" },
-	{ key: "bastion", name: "Bastion", role: "DAMAGE", species: "OMNIC", origin: "Inconnue", region: "UNKNOWN", affiliation: "NONE", releaseYear: 2016, weapon: "HITSCAN" },
-	// Blackwatch et le gang Deadlock plutot qu'Overwatch : avec « Overwatch »,
-	// Cassidy et Soldat : 76 avaient les memes attributs et devenaient
-	// impossibles a departager.
-	{ key: "cassidy", name: "Cassidy", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "HITSCAN" },
-	{ key: "echo", name: "Écho", role: "DAMAGE", species: "OMNIC", origin: "Singapour", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2020, weapon: "PROJECTILE" },
-	// Ancien d'Overwatch passe chez Vendetta : c'est son camp actuel qui compte.
-	{ key: "emre", name: "Emre", role: "DAMAGE", species: "HUMAN", origin: "Turquie", region: "EUROPE", affiliation: "TALON", releaseYear: 2026, weapon: "HITSCAN" },
-	{ key: "freja", name: "Freja", role: "DAMAGE", species: "HUMAN", origin: "Danemark", region: "EUROPE", affiliation: "NONE", releaseYear: 2025, weapon: "PROJECTILE" },
-	{ key: "genji", name: "Genji", role: "DAMAGE", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "YOKAI", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "hanzo", name: "Hanzo", role: "DAMAGE", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "YOKAI", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "junkrat", name: "Chacal", role: "DAMAGE", species: "HUMAN", origin: "Australie", region: "OCEANIA", affiliation: "JUNKERS", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "mei", name: "Mei", role: "DAMAGE", species: "HUMAN", origin: "Chine", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "BEAM" },
-	{ key: "pharah", name: "Pharah", role: "DAMAGE", species: "HUMAN", origin: "Égypte", region: "AFRICA", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "reaper", name: "Faucheur", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "TALON", releaseYear: 2016, weapon: "HITSCAN" },
-	// Le clan Hashimoto, allie de la Griffe sans en faire partie : « Autre ».
-	{ key: "shion", name: "Shion", role: "DAMAGE", species: "OMNIC", origin: "Japon", region: "ASIA", affiliation: "OTHER", releaseYear: 2026, weapon: "HITSCAN" },
-	{ key: "sierra", name: "Sierra", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2026, weapon: "PROJECTILE" },
-	{ key: "sojourn", name: "Sojourn", role: "DAMAGE", species: "HUMAN", origin: "Canada", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2022, weapon: "PROJECTILE" },
-	{ key: "soldier-76", name: "Soldat : 76", role: "DAMAGE", species: "HUMAN", origin: "États-Unis", region: "AMERICAS", affiliation: "NONE", releaseYear: 2016, weapon: "HITSCAN" },
-	{ key: "symmetra", name: "Symmetra", role: "DAMAGE", species: "HUMAN", origin: "Inde", region: "ASIA", affiliation: "VISHKAR", releaseYear: 2016, weapon: "BEAM" },
-	{ key: "torbjorn", name: "Torbjörn", role: "DAMAGE", species: "HUMAN", origin: "Suède", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "tracer", name: "Tracer", role: "DAMAGE", species: "HUMAN", origin: "Angleterre", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "HITSCAN" },
-	{ key: "vendetta", name: "Vendetta", role: "DAMAGE", species: "HUMAN", origin: "Italie", region: "EUROPE", affiliation: "TALON", releaseYear: 2025, weapon: "MELEE" },
-	{ key: "venture", name: "Venture", role: "DAMAGE", species: "HUMAN", origin: "Canada", region: "AMERICAS", affiliation: "NONE", releaseYear: 2024, weapon: "PROJECTILE" },
-	{ key: "widowmaker", name: "Fatale", role: "DAMAGE", species: "HUMAN", origin: "France", region: "EUROPE", affiliation: "TALON", releaseYear: 2016, weapon: "HITSCAN" },
-
-	// Soutiens
-	{ key: "ana", name: "Ana", role: "SUPPORT", species: "HUMAN", origin: "Égypte", region: "AFRICA", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "baptiste", name: "Baptiste", role: "SUPPORT", species: "HUMAN", origin: "Haïti", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2019, weapon: "HITSCAN" },
-	{ key: "brigitte", name: "Brigitte", role: "SUPPORT", species: "HUMAN", origin: "Suède", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2018, weapon: "MELEE" },
-	// Libere par Doomfist et les anciens de la Griffe : meme camp que lui.
-	{ key: "doctrine", name: "Doctrine", role: "SUPPORT", species: "HUMAN", origin: "Zimbabwe", region: "AFRICA", affiliation: "TALON", releaseYear: 2026, weapon: "PROJECTILE" },
-	{ key: "illari", name: "Illari", role: "SUPPORT", species: "HUMAN", origin: "Pérou", region: "AMERICAS", affiliation: "OTHER", releaseYear: 2023, weapon: "HITSCAN" },
-	// Chatte errante recueillie a Gibraltar, dont on ne sait rien d'autre.
-	{ key: "jetpack-cat", name: "Jetpack Cat", role: "SUPPORT", species: "ANIMAL", origin: "Inconnue", region: "UNKNOWN", affiliation: "OVERWATCH", releaseYear: 2026, weapon: "PROJECTILE" },
-	{ key: "juno", name: "Juno", role: "SUPPORT", species: "HUMAN", origin: "Mars", region: "SPACE", affiliation: "OVERWATCH", releaseYear: 2024, weapon: "PROJECTILE" },
-	{ key: "kiriko", name: "Kiriko", role: "SUPPORT", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "YOKAI", releaseYear: 2022, weapon: "PROJECTILE" },
-	{ key: "lifeweaver", name: "Vital", role: "SUPPORT", species: "HUMAN", origin: "Thaïlande", region: "ASIA", affiliation: "OTHER", releaseYear: 2023, weapon: "PROJECTILE" },
-	{ key: "lucio", name: "Lúcio", role: "SUPPORT", species: "HUMAN", origin: "Brésil", region: "AMERICAS", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "PROJECTILE" },
-	{ key: "mercy", name: "Ange", role: "SUPPORT", species: "HUMAN", origin: "Suisse", region: "EUROPE", affiliation: "OVERWATCH", releaseYear: 2016, weapon: "BEAM" },
-	{ key: "mizuki", name: "Mizuki", role: "SUPPORT", species: "HUMAN", origin: "Japon", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2026, weapon: "PROJECTILE" },
-	{ key: "moira", name: "Moira", role: "SUPPORT", species: "HUMAN", origin: "Irlande", region: "EUROPE", affiliation: "TALON", releaseYear: 2017, weapon: "BEAM" },
-	// Soutien depuis la saison 5 de 2026, degats auparavant.
-	{ key: "sombra", name: "Sombra", role: "SUPPORT", species: "HUMAN", origin: "Mexique", region: "AMERICAS", affiliation: "TALON", releaseYear: 2016, weapon: "HITSCAN" },
-	{ key: "wuyang", name: "Wuyang", role: "SUPPORT", species: "HUMAN", origin: "Chine", region: "ASIA", affiliation: "OVERWATCH", releaseYear: 2025, weapon: "PROJECTILE" },
-	{ key: "zenyatta", name: "Zenyatta", role: "SUPPORT", species: "OMNIC", origin: "Népal", region: "ASIA", affiliation: "OTHER", releaseYear: 2016, weapon: "PROJECTILE" },
-];
+/** Ordre des enums, pour les listes deroulantes du dashboard. */
+export const OWDLE_ROLES = Object.values(OwdleRole);
+export const OWDLE_SPECIES = Object.values(OwdleSpecies);
+export const OWDLE_REGIONS = Object.values(OwdleRegion);
 
 export type OwdleMatch = "EXACT" | "PARTIAL" | "WRONG";
 /** Pour l'annee : `HIGHER` = le heros du jour est sorti **plus tard**. */
@@ -176,26 +143,20 @@ export type OwdleYearMatch = "EXACT" | "HIGHER" | "LOWER";
 
 export interface OwdleComparison {
 	role: OwdleMatch;
+	subRole: OwdleMatch;
 	species: OwdleMatch;
 	origin: OwdleMatch;
 	affiliation: OwdleMatch;
 	releaseYear: OwdleYearMatch;
-	weapon: OwdleMatch;
 	/**
 	 * C'est le heros du jour. Se lit sur la cle, pas sur les attributs : deux
-	 * jumeaux (Genji et Hanzo) ont six cases vertes sans etre le meme heros.
+	 * heros aux memes attributs ont six cases vertes sans etre le meme heros.
 	 */
 	solved: boolean;
 }
 
-const byKey = new Map(OWDLE_HEROES.map((hero) => [hero.key, hero]));
-
-export function findOwdleHero(key: string): OwdleHero | undefined {
-	return byKey.get(key);
-}
-
 /** Minuscules sans accents ni ponctuation : « soldat 76 » trouve « Soldat : 76 ». */
-function normaliser(value: string): string {
+export function normalizeOwdleName(value: string): string {
 	return value
 		.normalize("NFD")
 		.replace(/[̀-ͯ]/g, "")
@@ -209,31 +170,31 @@ function normaliser(value: string): string {
  * L'autocompletion envoie la cle, mais elle n'est qu'une suggestion du client :
  * un joueur peut tout aussi bien valider un nom tape a la main.
  */
-export function resolveOwdleHero(input: string): OwdleHero | undefined {
-	const exact = byKey.get(input);
+export function resolveOwdleHero<T extends OwdleHero>(heroes: readonly T[], input: string): T | undefined {
+	const exact = heroes.find((hero) => hero.key === input);
 	if (exact) return exact;
 
-	const cherche = normaliser(input);
+	const cherche = normalizeOwdleName(input);
 	if (!cherche) return undefined;
-	return OWDLE_HEROES.find(
-		(hero) => normaliser(hero.name) === cherche || normaliser(hero.key) === cherche,
+	return heroes.find(
+		(hero) => normalizeOwdleName(hero.name) === cherche || normalizeOwdleName(hero.key) === cherche,
 	);
 }
 
 /** Heros dont le nom contient la saisie, au plus `limit` (25 pour Discord). */
-export function searchOwdleHeroes(query: string, limit = 25): OwdleHero[] {
-	const cherche = normaliser(query);
-	const heros = cherche
-		? OWDLE_HEROES.filter((hero) => normaliser(hero.name).includes(cherche))
-		: [...OWDLE_HEROES];
+export function searchOwdleHeroes<T extends OwdleHero>(heroes: readonly T[], query: string, limit = 25): T[] {
+	const cherche = normalizeOwdleName(query);
+	const trouves = cherche
+		? heroes.filter((hero) => normalizeOwdleName(hero.name).includes(cherche))
+		: [...heroes];
 	// Ceux qui commencent par la saisie d'abord : taper « re » doit proposer
 	// Reinhardt avant Faucheur (reaper).
-	heros.sort((a, b) => {
-		const aDebut = normaliser(a.name).startsWith(cherche) ? 0 : 1;
-		const bDebut = normaliser(b.name).startsWith(cherche) ? 0 : 1;
+	trouves.sort((a, b) => {
+		const aDebut = normalizeOwdleName(a.name).startsWith(cherche) ? 0 : 1;
+		const bDebut = normalizeOwdleName(b.name).startsWith(cherche) ? 0 : 1;
 		return aDebut - bDebut || a.name.localeCompare(b.name, "fr");
 	});
-	return heros.slice(0, limit);
+	return trouves.slice(0, limit);
 }
 
 export function compareOwdleGuess(guess: OwdleHero, target: OwdleHero): OwdleComparison {
@@ -253,13 +214,29 @@ export function compareOwdleGuess(guess: OwdleHero, target: OwdleHero): OwdleCom
 
 	return {
 		role: egal(guess.role, target.role),
+		subRole: egal(guess.subRole, target.subRole),
 		species: egal(guess.species, target.species),
 		origin,
-		affiliation: egal(guess.affiliation, target.affiliation),
+		affiliation: egal(guess.affiliation.key, target.affiliation.key),
 		releaseYear,
-		weapon: egal(guess.weapon, target.weapon),
 		solved: guess.key === target.key,
 	};
+}
+
+/**
+ * Groupes de heros indiscernables : memes valeurs dans toutes les colonnes.
+ *
+ * Ils restent jouables — une ligne toute verte qui n'est pas le heros du jour
+ * coute un essai, et il ne reste que l'autre. Le dashboard les signale pour
+ * qu'une faute de saisie ne fabrique pas une paire en silence.
+ */
+export function findOwdleTwins(heroes: readonly OwdleHero[]): string[][] {
+	const groupes = new Map<string, string[]>();
+	for (const h of heroes) {
+		const signature = [h.role, h.subRole, h.species, h.origin, h.affiliation.key, h.releaseYear].join("|");
+		groupes.set(signature, [...(groupes.get(signature) ?? []), h.key]);
+	}
+	return [...groupes.values()].filter((keys) => keys.length > 1);
 }
 
 const MATCH_EMOJI: Record<OwdleMatch, string> = {
@@ -284,11 +261,11 @@ const YEAR_EMOJI: Record<OwdleYearMatch, string> = {
  */
 export const OWDLE_COLUMNS = [
 	{ icon: "🎭", label: "rôle" },
+	{ icon: "🧩", label: "sous-rôle" },
 	{ icon: "🧬", label: "espèce" },
 	{ icon: "🌍", label: "origine" },
 	{ icon: "🚩", label: "affiliation" },
 	{ icon: "📅", label: "sortie" },
-	{ icon: "🎯", label: "tir principal" },
 ] as const;
 
 /** En-tete de la grille : une icone au-dessus de chaque case. */
@@ -298,11 +275,11 @@ export const OWDLE_COLUMN_HEADER = OWDLE_COLUMNS.map((c) => c.icon).join("");
 function renderOwdleCells(c: OwdleComparison): string {
 	return [
 		MATCH_EMOJI[c.role],
+		MATCH_EMOJI[c.subRole],
 		MATCH_EMOJI[c.species],
 		MATCH_EMOJI[c.origin],
 		MATCH_EMOJI[c.affiliation],
 		YEAR_EMOJI[c.releaseYear],
-		MATCH_EMOJI[c.weapon],
 	].join("");
 }
 
@@ -316,11 +293,11 @@ function renderOwdleCells(c: OwdleComparison): string {
 export function renderOwdleGuessLine(guess: OwdleHero, comparison: OwdleComparison): string {
 	const valeurs = [
 		OWDLE_ROLE_LABELS[guess.role],
+		OWDLE_SUB_ROLE_LABELS[guess.subRole],
 		OWDLE_SPECIES_LABELS[guess.species],
 		guess.origin,
-		OWDLE_AFFILIATION_LABELS[guess.affiliation],
+		guess.affiliation.label,
 		String(guess.releaseYear),
-		OWDLE_WEAPON_LABELS[guess.weapon],
 	];
 	return `${renderOwdleCells(comparison)} **${guess.name}**\n-# ${valeurs.join(" · ")}`;
 }
@@ -343,17 +320,47 @@ export function owdleDayKey(instant: Date): string {
  * Tire le heros d'un jour, en ecartant ceux deja tombes recemment.
  *
  * Si l'exclusion videait la liste (moins de heros que de jours exclus), on
- * retombe sur la liste entiere plutot que de ne rien tirer.
+ * retombe sur la liste entiere plutot que de ne rien tirer. Une liste vide
+ * leve une erreur : il n'y a alors aucun heros actif, et le dire vaut mieux
+ * que de tirer `undefined`.
  */
-export function pickOwdleHero(
+export function pickOwdleHero<T extends OwdleHero>(
+	heroes: readonly T[],
 	recentKeys: readonly string[],
 	random: () => number = Math.random,
-): OwdleHero {
+): T {
+	if (!heroes.length) throw new Error("[OWdle] Aucun héros actif à tirer.");
+
 	const exclus = new Set(recentKeys);
-	const candidats = OWDLE_HEROES.filter((hero) => !exclus.has(hero.key));
-	const pool = candidats.length ? candidats : OWDLE_HEROES;
+	const candidats = heroes.filter((hero) => !exclus.has(hero.key));
+	const pool = candidats.length ? candidats : heroes;
 	// La liste n'est jamais vide, l'index est borne a sa taille.
 	return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]!;
+}
+
+/**
+ * Bareme d'experience d'un serveur qui n'a jamais ouvert la page.
+ *
+ * Un message rapporte de 15 a 25 XP, une fois par minute au plus : trouver du
+ * premier coup vaut donc quelques messages, pas une soiree de discussion. Le
+ * jeu ne se joue qu'une fois par jour, il ne doit pas devenir la facon la plus
+ * rentable de monter de niveau. Memes valeurs que le defaut de la colonne
+ * `owdle_config.xp_by_guesses`.
+ */
+export const OWDLE_DEFAULT_XP_BY_GUESSES: readonly number[] = [100, 80, 60, 50, 40, 30];
+/** Nombre de paliers du bareme : au-dela, la derniere valeur s'applique. */
+export const MAX_OWDLE_XP_STEPS = 15;
+export const MAX_OWDLE_XP_PER_WIN = 1000;
+
+/**
+ * Experience gagnee pour une victoire en `guesses` essais.
+ *
+ * La derniere valeur du bareme vaut pour tous les essais au-dela : trouver en
+ * douze essais rapporte autant qu'en six. Un bareme vide ne rapporte rien.
+ */
+export function owdleXpForGuesses(table: readonly number[], guesses: number): number {
+	if (!table.length || guesses < 1) return 0;
+	return table[Math.min(guesses, table.length) - 1]!;
 }
 
 export interface OwdleStreaks {

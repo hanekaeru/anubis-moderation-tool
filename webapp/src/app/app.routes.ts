@@ -239,6 +239,12 @@ export const routes: Routes = [
 				title: 'Expérience — Anubis',
 			},
 			{
+				path: 'owdle',
+				canActivate: [permissionGuard(Permission.OWDLE_READ)],
+				loadComponent: () => import('./features/owdle/owdle').then((m) => m.OwdlePage),
+				title: 'OWdle — Anubis',
+			},
+			{
 				path: 'sessions',
 				canActivate: [permissionGuard(Permission.SESSIONS_READ)],
 				loadComponent: () =>

@@ -13,9 +13,9 @@ import {
 	owdleDayKey,
 	renderOwdleGuessLine,
 	renderOwdleShareGrid,
-	searchOwdleHeroes,
 } from "@anubis/shared";
 import * as owdle from "../../collectors/owdle";
+import { celebrerMontee } from "../../collectors/xpLevelUp";
 import type { Command } from "../../types";
 import * as colors from "../../utils/constantes";
 
@@ -63,6 +63,7 @@ async function annoncerVictoire(
 	guesses: readonly OwdleHero[],
 	target: OwdleHero,
 	rank: number | null,
+	xp: owdle.XpGain | null,
 ): Promise<void> {
 	const salonId = await owdle.salonAnnonce(interaction.guildId);
 	const salon: GuildTextBasedChannel | null = salonId
@@ -80,9 +81,10 @@ async function annoncerVictoire(
 		.join("\n");
 	const n = guesses.length;
 	const rang = rank === 1 ? " — **premier du serveur** aujourd'hui !" : rank ? ` — ${rank}ᵉ du serveur aujourd'hui.` : "";
+	const gain = xp ? `\n-# +${xp.amount} XP` : "";
 
 	await salon.send({
-		content: `🎉 ${interaction.user} a trouvé l'OWdle du jour en **${n}** essai${n > 1 ? "s" : ""}${rang}\n${OWDLE_COLUMN_HEADER}\n${grille}`,
+		content: `🎉 ${interaction.user} a trouvé l'OWdle du jour en **${n}** essai${n > 1 ? "s" : ""}${rang}${gain}\n${OWDLE_COLUMN_HEADER}\n${grille}`,
 		// La mention identifie le joueur sans le notifier : il vient de jouer.
 		allowedMentions: { parse: [] },
 	});
@@ -124,12 +126,23 @@ async function essai(interaction: ChatInputCommandInteraction<"cached">): Promis
 			embed
 				.setColor(colors.success)
 				.setTitle(`Trouvé ! C'était ${issue.target.name}, en ${n} essai${n > 1 ? "s" : ""}.`);
-			await interaction.editReply({ embeds: [embed] });
+			const xp = issue.xp;
+			await interaction.editReply({
+				content: xp ? `Tu gagnes **${xp.amount} XP**.` : undefined,
+				embeds: [embed],
+			});
 
 			// L'annonce ne doit jamais faire echouer une victoire deja enregistree.
-			await annoncerVictoire(interaction, issue.guesses, issue.target, issue.rank).catch((err) =>
+			await annoncerVictoire(interaction, issue.guesses, issue.target, issue.rank, xp).catch((err) =>
 				console.error("[OWdle] Annonce de victoire échouée :", err),
 			);
+
+			// Meme suite qu'une montee de niveau gagnee en ecrivant : roles de
+			// palier puis annonce, selon le reglage du serveur. Apres l'annonce de
+			// victoire, pour que « niveau 10 » ne la precede pas.
+			if (xp && xp.after.level > xp.before.level && interaction.channel) {
+				await celebrerMontee(interaction.member, xp.after.level, interaction.channel);
+			}
 			return;
 		}
 	}
@@ -225,7 +238,8 @@ const command: Command = {
 
 	async autocomplete(interaction) {
 		const saisie = interaction.options.getFocused();
-		await interaction.respond(searchOwdleHeroes(saisie).map((h) => ({ name: h.name, value: h.key })));
+		const heros = await owdle.suggestions(saisie);
+		await interaction.respond(heros.map((h) => ({ name: h.name, value: h.key })));
 	},
 };
 
