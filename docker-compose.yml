@@ -37,12 +37,15 @@ services:
             # Laisse a "true" en production. A "false", le second facteur n'est
             # plus demande, y compris aux comptes qui l'ont active.
             TWO_FACTOR_ENABLED: ${TWO_FACTOR_ENABLED:-true}
-            # Verification Battle.net (facultative). Les trois ensemble, ou
+            # Verification Battle.net (facultative). Les quatre ensemble, ou
             # aucune : sans elles la fonctionnalite se declare indisponible
             # plutot que d'envoyer les arrivants sur une erreur Blizzard.
+            # BATTLENET_ID_SECRET ne se change ni ne se perd jamais : il porte
+            # l'unicite des comptes Blizzard deja lies.
             BATTLENET_CLIENT_ID: ${BATTLENET_CLIENT_ID:-}
             BATTLENET_CLIENT_SECRET: ${BATTLENET_CLIENT_SECRET:-}
             BATTLENET_REDIRECT_URI: https://${APP_DOMAIN}/api/verification/battlenet/callback
+            BATTLENET_ID_SECRET: ${BATTLENET_ID_SECRET:-}
             # Import des matchs esport (facultatif). Vide : l'import est
             # annonce indisponible, la saisie manuelle reste entiere.
             LIQUIPEDIA_API_KEY: ${LIQUIPEDIA_API_KEY:-}
@@ -68,3 +71,6 @@ services:
             # URL exterieure de l'API : le bot y compose le lien de
             # verification que le membre clique, il ne l'appelle jamais.
             PUBLIC_API_URL: https://${APP_DOMAIN}/api
+            # Politique de confidentialite, liee depuis les messages de
+            # verification Battle.net. Vide : le lien est simplement omis.
+            PRIVACY_POLICY_URL: ${PRIVACY_POLICY_URL:-}

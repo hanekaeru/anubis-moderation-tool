@@ -30,6 +30,7 @@ function baseConfig(overrides: Partial<AppConfig["jwt"]> = {}): AppConfig {
 			clientId: "",
 			clientSecret: "",
 			redirectUri: "",
+			idSecret: "",
 			available: false,
 		},
 		liquipedia: { apiKey: "", available: false },

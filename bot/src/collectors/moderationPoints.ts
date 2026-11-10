@@ -1,5 +1,6 @@
 import {
-	DEFAULT_MODERATION_POINTS,
+	moderationPointsFromRow,
+	type ModerationPoints,
 	type SanctionType,
 	type WarningSeverity,
 } from "@anubis/shared";
@@ -8,8 +9,8 @@ import prisma from "../prisma";
 /**
  * Bareme de points, cote bot.
  *
- * Miroir en lecture seule de `api/src/moderation/moderation-points.service.ts`:
- * le bot ne regle jamais le bareme, il le consulte pour donner son poids a une
+ * Lecture seule, par la meme traduction que l'API (`moderationPointsFromRow`,
+ * `@anubis/shared`) : le bot ne regle jamais le bareme, il le consulte pour donner son poids a une
  * sanction ou a un avertissement pose depuis Discord. Sans cela, une sanction
  * venue de Discord retomberait sur la valeur par defaut de la colonne et
  * compterait autrement que la meme sanction posee depuis le dashboard.
@@ -21,14 +22,9 @@ import prisma from "../prisma";
  */
 const TTL_CACHE_MS = 30_000;
 
-interface Bareme {
-	warningPoints: Record<WarningSeverity, number>;
-	sanctionPoints: Record<SanctionType, number>;
-}
+const cache = new Map<string, { valeur: ModerationPoints; expireA: number }>();
 
-const cache = new Map<string, { valeur: Bareme; expireA: number }>();
-
-async function lireBareme(guildId: string): Promise<Bareme> {
+async function lireBareme(guildId: string): Promise<ModerationPoints> {
 	const enCache = cache.get(guildId);
 	if (enCache && enCache.expireA > Date.now()) return enCache.valeur;
 
@@ -36,24 +32,9 @@ async function lireBareme(guildId: string): Promise<Bareme> {
 		where: { guildId },
 	});
 
-	const valeur: Bareme = row
-		? {
-				warningPoints: {
-					LOW: row.warningLowPoints,
-					MEDIUM: row.warningMediumPoints,
-					HIGH: row.warningHighPoints,
-				},
-				sanctionPoints: {
-					TIMEOUT: row.timeoutPoints,
-					KICK: row.kickPoints,
-					BAN: row.banPoints,
-					SHADOWBAN: row.shadowbanPoints,
-				},
-			}
-		: {
-				warningPoints: { ...DEFAULT_MODERATION_POINTS.warningPoints },
-				sanctionPoints: { ...DEFAULT_MODERATION_POINTS.sanctionPoints },
-			};
+	// La meme lecture que l'API : une sanction posee depuis Discord doit peser
+	// autant que la meme sanction posee depuis le dashboard.
+	const valeur = moderationPointsFromRow(row);
 
 	cache.set(guildId, { valeur, expireA: Date.now() + TTL_CACHE_MS });
 	return valeur;

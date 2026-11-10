@@ -1,5 +1,5 @@
 import {
-	INSTANT_SANCTION_TYPES,
+	sanctionSchedule,
 	type SanctionType,
 	type WarningSeverity,
 } from "@anubis/shared";
@@ -37,9 +37,9 @@ interface CreateSanctionInput {
 }
 
 export async function createSanction(input: CreateSanctionInput) {
-	const startsAt = new Date();
-	const isInstant = INSTANT_SANCTION_TYPES.includes(input.type);
-	const durationSeconds = isInstant ? null : (input.durationSeconds ?? null);
+	// Meme calendrier que les sanctions posees depuis le dashboard.
+	const calendrier = sanctionSchedule(input.type, input.durationSeconds);
+	const { durationSeconds } = calendrier;
 
 	const sanction = await prisma.sanction.create({
 		data: {
@@ -48,14 +48,7 @@ export async function createSanction(input: CreateSanctionInput) {
 			moderatorId: input.moderatorId,
 			type: input.type,
 			reason: input.reason,
-			durationSeconds,
-			startsAt,
-			expiresAt: durationSeconds
-				? new Date(startsAt.getTime() + durationSeconds * 1000)
-				: null,
-			// Une expulsion prend effet et se termine dans la foulee : la laisser
-			// ACTIVE la ferait apparaitre indefiniment comme sanction en cours.
-			status: isInstant ? "EXPIRED" : "ACTIVE",
+			...calendrier,
 			// Meme bareme que cote API : une sanction posee depuis Discord doit
 			// peser autant que la meme sanction posee depuis le dashboard.
 			points: await pointsPourSanction(input.guildId, input.type),
@@ -356,9 +349,15 @@ export async function recordExternalSanction(input: ExternalSanctionInput) {
 		return null;
 	}
 
-	const startsAt = input.occurredAt ?? new Date();
-	const isInstant = INSTANT_SANCTION_TYPES.includes(input.type);
-	const durationSeconds = isInstant ? null : (input.durationSeconds ?? null);
+	// Le calendrier part de l'heure relevee dans le journal d'audit, pas de
+	// l'ingestion : une exclusion de 10 minutes ingeree avec retard doit finir
+	// a la meme heure que sur Discord.
+	const calendrier = sanctionSchedule(
+		input.type,
+		input.durationSeconds,
+		input.occurredAt ?? new Date(),
+	);
+	const { durationSeconds } = calendrier;
 
 	const sanction = await prisma.sanction.create({
 		data: {
@@ -367,12 +366,7 @@ export async function recordExternalSanction(input: ExternalSanctionInput) {
 			moderatorId: input.moderatorId,
 			type: input.type,
 			reason: input.reason,
-			durationSeconds,
-			startsAt,
-			expiresAt: durationSeconds
-				? new Date(startsAt.getTime() + durationSeconds * 1000)
-				: null,
-			status: isInstant ? "EXPIRED" : "ACTIVE",
+			...calendrier,
 			points: await pointsPourSanction(input.guildId, input.type),
 			discordSyncedAt: new Date(),
 		},

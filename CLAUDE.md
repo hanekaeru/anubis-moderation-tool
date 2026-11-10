@@ -36,22 +36,35 @@ autrement qu'au build :
 node -e 'require("./bot/dist/src/loadCommands.js").loadCommands().size'
 ```
 
-## Le package partage a deux visages
+## Le package partage a trois visages
 
-`@anubis/shared` expose deux points d'entree distincts, et la distinction est
+`@anubis/shared` expose trois points d'entree distincts, et la distinction est
 essentielle :
 
-- `@anubis/shared` — types et petites constantes, **sans aucune dependance**,
-  donc importable depuis le navigateur.
+- `@anubis/shared` — types, constantes et regles **pures**, **sans aucune
+  dependance**, donc importable depuis le navigateur.
 - `@anubis/shared/prisma` — le client Prisma genere, **serveur uniquement**.
   L'importer depuis Angular embarquerait le moteur de base dans le bundle.
+- `@anubis/shared/server` (`src/server/`) — logique metier commune a l'API et
+  au bot **qui a besoin de la base** : chaque fonction recoit le client Prisma
+  de l'appelant. Le bot n'appelle jamais l'API, une regle qui s'applique des
+  deux cotes etait donc recopiee, et les copies divergeaient. **Rien de
+  `src/server/` n'est exporte par `src/index.ts`** ; il n'importe le client
+  Prisma qu'en `import type`. Aujourd'hui : `unlinkBattlenet`. Les regles sans
+  base vont dans le point d'entree principal (`sanctionSchedule`,
+  `moderationPointsFromRow`).
 
 Consequences pratiques :
 
 - L'API compile en `moduleResolution: "Node"` (node10), qui **ignore le champ
   `exports`**. C'est pourquoi `packages/shared/package.json` porte un
-  `typesVersions` pointant vers `generated/client/index.d.ts`. Sans lui, tous
-  les modeles Prisma disparaissent du typage et l'API ne compile plus.
+  `typesVersions` pointant vers `generated/client/index.d.ts` (et
+  `dist/server/index.d.ts`). Sans lui, tous les modeles Prisma disparaissent du
+  typage et l'API ne compile plus. Un nouveau sous-chemin se declare donc
+  **aux deux endroits**.
+- Le package partage resout `expect` vers les types de Jasmine : ses tests
+  n'ont ni `objectContaining` ni `toMatchObject`. On compare les arguments
+  enregistres avec `toEqual`.
 - Angular resout `@anubis/shared` par un `paths` vers **les sources**
   (`../packages/shared/src/index.ts`), pas vers `dist/`. Modifier un contrat
   se repercute immediatement, sans rebuild du package.
@@ -175,8 +188,13 @@ EXISTS` dans la migration initiale, pour ne pas ecraser les donnees d'XP
   `main.ts` pose un `BigInt.prototype.toJSON` en filet, pas en solution.
 - **Bareme de points** (`moderation-points.service.ts`) : la base range le
   bareme en colonnes nommees, l'API l'expose en dictionnaires indexes par
-  l'enum — la traduction vit dans ce service, et nulle part ailleurs. Trois
-  points a garder :
+  l'enum. La lecture vit dans `moderationPointsFromRow` (`@anubis/shared`),
+  employee par l'API **et** par le bot — le bot en gardait une copie, alors
+  que cette regle disait deja « nulle part ailleurs ». L'ecriture reste dans le
+  service, seul le dashboard regle le bareme. Meme raison pour
+  `sanctionSchedule` (debut, fin, statut initial d'une sanction), qui existait
+  en trois exemplaires : API, `createSanction` et `recordExternalSanction`.
+  Trois points a garder :
   - le bareme ne donne qu'un **defaut** : `warnings.points` et
     `sanctions.points` sont copies a la creation puis figes. Un bareme
     retroactif ferait bouger tous les scores du serveur d'un seul reglage,
@@ -616,14 +634,54 @@ le dev avec rechargement).
     et ce sont deux conteneurs distincts.
   - **l'unicite fait tout le travail**. Se connecter a Battle.net ne prouve
     rien en soi : un compte Blizzard est gratuit et se cree en deux minutes. Ce
-    qui casse les multicomptes, c'est le refus d'un `sub` deja lie a un autre
-    membre — d'ou la double unicite (`battlenet_id` en cle primaire, `user_id`
-    unique) et le signalement `BATTLENET_DUPLICATE` au staff.
-  - la cle est le **`sub` d'OAuth, jamais le BattleTag** : un BattleTag se
-    change depuis le compte Blizzard, `sub` non. `battletag` n'est qu'une copie
-    d'affichage, derriere la permission `battlenet:read` (admin) — savoir qu'un
-    membre est verifie releve de la moderation courante, lire son identite
-    Blizzard non.
+    qui casse les multicomptes, c'est le refus d'un compte Blizzard deja lie a
+    un autre membre — cle primaire sur l'empreinte, et signalement
+    `BATTLENET_DUPLICATE` au staff (sans empreinte ni BattleTag dans ses
+    details : ils sont recopies dans le salon de logs).
+  - la cle est une **empreinte du `sub` d'OAuth** (HMAC-SHA256 sous
+    `BATTLENET_ID_SECRET`, `api/src/verification/battlenet-hash.ts`), jamais le
+    `sub` ni le BattleTag : un BattleTag se change, `sub` non, et les
+    conditions de Blizzard limitent a 30 jours la conservation de ses donnees
+    alors que l'unicite doit tenir bien plus longtemps. Un HMAC et non un
+    SHA-256 nu : les `sub` sont des entiers, assez peu nombreux pour etre
+    enumeres. **Perdre ou changer ce secret fait tomber l'unicite sans bruit**
+    — plus aucune empreinte ne se recalcule. Les lignes ecrites en clair avant
+    les empreintes sont converties au demarrage de l'API
+    (`VerificationService.onModuleInit`), parce que SQL ne voit pas le secret.
+  - `battletag` n'est qu'une copie d'affichage, derriere `battlenet:read`
+    (admin) — savoir qu'un membre est verifie releve de la moderation courante,
+    lire son identite Blizzard non. Il est **efface 30 jours** apres la
+    verification (`src/tasks/battlenetRetention.ts` du bot, toutes les 6 h).
+  - **delier laisse une trace** (`unlinkedAt` pose, empreinte gardee 12 mois) :
+    sans elle, A se verifie, delie en gardant son acces, et B reprend le meme
+    compte Blizzard — un seul compte ouvrirait la porte a autant de comptes
+    Discord qu'on veut. `userId` n'est donc plus unique ; le code garantit un
+    seul lien **actif** par membre (relier un autre compte transforme l'ancien
+    en trace). La meme personne qui relie son propre compte reactive sa trace.
+    Seul un administrateur supprime une trace (« delier et liberer »,
+    `battlenet:write` sur la fiche membre, ou `/delier_battlenet_admin
+    liberer:true`), pour un cas legitime. Un membre **deja libere** de la
+    quarantaine garde son acces apres une deliaison ; un membre encore en
+    quarantaine perd l'etape (`battlenetUnlinkResetsVerification` — sinon il
+    delierait, accepterait le reglement et entrerait sans lien), et
+    `lotPourEtape` retire alors les roles de verification. Toute la deliaison
+    est **une seule fonction**, `unlinkBattlenet` (`@anubis/shared/server`),
+    appelee par la fiche membre et par les deux commandes.
+  - **conservation** (`@anubis/shared/battlenet.ts`, teste) : lien et trace
+    supprimes 12 mois apres le **plus recent** de la deliaison, du depart et de
+    la fin d'un bannissement — rien ne s'efface pendant un bannissement en
+    cours. Un lien survit au depart : le membre qui revient retrouve l'etape
+    validee et son role sans repasser chez Blizzard. Ces durees sont ecrites
+    dans la politique de confidentialite (`legal/`) : les changer, c'est
+    changer le texte publie.
+  - **le role « BattleTag verifie »** (`QuarantineConfig.battlenetRoleId`,
+    `src/collectors/battlenetRole.ts`) suit les liens actifs **en continu**
+    (boucle de 5 s), quel que soit le chemin — bouton, `/lier_battlenet`,
+    deliaison, retour, purge. Le lien fait foi : un role pose ou retire a la
+    main est corrige au passage suivant. Un membre shadowbanne n'est jamais
+    touche, la mise de cote de ses roles est voulue. Ce role **ne doit ouvrir
+    aucun salon** : il est pose des la verification, donc possiblement avant
+    la fin de la quarantaine — meme piege que le role de boost.
   - **aucun jeton Blizzard n'est conserve** : un seul appel a `/userinfo` juste
     apres l'echange, puis on jette. Rien a rafraichir, rien a faire fuiter.
   - **aucun scope n'est demande** : sans scope, `/userinfo` rend deja `sub` et
@@ -631,10 +689,21 @@ le dev avec rechargement).
     plus intimidant pour une donnee inutilisee. **Overwatch n'a aucune API
     officielle Blizzard** — l'enrichissement passerait forcement par un
     scraper tiers, sur le BattleTag deja verifie, et hors de ce chemin.
-  Le trio `BATTLENET_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` vit dans
-  l'environnement de l'API, et `PUBLIC_API_URL` dans celui du bot (l'URL
-  **exterieure** : le bot compose un lien, il n'appelle jamais l'API).
-  Les trois manquants, la fonctionnalite se declare indisponible — et le
+  Le quatuor `BATTLENET_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` /
+  `_ID_SECRET` vit dans l'environnement de l'API, `PUBLIC_API_URL` et
+  `PRIVACY_POLICY_URL` dans celui du bot (des URL **exterieures** : le bot
+  compose des liens, il n'appelle jamais l'API). La politique de
+  confidentialite est hebergee **hors du VPS** (brouillon dans
+  `legal/politique-de-confidentialite.html`) : elle doit rester lisible quand
+  le serveur tombe, et les conditions de Discord et de Blizzard en exigent une.
+  Trois commandes : `/lier_battlenet` (hors quarantaine, reponse ephemere — les
+  messages prives fermes ne recevraient jamais le lien), `/delier_battlenet`
+  (le membre lui-meme, exige par Blizzard §11 et le RGPD) et
+  `/delier_battlenet_admin` (secours du dashboard, permission Discord
+  `Administrator` declaree **et** reverifiee). L'information sur la
+  conservation est montree **avant** la connexion chez Blizzard
+  (`BATTLENET_PRIVACY_NOTICE`).
+  Une variable manquante, la fonctionnalite se declare indisponible — et le
   dashboard le signale en rouge si `battlenetRequired` est malgre tout a
   `true`, parce que c'est la panne la plus couteuse : les arrivants acceptent
   le reglement puis restent bloques sur une etape qui ne peut pas aboutir.
@@ -844,13 +913,18 @@ le dev avec rechargement).
   commande, qui est prevue pour et remplace le precedent.
 - **Annonce de verification Battle.net** (`src/tasks/battlenetNotice.ts`) :
   journal de moderation **et** message prive au membre, declenches par
-  `BattlenetAccount.discordSyncedAt`. Trois points a garder :
+  `BattlenetAccount.discordSyncedAt`. Une ligne en attente annonce une
+  verification si elle est active, une **deliaison** si c'est une trace — le
+  message prive ne part alors que si le membre n'a pas delie lui-meme. Une
+  liberation (traces supprimees) ne laisse aucune ligne : la commande admin
+  journalise elle-meme, le dashboard ne laisse que le journal d'audit. Trois
+  points a garder :
   - le declencheur est la ligne du **lien**, pas le statut de quarantaine. Ce
     dernier repasse a `discordSyncedAt: null` pour d'autres raisons (une levee
-    manuelle), et l'annonce serait alors renvoyee a chaque fois. Une ligne
-    `battlenet_accounts` n'est creee qu'une fois par compte Blizzard, et le
-    bloc `update` de l'upsert ne touche pas a la date — une reverification
-    rafraichit le BattleTag sans reannoncer.
+    manuelle), et l'annonce serait alors renvoyee a chaque fois. Le bloc
+    `update` de l'upsert ne touche pas a la date — une reverification
+    rafraichit le BattleTag sans reannoncer — sauf quand il reactive une trace,
+    dont la deliaison avait ete annoncee.
   - le journal ne porte **pas le BattleTag**. Il est reserve a
     `battlenet:read` (administrateurs) dans le dashboard, or le salon de logs
     est lu par toute l'equipe : l'y ecrire contournerait la permission. Ce qui

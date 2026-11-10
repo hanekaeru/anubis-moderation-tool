@@ -15,6 +15,8 @@ export * from "./mentions";
 export * from "./xp";
 export * from "./owdle";
 export * from "./timezone";
+export * from "./battlenet";
+export * from "./moderation";
 export * from "./dto/common";
 export * from "./dto/auth";
 export * from "./dto/member";

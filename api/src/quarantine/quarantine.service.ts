@@ -11,6 +11,11 @@ import {
 } from "@anubis/shared";
 import { AuditService } from "../audit/audit.service";
 import { GuildContextService } from "../common/guild-context.service";
+import {
+	toActorLabel,
+	type AppUserLike,
+	type DiscordUserLike,
+} from "../common/mappers";
 import type { AuthenticatedUser } from "../common/types";
 import type { AppConfig } from "../config/configuration";
 import { PrismaService } from "../prisma/prisma.service";
@@ -31,6 +36,7 @@ const DEFAULTS = {
 	battlenetRequired: false,
 	battlenetButtonLabel: DEFAULT_QUARANTINE_BATTLENET_BUTTON_LABEL,
 	battlenetMessage: null as string | null,
+	battlenetRoleId: null as string | null,
 };
 
 /**
@@ -56,6 +62,7 @@ const CHAMPS_CONFIG = [
 	"battlenetRequired",
 	"battlenetButtonLabel",
 	"battlenetMessage",
+	"battlenetRoleId",
 ] as const;
 
 /** Ligne de `quarantine_status` avec ce qu'il faut pour l'afficher. */
@@ -71,14 +78,23 @@ type StatusRow = {
 		username: string;
 		globalName: string | null;
 		avatarUrl: string | null;
-		battlenetAccount: { battletag: string } | null;
+		/** Lien actif seulement : une trace de deliaison n'a plus de BattleTag. */
+		battlenetAccounts: { battletag: string | null }[];
 	};
-	releasedBy: { displayName: string } | null;
-	releasedByDiscord: { username: string; globalName: string | null } | null;
+	releasedBy: AppUserLike | null;
+	releasedByDiscord: DiscordUserLike | null;
 };
 
 const STATUS_INCLUDE = {
-	user: { include: { battlenetAccount: true } },
+	user: {
+		include: {
+			battlenetAccounts: {
+				where: { unlinkedAt: null },
+				select: { battletag: true },
+				take: 1,
+			},
+		},
+	},
 	releasedBy: true,
 	releasedByDiscord: true,
 } as const;
@@ -183,15 +199,12 @@ export class QuarantineService {
 			acceptedAt: row.acceptedAt?.toISOString() ?? null,
 			battlenetVerifiedAt: row.battlenetVerifiedAt?.toISOString() ?? null,
 			// Le fait d'avoir franchi l'etape reste lisible par toute l'equipe ;
-			// l'identite Blizzard, non.
+			// l'identite Blizzard, non. Passe 30 jours, le BattleTag est efface
+			// pour tout le monde.
 			battletag: voitLeBattletag
-				? (row.user.battlenetAccount?.battletag ?? null)
+				? (row.user.battlenetAccounts[0]?.battletag ?? null)
 				: null,
-			releasedBy:
-				row.releasedBy?.displayName ??
-				(row.releasedByDiscord
-					? `${row.releasedByDiscord.globalName ?? row.releasedByDiscord.username} (Discord)`
-					: null),
+			releasedBy: toActorLabel(row.releasedByDiscord, row.releasedBy),
 			active: !libere,
 			pendingSync: libere && row.discordSyncedAt === null,
 		};

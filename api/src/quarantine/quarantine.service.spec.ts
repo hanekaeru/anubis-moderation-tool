@@ -37,7 +37,7 @@ function statusRow(overrides: Record<string, unknown> = {}) {
 			username: "hane",
 			globalName: "Hane",
 			avatarUrl: null,
-			battlenetAccount: null,
+			battlenetAccounts: [],
 		},
 		releasedBy: null,
 		releasedByDiscord: null,
@@ -355,7 +355,7 @@ describe("QuarantineService.listActive", () => {
 					username: "hane",
 					globalName: "Hane",
 					avatarUrl: null,
-					battlenetAccount: { battletag: "Hane#2185" },
+					battlenetAccounts: [{ battletag: "Hane#2185" }],
 				},
 			}),
 		];

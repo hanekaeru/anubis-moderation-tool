@@ -57,6 +57,11 @@ export interface QuarantineConfigDto {
 	battlenetButtonLabel: string;
 	battlenetMessage: string | null;
 	/**
+	 * Role « BattleTag verifie », porte tant que le membre a un lien actif.
+	 * Independant de la quarantaine : il vaut aussi quand elle est coupee.
+	 */
+	battlenetRoleId: Snowflake | null;
+	/**
 	 * Client OAuth Blizzard renseigne cote API. En lecture seule : le reglage
 	 * vit dans l'environnement, le dashboard ne fait que le refleter.
 	 */
@@ -79,6 +84,7 @@ export interface UpdateQuarantineConfigRequest {
 	battlenetRequired?: boolean;
 	battlenetButtonLabel?: string;
 	battlenetMessage?: string | null;
+	battlenetRoleId?: Snowflake | null;
 }
 
 export interface QuarantineStatusDto {
@@ -111,12 +117,37 @@ export interface QuarantineStatusDto {
 	pendingSync: boolean;
 }
 
-/** Lien verifie entre un compte Discord et un compte Battle.net. */
+/**
+ * Lien Battle.net d'un membre, tel que la fiche membre l'affiche.
+ *
+ * `LINKED` : lien actif. `UNLINKED` : le membre (ou un administrateur) a delie,
+ * il ne reste qu'une trace qui empeche un autre compte Discord de reprendre le
+ * meme compte Blizzard. `NONE` : rien, ou tout a ete libere.
+ */
 export interface BattlenetLinkDto {
 	userId: Snowflake;
-	/** `null` sans la permission `battlenet:read`. */
+	state: "LINKED" | "UNLINKED" | "NONE";
+	verifiedAt: IsoDateString | null;
+	/**
+	 * `null` sans la permission `battlenet:read`, et pour tout le monde passe
+	 * les 30 jours de conservation ou apres une deliaison.
+	 */
 	battletag: string | null;
-	verifiedAt: IsoDateString;
+	unlinkedAt: IsoDateString | null;
+	/** Auteur de la deliaison : compte du dashboard, ou compte Discord. */
+	unlinkedBy: string | null;
+}
+
+/**
+ * Deliaison par un administrateur.
+ *
+ * `release` supprime aussi la trace : le compte Blizzard redevient libre pour
+ * n'importe quel compte Discord. A reserver aux cas legitimes — quelqu'un qui
+ * s'est verifie avec le compte d'un proche, par exemple. Sans `release`, la
+ * deliaison laisse la trace, comme celle que fait le membre lui-meme.
+ */
+export interface UnlinkBattlenetRequest {
+	release: boolean;
 }
 
 /**

@@ -59,6 +59,12 @@ export const Permission = {
 	 * au-dela du serveur.
 	 */
 	BATTLENET_READ: "battlenet:read",
+	/**
+	 * Delier le compte Battle.net d'un membre, et liberer un compte Blizzard
+	 * bloque par une trace. Reservee aux administrateurs, comme sa lecture : la
+	 * liberation rouvre la porte que la trace fermait aux comptes secondaires.
+	 */
+	BATTLENET_WRITE: "battlenet:write",
 	VOICE_READ: "voice:read",
 	VOICE_MANAGE: "voice:manage",
 	PERMISSIONS_MANAGE: "permissions:manage",
@@ -165,6 +171,7 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	// moderer, il aide a la retrouver ailleurs. Un moderateur voit deja qu'un
 	// membre est verifie, ce qui suffit a son travail.
 	Permission.BATTLENET_READ,
+	Permission.BATTLENET_WRITE,
 	// Le bareme de points decide de ce qui fait passer un membre pour
 	// problematique : le deplacer requalifie tout le serveur d'un seul reglage.
 	// C'est de la doctrine, pas de la moderation courante.

@@ -136,6 +136,8 @@
     <app-stat-card label="Tickets ouverts" [value]="data.counters.ticketsOpened" icon="confirmation_number" />
   </section>
 
+  <app-battlenet-card [userId]="userId()" />
+
   <mat-tab-group class="tabs" animationDuration="150ms">
     <mat-tab label="Chronologie">
       <div class="tab-body">

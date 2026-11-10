@@ -26,8 +26,10 @@ const CONTENUS: Record<VerificationOutcome, PageContent> = {
 		statut: 200,
 		titre: "Compte vérifié",
 		corps:
-			"Ton compte Battle.net est lié. Retourne sur Discord : ton accès s'ouvre " +
-			"dans quelques secondes.",
+			// Neutre sur l'acces : la page sert aussi a `/lier_battlenet`, pour un
+			// membre qui a deja tout. Le message prive du bot dit la suite.
+			"Ton compte Battle.net est lié. Retourne sur Discord : le bot t'y confirme " +
+			"la suite dans quelques secondes.",
 	},
 	"lien-invalide": {
 		statut: 400,
@@ -100,6 +102,7 @@ main { max-width: 30rem; text-align: center; }
 .marque { font-size: 3rem; line-height: 1; margin-bottom: 1rem; }
 h1 { font-size: 1.5rem; margin: 0 0 0.75rem; }
 p { margin: 0; line-height: 1.6; color: #b5bac1; }
+.source { margin-top: 2rem; font-size: 0.8rem; color: #80848e; }
 </style>
 </head>
 <body>
@@ -107,6 +110,7 @@ p { margin: 0; line-height: 1.6; color: #b5bac1; }
 <div class="marque" aria-hidden="true">${reussi ? "✅" : "⚠️"}</div>
 <h1>${escapeHtml(contenu.titre)}</h1>
 <p>${escapeHtml(contenu.corps)}</p>
+<p class="source">Données fournies par Blizzard Entertainment. Ce serveur n'est pas affilié à Blizzard.</p>
 </main>
 </body>
 </html>`;

@@ -8,6 +8,8 @@ import * as giveaway from "../collectors/giveaway";
 import * as quarantine from "../collectors/quarantine";import { appliquerDemandesDeRoles } from "../tasks/memberRoleRequests";
 import { checkPendingAccountFlagAlerts } from "../tasks/accountFlagAlerts";
 import { checkPendingBattlenetNotices } from "../tasks/battlenetNotice";
+import { purgerBattlenet } from "../tasks/battlenetRetention";
+import { reconcilierRoleBattlenet } from "../collectors/battlenetRole";
 import { lienVerificationBattlenet } from "../utils/verificationLink";
 import * as raid from "../collectors/raid";
 import * as referentiel from "../collectors/referentiel";
@@ -44,6 +46,14 @@ const DISCORD_SYNC_INTERVAL_MS = 5_000;
  * beneficiaires n'ont aucune raison de changer de niveau bientot.
  */
 const XP_REWARD_SYNC_INTERVAL_MS = 300_000;
+
+/**
+ * Delai entre deux purges des donnees Battle.net (BattleTag a 30 jours, liens
+ * et traces a 12 mois). Les durees se comptent en jours : un passage toutes
+ * les six heures, plus celui du demarrage, suffit largement — et ne laisse
+ * pas un BattleTag survivre des jours a un bot redemarre souvent.
+ */
+const BATTLENET_RETENTION_INTERVAL_MS = 6 * 3_600_000;
 
 const event: BotEvent<typeof Events.ClientReady> = {
 	name: Events.ClientReady,
@@ -156,6 +166,14 @@ const event: BotEvent<typeof Events.ClientReady> = {
 			checkPendingBattlenetNotices(client).catch((err) => {
 				console.error("[Quarantaine] Annonce de vérification échouée :", err);
 			});
+			for (const guild of client.guilds.cache.values()) {
+				reconcilierRoleBattlenet(guild).catch((err) => {
+					console.error(
+						`[Battle.net] Synchronisation du rôle échouée sur ${guild.name} :`,
+						err,
+					);
+				});
+			}
 			giveaway.publishPending(client).catch((err) => {
 				console.error("[Giveaway] Publication des concours échouée :", err);
 			});
@@ -201,6 +219,13 @@ const event: BotEvent<typeof Events.ClientReady> = {
 				});
 			}
 		}, XP_REWARD_SYNC_INTERVAL_MS);
+
+		const purger = () =>
+			purgerBattlenet().catch((err) => {
+				console.error("[Battle.net] Purge de conservation échouée :", err);
+			});
+		void purger();
+		setInterval(purger, BATTLENET_RETENTION_INTERVAL_MS);
 	},
 };
 
