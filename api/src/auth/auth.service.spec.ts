@@ -45,6 +45,7 @@ function baseConfig(): AppConfig {
 			clientId: "",
 			clientSecret: "",
 			redirectUri: "",
+			idSecret: "",
 			available: false,
 		},
 		liquipedia: { apiKey: "", available: false },

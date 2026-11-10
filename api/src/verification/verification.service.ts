@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AccountFlagType } from "@anubis/shared";
 import { AuditService } from "../audit/audit.service";
@@ -9,6 +9,7 @@ import {
 	buildAuthorizeUrl,
 	exchangeCodeForUserInfo,
 } from "./battlenet.client";
+import { BATTLENET_HASH_PATTERN, hashBattlenetId } from "./battlenet-hash";
 import type { VerificationOutcome } from "./verification.page";
 
 /**
@@ -19,7 +20,7 @@ import type { VerificationOutcome } from "./verification.page";
  * membre Discord que nous y avons associe. Tout le reste en decoule.
  */
 @Injectable()
-export class VerificationService {
+export class VerificationService implements OnModuleInit {
 	private readonly logger = new Logger(VerificationService.name);
 
 	constructor(
@@ -34,6 +35,41 @@ export class VerificationService {
 
 	get available(): boolean {
 		return this.battlenet.available;
+	}
+
+	/**
+	 * Remplace par leur empreinte les identifiants Blizzard ecrits en clair avant
+	 * le passage aux empreintes.
+	 *
+	 * Fait ici et non dans la migration : la clef vit dans l'environnement de
+	 * l'API, que SQL ne voit pas. Sans clef, rien n'est touche — la verification
+	 * est de toute facon indisponible, et les lignes en clair attendent le
+	 * prochain demarrage. Idempotent : une empreinte ne se reconnait pas comme
+	 * un identifiant en clair.
+	 */
+	async onModuleInit(): Promise<void> {
+		const secret = this.battlenet.idSecret;
+		if (!secret) return;
+
+		const lignes = await this.prisma.battlenetAccount.findMany({
+			select: { battlenetHash: true },
+		});
+		const enClair = lignes.filter(
+			(ligne) => !BATTLENET_HASH_PATTERN.test(ligne.battlenetHash),
+		);
+
+		for (const ligne of enClair) {
+			await this.prisma.battlenetAccount.update({
+				where: { battlenetHash: ligne.battlenetHash },
+				data: { battlenetHash: hashBattlenetId(secret, ligne.battlenetHash) },
+			});
+		}
+
+		if (enClair.length > 0) {
+			this.logger.log(
+				`${enClair.length} identifiant(s) Battle.net remplacé(s) par leur empreinte.`,
+			);
+		}
 	}
 
 	/**
@@ -117,36 +153,49 @@ export class VerificationService {
 			return "refus-blizzard";
 		}
 
+		// Le `sub` ne quitte pas cette fonction : seule son empreinte est
+		// comparee et ecrite.
+		const empreinte = hashBattlenetId(this.battlenet.idSecret, info.sub);
+
 		const existant = await this.prisma.battlenetAccount.findUnique({
-			where: { battlenetId: info.sub },
+			where: { battlenetHash: empreinte },
 		});
 
-		// Deja lie a quelqu'un d'autre : c'est exactement le cas que l'unicite
-		// existe pour attraper. On refuse, et le staff est prevenu — la tentative
-		// en dit plus long que le refus lui-meme.
+		// Deja lie a quelqu'un d'autre, ou delie par quelqu'un d'autre — la trace
+		// existe precisement pour ce cas. On refuse, et le staff est prevenu — la
+		// tentative en dit plus long que le refus lui-meme. La meme personne qui
+		// relie son propre compte passe.
 		if (existant && existant.userId !== demande.userId) {
-			await this.signalerDoublon(demande, info.sub, existant.userId);
+			await this.signalerDoublon(demande, existant);
 			return "deja-lie";
 		}
 
-		await this.enregistrerLien(demande, info.sub, info.battletag);
+		await this.enregistrerLien(demande, empreinte, info.battletag, existant);
 		return "succes";
 	}
 
+	/**
+	 * Ni l'empreinte ni le BattleTag dans le signalement : ses details sont
+	 * recopies dans le salon de logs, lu par toute l'equipe. Savoir a qui le
+	 * compte est deja lie suffit a agir.
+	 */
 	private async signalerDoublon(
 		demande: { guildId: string; userId: string },
-		battlenetId: string,
-		proprietaireId: string,
+		existant: { userId: string; unlinkedAt: Date | null },
 	): Promise<void> {
+		const details = {
+			dejaLieA: existant.userId,
+			...(existant.unlinkedAt
+				? { delieLe: existant.unlinkedAt.toISOString() }
+				: {}),
+		};
+
 		await this.prisma.accountFlag.create({
 			data: {
 				guildId: demande.guildId,
 				userId: demande.userId,
 				type: AccountFlagType.BATTLENET_DUPLICATE,
-				details: {
-					battlenetId,
-					dejaLieA: proprietaireId,
-				},
+				details,
 				// `null` : c'est le bot qui alertera le salon de logs au prochain
 				// passage. L'API n'a aucun acces a Discord.
 				discordSyncedAt: null,
@@ -157,7 +206,7 @@ export class VerificationService {
 			action: "battlenet.verification.refusee",
 			entityType: "battlenet_account",
 			entityId: demande.userId,
-			after: { motif: "compte-deja-lie", dejaLieA: proprietaireId },
+			after: { motif: "compte-deja-lie", ...details },
 		});
 	}
 
@@ -167,23 +216,52 @@ export class VerificationService {
 	 * `discordSyncedAt` repasse a `null` sur le statut de quarantaine : c'est ce
 	 * qui fait reprendre la main au bot, seul a pouvoir toucher aux roles.
 	 *
-	 * Le `upsert` du lien couvre le cas d'une reverification par la meme
-	 * personne — un BattleTag change, par exemple. La cle ne bouge pas, seul
-	 * l'affichage se met a jour.
+	 * Le `upsert` du lien couvre deux cas de la meme personne : une
+	 * reverification (un BattleTag change, la cle ne bouge pas) et le retour sur
+	 * un compte qu'elle avait delie — la trace redevient un lien actif, et
+	 * l'annonce repart puisque la deliaison avait ete annoncee.
+	 *
+	 * Un membre qui lie un **autre** compte Blizzard voit l'ancien devenir une
+	 * trace : un compte Discord ne porte jamais deux liens actifs, et l'ancien
+	 * compte ne doit pas redevenir libre pour autant. Pas d'annonce de
+	 * deliaison pour lui, celle de la nouvelle verification suffit.
 	 */
 	private async enregistrerLien(
 		demande: { guildId: string; userId: string },
-		battlenetId: string,
+		empreinte: string,
 		battletag: string,
+		existant: { unlinkedAt: Date | null } | null,
 	): Promise<void> {
 		const maintenant = new Date();
 
 		await this.prisma.$transaction([
+			this.prisma.battlenetAccount.updateMany({
+				where: {
+					userId: demande.userId,
+					unlinkedAt: null,
+					NOT: { battlenetHash: empreinte },
+				},
+				data: {
+					unlinkedAt: maintenant,
+					unlinkedById: null,
+					unlinkedByDiscordId: demande.userId,
+					battletag: null,
+					discordSyncedAt: maintenant,
+				},
+			}),
 			this.prisma.battlenetAccount.upsert({
-				where: { battlenetId },
-				update: { battletag, guildId: demande.guildId, verifiedAt: maintenant },
+				where: { battlenetHash: empreinte },
+				update: {
+					battletag,
+					guildId: demande.guildId,
+					verifiedAt: maintenant,
+					unlinkedAt: null,
+					unlinkedById: null,
+					unlinkedByDiscordId: null,
+					...(existant?.unlinkedAt ? { discordSyncedAt: null } : {}),
+				},
 				create: {
-					battlenetId,
+					battlenetHash: empreinte,
 					userId: demande.userId,
 					battletag,
 					guildId: demande.guildId,
@@ -203,7 +281,6 @@ export class VerificationService {
 			action: "battlenet.verification.reussie",
 			entityType: "battlenet_account",
 			entityId: demande.userId,
-			after: { battlenetId },
 		});
 	}
 }

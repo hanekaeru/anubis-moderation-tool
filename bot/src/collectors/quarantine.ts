@@ -74,24 +74,35 @@ export async function quarantineNewMember(member: GuildMember): Promise<void> {
 	// Un membre deja connu qui revient repart en quarantaine : ses roles Discord
 	// ont disparu avec son depart, l'acceptation precedente ne vaut plus rien.
 	//
-	// `battlenetVerifiedAt` est remis a `null` pour la meme raison — mais le lien
-	// Battle.net lui-meme (`battlenet_accounts`) survit : il n'y a aucune raison
-	// de faire rescanner un compte deja prouve, et l'unicite doit continuer de
-	// tenir pendant l'absence.
+	// La verification, elle, vaut tant que le lien Battle.net existe : il
+	// survit au depart, et il n'y a aucune raison de faire rescanner un compte
+	// deja prouve. Sans lien — delie, ou efface au terme de sa conservation —
+	// l'etape est redemandee, et seulement si la quarantaine l'exige.
+	const lien = await prisma.battlenetAccount.findFirst({
+		where: { userId: member.id, unlinkedAt: null },
+		select: { verifiedAt: true },
+	});
+	const maintenant = new Date();
+	// Avec une etape deja franchie, le bot doit poser ses roles : le rattrapage
+	// s'en charge au passage suivant. Sans, le role de quarantaine vient d'etre
+	// pose par cet appel et il n'y a rien a rattraper.
+	const etat = lien
+		? { battlenetVerifiedAt: maintenant, discordSyncedAt: null }
+		: { discordSyncedAt: maintenant };
+
 	await prisma.quarantineStatus.upsert({
 		where: {
 			guildId_userId: { guildId: member.guild.id, userId: member.id },
 		},
 		update: {
 			...REMISE_A_ZERO,
-			quarantinedAt: new Date(),
-			discordSyncedAt: new Date(),
+			quarantinedAt: maintenant,
+			...etat,
 		},
 		create: {
 			guildId: member.guild.id,
 			userId: member.id,
-			// Le role vient d'etre pose par cet appel : rien a rattraper.
-			discordSyncedAt: new Date(),
+			...etat,
 		},
 	});
 }
@@ -101,11 +112,22 @@ export async function quarantineNewMember(member: GuildMember): Promise<void> {
  *
  * Le role de quarantaine ne part qu'a `CLEARED` : c'est lui qui ferme le
  * serveur, le retirer plus tot reviendrait a n'avoir aucune seconde etape.
+ *
+ * La verification est la seule etape qui peut se **defaire** : un membre
+ * encore en quarantaine qui delie son compte Battle.net la perd
+ * (`battlenetUnlinkResetsVerification`). Les etapes qui ne la comptent pas
+ * retirent donc les roles qu'elle avait poses — sans quoi le membre
+ * garderait « compte verifie » sur sa fiche sans plus l'etre. Un role commun
+ * aux deux etapes reste : `appliquerRoles` fait passer le retrait avant l'ajout.
  */
 export function lotPourEtape(
 	config: ReglageEtapes,
 	stage: QuarantineStage,
 ): LotDeRoles {
+	const verificationDefaite = config.verifyAddRoleIds.filter(
+		(roleId) => !config.acceptAddRoleIds.includes(roleId),
+	);
+
 	switch (stage) {
 		case QuarantineStage.CLEARED:
 			return {
@@ -123,7 +145,7 @@ export function lotPourEtape(
 		case QuarantineStage.ACCEPTED_ONLY:
 			return {
 				addRoleIds: config.acceptAddRoleIds,
-				removeRoleIds: config.acceptRemoveRoleIds,
+				removeRoleIds: [...config.acceptRemoveRoleIds, ...verificationDefaite],
 			};
 		case QuarantineStage.VERIFIED_ONLY:
 			return {
@@ -131,7 +153,7 @@ export function lotPourEtape(
 				removeRoleIds: config.verifyRemoveRoleIds,
 			};
 		case QuarantineStage.PENDING:
-			return { addRoleIds: [], removeRoleIds: [] };
+			return { addRoleIds: [], removeRoleIds: config.verifyAddRoleIds };
 	}
 }
 

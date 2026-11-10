@@ -63,6 +63,16 @@ export interface AppConfig {
 		 * developpeur Blizzard, sans quoi l'echange du code est refuse.
 		 */
 		redirectUri: string;
+		/**
+		 * Clef HMAC des empreintes de comptes Blizzard (`battlenet_accounts`).
+		 *
+		 * Distincte des secrets JWT : changer ceux-ci deconnecte l'equipe, perdre
+		 * celle-ci rend toutes les empreintes incomparables — l'unicite tombe sans
+		 * bruit, un compte Blizzard deja lie redevient liable a un autre membre.
+		 * Elle ne se change donc jamais, et figure dans la checklist de
+		 * deploiement au meme rang que la base elle-meme.
+		 */
+		idSecret: string;
 		available: boolean;
 	};
 	/**
@@ -153,6 +163,11 @@ export function loadConfiguration(): AppConfig {
 	const battlenetClientId = env.BATTLENET_CLIENT_ID?.trim() ?? "";
 	const battlenetClientSecret = env.BATTLENET_CLIENT_SECRET?.trim() ?? "";
 	const battlenetRedirectUri = env.BATTLENET_REDIRECT_URI?.trim() ?? "";
+	const battlenetIdSecret = env.BATTLENET_ID_SECRET?.trim() ?? "";
+
+	if (battlenetIdSecret && battlenetIdSecret.length < 32) {
+		throw new Error("BATTLENET_ID_SECRET doit faire au moins 32 caractères.");
+	}
 	const liquipediaApiKey = env.LIQUIPEDIA_API_KEY?.trim() ?? "";
 
 	return {
@@ -189,10 +204,15 @@ export function loadConfiguration(): AppConfig {
 			clientId: battlenetClientId,
 			clientSecret: battlenetClientSecret,
 			redirectUri: battlenetRedirectUri,
-			// Les trois ou rien : un client a moitie renseigne echouerait chez
+			idSecret: battlenetIdSecret,
+			// Les quatre ou rien : un client a moitie renseigne echouerait chez
 			// Blizzard, au pire moment — devant un arrivant qui vient de cliquer.
+			// Sans clef d'empreinte, aucun lien ne peut etre enregistre.
 			available: Boolean(
-				battlenetClientId && battlenetClientSecret && battlenetRedirectUri,
+				battlenetClientId &&
+					battlenetClientSecret &&
+					battlenetRedirectUri &&
+					battlenetIdSecret,
 			),
 		},
 		liquipedia: {

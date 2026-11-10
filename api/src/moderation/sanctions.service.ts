@@ -10,6 +10,7 @@ import {
 	INSTANT_SANCTION_TYPES,
 	MAX_TIMEOUT_SECONDS,
 	SANCTION_TYPE_LABELS,
+	sanctionSchedule,
 	type Paginated,
 	type SanctionAutomodRef,
 	type SanctionDto,
@@ -237,7 +238,8 @@ export class SanctionsService {
 			}
 		}
 
-		const startsAt = new Date();
+		// Meme calendrier que les sanctions posees depuis Discord.
+		const calendrier = sanctionSchedule(dto.type, durationSeconds);
 		const created = await this.prisma.sanction.create({
 			data: {
 				guildId,
@@ -245,16 +247,7 @@ export class SanctionsService {
 				createdById: actor.id,
 				type: dto.type,
 				reason: dto.reason,
-				durationSeconds,
-				startsAt,
-				expiresAt: durationSeconds
-					? new Date(startsAt.getTime() + durationSeconds * 1000)
-					: null,
-				// Une expulsion prend effet et se termine dans la foulee : la laisser
-				// ACTIVE la ferait apparaitre indefiniment comme sanction en cours.
-				status: INSTANT_SANCTION_TYPES.includes(dto.type)
-					? "EXPIRED"
-					: "ACTIVE",
+				...calendrier,
 				warningId: dto.warningId ?? null,
 				evidenceUrl: dto.evidenceUrl ?? null,
 				// Le bareme ne donne que le defaut : une fois copie ici, le poids

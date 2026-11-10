@@ -114,6 +114,19 @@
 				<textarea matInput rows="3" formControlName="battlenetMessage" maxlength="4000"></textarea>
 			</mat-form-field>
 
+			<mat-form-field class="full">
+				<mat-label>Rôle « BattleTag vérifié »</mat-label>
+				<input matInput formControlName="battlenetRoleId" placeholder="Identifiant du rôle" />
+				<mat-hint>
+					Porté tant que le membre a un compte lié, même quand la quarantaine est coupée
+					(<code>/lier_battlenet</code>). Ce rôle ne doit ouvrir aucun salon : il peut être
+					posé avant la fin de la quarantaine.
+				</mat-hint>
+				@if (form.controls.battlenetRoleId.hasError('pattern')) {
+					<mat-error>Un identifiant de rôle fait 17 à 20 chiffres.</mat-error>
+				}
+			</mat-form-field>
+
 			<h3 class="section-title">Rôles par étape</h3>
 			<p class="section-hint">
 				Chaque étape franchie applique son propre jeu de rôles ; la levée complète

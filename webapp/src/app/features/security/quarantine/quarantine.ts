@@ -111,6 +111,10 @@ export class QuarantinePage {
 			[Validators.required, Validators.maxLength(80)],
 		],
 		battlenetMessage: [''],
+		// Signale plutot qu'ecarte en silence comme `roleId` : un role mal saisi ici
+		// laisserait croire que les membres verifies sont reconnus alors que le bot
+		// ne pose rien.
+		battlenetRoleId: ['', Validators.pattern(/^\s*(\d{17,20})?\s*$/)],
 	});
 
 	constructor() {
@@ -144,6 +148,7 @@ export class QuarantinePage {
 				battlenetMessage: raw.battlenetMessage.trim()
 					? raw.battlenetMessage.trim()
 					: null,
+				battlenetRoleId: raw.battlenetRoleId.trim() || null,
 			})
 			.subscribe({
 				next: (config) => {
@@ -221,6 +226,7 @@ export class QuarantinePage {
 					battlenetRequired: config.battlenetRequired,
 					battlenetButtonLabel: config.battlenetButtonLabel,
 					battlenetMessage: config.battlenetMessage ?? '',
+					battlenetRoleId: config.battlenetRoleId ?? '',
 				});
 				this.saved.set({
 					enabled: config.enabled,

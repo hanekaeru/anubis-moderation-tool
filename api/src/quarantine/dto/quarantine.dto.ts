@@ -99,4 +99,11 @@ export class UpdateQuarantineConfigDto {
 	@IsString()
 	@MaxLength(4000)
 	battlenetMessage?: string | null;
+
+	// `null` retire le role « BattleTag verifie » du reglage. Le bot cesse
+	// alors de le gerer — il ne l'enleve pas a ceux qui le portent deja.
+	@IsOptional()
+	@ValidateIf((_, value) => value !== null)
+	@Matches(SNOWFLAKE)
+	battlenetRoleId?: string | null;
 }

@@ -51,6 +51,20 @@ export function toActorRef(
 }
 
 /**
+ * Meme choix que `toActorRef`, rendu en texte pour un DTO qui n'expose qu'un
+ * libelle. Un auteur Discord est suffixe, pour ne pas le confondre avec un
+ * compte du dashboard de meme nom ; un auteur disparu donne `null`.
+ */
+export function toActorLabel(
+	discordUser: DiscordUserLike | null | undefined,
+	appUser: AppUserLike | null | undefined,
+): string | null {
+	const ref = toActorRef(discordUser, appUser);
+	if (ref.kind === "system") return null;
+	return ref.kind === "discord" ? `${ref.label} (Discord)` : ref.label;
+}
+
+/**
  * Metadonnees d'une piece jointe de moderation.
  *
  * Les octets (`data`) ne sortent jamais par ce chemin : ils se recuperent un

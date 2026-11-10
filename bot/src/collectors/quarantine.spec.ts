@@ -228,10 +228,23 @@ describe("lotPourEtape", () => {
 		);
 	});
 
-	it("ne touche a rien tant qu'aucune etape n'est franchie", () => {
+	// Une deliaison en pleine quarantaine fait perdre l'etape de verification :
+	// ses roles doivent partir avec elle, et eux seuls.
+	it("ne retire que les roles d'une verification defaite", () => {
 		expect(lotPourEtape(CONFIG, QuarantineStage.PENDING)).toEqual({
 			addRoleIds: [],
-			removeRoleIds: [],
+			removeRoleIds: ["verifie"],
 		});
+		expect(
+			lotPourEtape(CONFIG, QuarantineStage.ACCEPTED_ONLY).removeRoleIds,
+		).toEqual(["verifie"]);
+	});
+
+	it("garde un role commun aux deux etapes quand la verification tombe", () => {
+		const commun = { ...CONFIG, acceptAddRoleIds: ["etape"], verifyAddRoleIds: ["etape"] };
+
+		expect(
+			lotPourEtape(commun, QuarantineStage.ACCEPTED_ONLY).removeRoleIds,
+		).not.toContain("etape");
 	});
 });

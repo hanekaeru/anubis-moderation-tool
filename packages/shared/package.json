@@ -14,13 +14,20 @@
 		"./prisma": {
 			"types": "./generated/client/index.d.ts",
 			"default": "./generated/client/index.js"
+		},
+		"./server": {
+			"types": "./dist/server/index.d.ts",
+			"default": "./dist/server/index.js"
 		}
 	},
-	"//typesVersions": "Le champ `exports` ci-dessus n'est lu que par les resolutions node16/bundler. NestJS compile en moduleResolution `Node` (node10), qui l'ignore : cette table indique a TypeScript ou trouver les types du sous-chemin ./prisma. A l'execution, Node lit bien `exports`.",
+	"//typesVersions": "Le champ `exports` ci-dessus n'est lu que par les resolutions node16/bundler. NestJS compile en moduleResolution `Node` (node10), qui l'ignore : cette table indique a TypeScript ou trouver les types des sous-chemins ./prisma et ./server. A l'execution, Node lit bien `exports`.",
 	"typesVersions": {
 		"*": {
 			"prisma": [
 				"generated/client/index.d.ts"
+			],
+			"server": [
+				"dist/server/index.d.ts"
 			]
 		}
 	},

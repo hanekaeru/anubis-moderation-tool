@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import {
-	DEFAULT_MODERATION_POINTS,
+	moderationPointsFromRow,
 	type ModerationPointsConfigDto,
 	type SanctionType,
 	type WarningSeverity,
@@ -19,8 +19,12 @@ import type { UpdateModerationPointsDto } from "./dto/moderation.dto";
  * `warning_low_points`...) parce que le jeu de cles est ferme et connu du
  * schema. L'API, elle, l'expose en dictionnaires indexes par l'enum : le
  * formulaire du dashboard et le calcul du score s'ecrivent alors sans switch,
- * et ajouter un type de sanction ne casse pas la lecture. La traduction entre
- * les deux formes vit ici, et nulle part ailleurs.
+ * et ajouter un type de sanction ne casse pas la lecture.
+ *
+ * La lecture (colonnes vers dictionnaires) vit dans `@anubis/shared`
+ * (`moderationPointsFromRow`), parce que le bot lit le meme bareme ; il en
+ * gardait une copie. L'ecriture (dictionnaires vers colonnes) reste ici : seul
+ * le dashboard regle le bareme.
  */
 @Injectable()
 export class ModerationPointsService {
@@ -34,32 +38,12 @@ export class ModerationPointsService {
 		guildId: string,
 		row: ModerationPointsConfig | null,
 	): ModerationPointsConfigDto {
-		if (!row) {
-			return {
-				guildId,
-				...DEFAULT_MODERATION_POINTS,
-				// Epoch plutot que « maintenant » : rien n'a jamais ete regle, et
-				// afficher la date du jour laisserait croire le contraire.
-				updatedAt: new Date(0).toISOString(),
-			};
-		}
-
 		return {
-			guildId: row.guildId,
-			warningPoints: {
-				LOW: row.warningLowPoints,
-				MEDIUM: row.warningMediumPoints,
-				HIGH: row.warningHighPoints,
-			},
-			sanctionPoints: {
-				TIMEOUT: row.timeoutPoints,
-				KICK: row.kickPoints,
-				BAN: row.banPoints,
-				SHADOWBAN: row.shadowbanPoints,
-			},
-			warnThreshold: row.warnThreshold,
-			criticalThreshold: row.criticalThreshold,
-			updatedAt: row.updatedAt.toISOString(),
+			guildId,
+			...moderationPointsFromRow(row),
+			// Epoch plutot que « maintenant » quand rien n'a jamais ete regle :
+			// afficher la date du jour laisserait croire le contraire.
+			updatedAt: (row?.updatedAt ?? new Date(0)).toISOString(),
 		};
 	}
 

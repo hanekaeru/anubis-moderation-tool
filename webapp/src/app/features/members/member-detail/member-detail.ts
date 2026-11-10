@@ -70,6 +70,7 @@ import { HasPermissionDirective } from '../../../shared/directives/has-permissio
 import { DurationPipe, FrDatePipe, RelativeTimePipe } from '../../../shared/pipes/format.pipes';
 import { SanctionDialog } from '../../moderation/dialogs/sanction-dialog';
 import { WarningDialog } from '../../moderation/dialogs/warning-dialog';
+import { BattlenetCard } from './battlenet-card';
 
 /**
  * Icone associee a chaque type d'evenement de la chronologie. Valeurs
@@ -99,6 +100,7 @@ const TIMELINE_ICONS: Record<string, string | undefined> = {
 @Component({
 	selector: 'app-member-detail',
 	imports: [
+		BattlenetCard,
 		ChartCard,
 		DurationPipe,
 		FrDatePipe,

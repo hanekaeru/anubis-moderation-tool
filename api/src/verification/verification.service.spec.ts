@@ -3,11 +3,13 @@ import type { AuditService } from "../audit/audit.service";
 import type { AppConfig } from "../config/configuration";
 import type { PrismaService } from "../prisma/prisma.service";
 import { exchangeCodeForUserInfo } from "./battlenet.client";
+import { hashBattlenetId } from "./battlenet-hash";
 import { VerificationService } from "./verification.service";
 
 const GUILD_ID = "1534550360180396132";
 const USER_ID = "136122497891303425";
 const STATE = "b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5";
+const SECRET = "c".repeat(64);
 
 jest.mock("./battlenet.client", () => ({
 	...jest.requireActual("./battlenet.client"),
@@ -33,7 +35,7 @@ function makeService(options: {
 	available?: boolean;
 	demande?: Record<string, unknown> | null;
 	consommees?: number;
-	lienExistant?: { userId: string } | null;
+	lienExistant?: { userId: string; unlinkedAt?: Date | null } | null;
 } = {}) {
 	const prisma = {
 		battlenetVerificationState: {
@@ -47,7 +49,16 @@ function makeService(options: {
 				.mockResolvedValue({ count: options.consommees ?? 1 }),
 		},
 		battlenetAccount: {
-			findUnique: jest.fn().mockResolvedValue(options.lienExistant ?? null),
+			findUnique: jest
+				.fn()
+				.mockResolvedValue(
+					options.lienExistant
+						? { unlinkedAt: null, ...options.lienExistant }
+						: null,
+				),
+			findMany: jest.fn().mockResolvedValue([]),
+			update: jest.fn().mockResolvedValue({}),
+			updateMany: jest.fn().mockResolvedValue({ count: 0 }),
 			upsert: jest.fn().mockResolvedValue({}),
 		},
 		quarantineStatus: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
@@ -61,6 +72,7 @@ function makeService(options: {
 				clientId: "client",
 				clientSecret: "secret",
 				redirectUri: "https://exemple.test/api/verification/battlenet/callback",
+				idSecret: SECRET,
 				available: options.available ?? true,
 			},
 		}),
@@ -158,6 +170,59 @@ describe("VerificationService.handleCallback", () => {
 		);
 	});
 
+	// Le `sub` ne doit jamais atteindre la base : seule son empreinte est
+	// cherchee et ecrite.
+	it("n'ecrit que l'empreinte du compte Blizzard", async () => {
+		const { service, prisma } = makeService();
+		await service.handleCallback("code", STATE);
+
+		const empreinte = hashBattlenetId(SECRET, "12345");
+		expect(prisma.battlenetAccount.findUnique).toHaveBeenCalledWith({
+			where: { battlenetHash: empreinte },
+		});
+		expect(prisma.battlenetAccount.upsert).toHaveBeenCalledWith(
+			expect.objectContaining({ where: { battlenetHash: empreinte } }),
+		);
+		expect(
+			JSON.stringify(jest.mocked(prisma.battlenetAccount.upsert).mock.calls),
+		).not.toContain('"12345"');
+	});
+
+	// Un membre qui lie un autre compte Blizzard : l'ancien devient une trace,
+	// jamais un compte libre.
+	it("transforme l'ancien lien du membre en trace", async () => {
+		const { service, prisma } = makeService();
+		await service.handleCallback("code", STATE);
+
+		expect(prisma.battlenetAccount.updateMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({ userId: USER_ID, unlinkedAt: null }),
+				data: expect.objectContaining({ battletag: null }),
+			}),
+		);
+	});
+
+	// La trace existe pour ce cas : delier puis relier le meme compte sur un
+	// autre compte Discord ne doit pas passer.
+	it("refuse un compte Blizzard delie par un autre membre", async () => {
+		const delieLe = new Date("2026-10-01T10:00:00Z");
+		const { service, prisma } = makeService({
+			lienExistant: { userId: "999999999999999999", unlinkedAt: delieLe },
+		});
+
+		expect(await service.handleCallback("code", STATE)).toBe("deja-lie");
+		expect(prisma.accountFlag.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					details: {
+						dejaLieA: "999999999999999999",
+						delieLe: delieLe.toISOString(),
+					},
+				}),
+			}),
+		);
+	});
+
 	it("refuse un compte Blizzard deja lie et signale la tentative", async () => {
 		const { service, prisma } = makeService({
 			lienExistant: { userId: "999999999999999999" },
@@ -187,6 +252,24 @@ describe("VerificationService.handleCallback", () => {
 		expect(prisma.accountFlag.create).not.toHaveBeenCalled();
 	});
 
+	// Le membre revient sur un compte qu'il avait lui-meme delie : la trace
+	// redevient un lien, et l'annonce repart.
+	it("reactive la trace du meme membre", async () => {
+		const { service, prisma } = makeService({
+			lienExistant: { userId: USER_ID, unlinkedAt: new Date() },
+		});
+
+		expect(await service.handleCallback("code", STATE)).toBe("succes");
+		expect(prisma.battlenetAccount.upsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				update: expect.objectContaining({
+					unlinkedAt: null,
+					discordSyncedAt: null,
+				}),
+			}),
+		);
+	});
+
 	it("traite un retour sans code comme un refus", async () => {
 		const { service } = makeService();
 
@@ -200,5 +283,28 @@ describe("VerificationService.handleCallback", () => {
 		const { service } = makeService();
 
 		expect(await service.handleCallback("code", STATE)).toBe("refus-blizzard");
+	});
+});
+
+describe("VerificationService.onModuleInit", () => {
+	// Les lignes ecrites avant le passage aux empreintes portent le `sub` en
+	// clair : elles sont remplacees au demarrage, les empreintes restent.
+	it("remplace les identifiants en clair par leur empreinte", async () => {
+		const { service, prisma } = makeService();
+		const empreinteExistante = hashBattlenetId(SECRET, "777");
+		jest
+			.mocked(prisma.battlenetAccount.findMany)
+			.mockResolvedValue([
+				{ battlenetHash: "12345" },
+				{ battlenetHash: empreinteExistante },
+			] as never);
+
+		await service.onModuleInit();
+
+		expect(prisma.battlenetAccount.update).toHaveBeenCalledTimes(1);
+		expect(prisma.battlenetAccount.update).toHaveBeenCalledWith({
+			where: { battlenetHash: "12345" },
+			data: { battlenetHash: hashBattlenetId(SECRET, "12345") },
+		});
 	});
 });

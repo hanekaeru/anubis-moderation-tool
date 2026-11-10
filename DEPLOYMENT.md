@@ -540,6 +540,18 @@ docker build -f bot/Dockerfile -t anubis-bot .
       qui l'avaient activé_ — c'est un interrupteur d'urgence, pas un réglage
       de confort. Les secrets déjà enregistrés ne sont pas effacés : la
       remettre à `true` rend la protection sans reconfiguration.
+    - Vérification Battle.net (**facultative**, les quatre ensemble ou
+      aucune) : `BATTLENET_CLIENT_ID`, `BATTLENET_CLIENT_SECRET` (portail
+      développeur Blizzard ; le nom de l'application ne doit contenir aucune
+      marque Blizzard) et `BATTLENET_ID_SECRET` (`openssl rand -hex 32`).
+      **Ce dernier ne se change ni ne se perd jamais** : il porte l'unicité des
+      comptes Blizzard déjà liés, sans lui un compte déjà utilisé redevient
+      liable à un autre membre. À sauvegarder à côté des sauvegardes de la base.
+    - `PRIVACY_POLICY_URL` : adresse publique de la politique de
+      confidentialité, hébergée **hors du VPS** (brouillon dans `legal/`). À
+      reporter aussi dans le champ _Privacy Policy URL_ des portails
+      développeurs Discord et Blizzard, que leurs conditions rendent
+      obligatoire.
 5. **Webhook** : Coolify l'a déjà enregistré côté GitHub via la GitHub App de
    l'étape 6 — chaque push sur `master` redéploiera automatiquement.
 6. **Migrations** : rien à configurer. Le conteneur `api` applique les

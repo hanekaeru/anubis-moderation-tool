@@ -1,14 +1,6 @@
-import { randomBytes } from "node:crypto";
-import {
-	ActionRowBuilder,
-	ButtonBuilder,
-	ButtonStyle,
-	MessageFlags,
-	type ButtonInteraction,
-} from "discord.js";
-import { BATTLENET_STATE_TTL_MINUTES } from "@anubis/shared";
+import { MessageFlags, type ButtonInteraction } from "discord.js";
+import * as battlenet from "../collectors/battlenet";
 import * as referentiel from "../collectors/referentiel";
-import { lienVerificationBattlenet } from "../utils/verificationLink";
 import * as quarantine from "../collectors/quarantine";
 import prisma from "../prisma";
 
@@ -17,19 +9,6 @@ export const QUARANTINE_ACCEPT_ID = "quarantine:accept";
 
 /** Identifiant du bouton de verification Battle.net du meme message. */
 export const QUARANTINE_BATTLENET_ID = "quarantine:battlenet";
-
-/**
- * Base publique de l'API, telle que le navigateur d'un membre la voit.
- *
- * Le bot n'appelle jamais l'API — il ne fait que composer un lien a cliquer. La
- * variable est donc l'URL exterieure (celle servie par le proxy), pas l'adresse
- * interne du conteneur.
- *
- * Elle n'est **pas** validee ici mais a chaque composition : une base absurde
- * (`https://${APP_DOMAIN}/api` non substituee) doit produire un message clair
- * dans le journal, pas un `DiscordAPIError[50035]` muet sur la valeur en cause.
- */
-const PUBLIC_API_URL = process.env.PUBLIC_API_URL;
 
 /**
  * Clic sur « J'accepte le reglement ».
@@ -78,13 +57,12 @@ export async function handleQuarantineAccept(
  * Clic sur « Vérifier mon compte Battle.net ».
  *
  * Le bot ne parle pas a Blizzard : il pose une demande en base et rend un lien
- * vers l'API, qui porte tout le protocole OAuth. Le `state` est tire ici, au
- * hasard cryptographique et jamais derive de l'identifiant Discord — le
- * callback etant une route publique, un `state` devinable laisserait n'importe
- * qui se verifier sans passer par Blizzard.
+ * vers l'API, qui porte tout le protocole OAuth (`collectors/battlenet.ts`,
+ * partage avec `/lier_battlenet`).
  *
- * Le lien part en message ephemere plutot que dans le message de reglement :
- * il ne vaut que pour la personne qui a clique, et pour un quart d'heure.
+ * Un membre qui a deja un lien actif — revenu sur le serveur, ou lie par
+ * `/lier_battlenet` avant sa quarantaine — voit l'etape validee sans repasser
+ * par Blizzard : le lien fait foi.
  */
 export async function handleQuarantineBattlenet(
 	interaction: ButtonInteraction,
@@ -104,78 +82,35 @@ export async function handleQuarantineBattlenet(
 		return;
 	}
 
-	await referentiel.upsertUser(interaction.user);
+	const demande = await battlenet.demanderVerification(
+		interaction.guildId,
+		interaction.user,
+	);
 
-	const statut = await prisma.quarantineStatus.findUnique({
-		where: {
-			guildId_userId: {
-				guildId: interaction.guildId,
-				userId: interaction.user.id,
-			},
-		},
-	});
-
-	if (statut?.battlenetVerifiedAt) {
-		await interaction.editReply({
-			content: "Ton compte Battle.net est déjà vérifié.",
-		});
-		return;
-	}
-
-	const state = randomBytes(32).toString("hex");
-	const lien = lienVerificationBattlenet(PUBLIC_API_URL, state);
-
-	// Compose **avant** d'ecrire la demande : une base inutilisable ne doit pas
-	// laisser derriere elle une ligne de `battlenet_verification_states` que
-	// personne n'ira jamais consommer.
-	if (!lien) {
-		console.error(
-			"[Quarantaine] PUBLIC_API_URL inutilisable, lien de vérification non composé. " +
-				`Valeur reçue : ${JSON.stringify(PUBLIC_API_URL)}. ` +
-				"Attendu : l'URL publique de l'API, par exemple https://mon-domaine.fr/api",
-		);
-		await interaction.editReply({
-			content:
-				"La vérification n'est pas configurée sur ce serveur. Préviens l'équipe de modération.",
-		});
-		return;
-	}
-
-	// Les demandes precedentes du meme membre sont marquees consommees : deux
-	// liens valides en parallele n'apportent rien et allongent d'autant la
-	// fenetre pendant laquelle un lien traine dans une conversation.
-	await prisma.$transaction([
-		prisma.battlenetVerificationState.updateMany({
+	if (demande.kind === "deja-lie") {
+		const valide = await prisma.quarantineStatus.updateMany({
 			where: {
 				guildId: interaction.guildId,
 				userId: interaction.user.id,
-				consumedAt: null,
+				battlenetVerifiedAt: null,
 			},
-			data: { consumedAt: new Date() },
-		}),
-		prisma.battlenetVerificationState.create({
-			data: {
-				state,
-				guildId: interaction.guildId,
-				userId: interaction.user.id,
-				expiresAt: new Date(
-					Date.now() + BATTLENET_STATE_TTL_MINUTES * 60_000,
-				),
-			},
-		}),
-	]);
+			// `discordSyncedAt` a `null` : le rattrapage pose les roles de l'etape.
+			data: { battlenetVerifiedAt: new Date(), discordSyncedAt: null },
+		});
 
-	await interaction.editReply({
-		content:
-			`Clique sur le bouton ci-dessous pour te connecter à Battle.net. ` +
-			`Le lien n'est valable que ${BATTLENET_STATE_TTL_MINUTES} minutes et ne fonctionne que pour toi.`,
-		components: [
-			new ActionRowBuilder<ButtonBuilder>().addComponents(
-				new ButtonBuilder()
-					.setLabel("Se connecter à Battle.net")
-					.setStyle(ButtonStyle.Link)
-					.setURL(lien),
-			),
-		],
-	});
+		await interaction.editReply({
+			content:
+				valide.count > 0
+					? "Ton compte Battle.net est déjà lié : l'étape est validée."
+					: "Ton compte Battle.net est déjà vérifié.",
+		});
+		return;
+	}
+
+	if (demande.kind !== "lien") {
+		await interaction.editReply({ content: battlenet.messageRefus(demande) });
+		return;
+	}
+
+	await interaction.editReply(battlenet.messageLien(demande.url));
 }

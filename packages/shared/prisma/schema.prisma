@@ -265,7 +265,8 @@ model DiscordUser {
   quarantineStatuses      QuarantineStatus[]           @relation("QuarantineMember")
   quarantineReleases      QuarantineStatus[]           @relation("QuarantineDiscordReleaser")
   memberRoleRequests      MemberRoleRequest[]
-  battlenetAccount        BattlenetAccount?
+  battlenetAccounts       BattlenetAccount[]           @relation("BattlenetAccountUser")
+  battlenetUnlinks        BattlenetAccount[]           @relation("BattlenetDiscordUnlinker")
   battlenetStates         BattlenetVerificationState[]
   shadowbanRoleBackups    ShadowbanRoleBackup[]
   ownedVoiceChannels      TemporaryVoiceChannel[]
@@ -958,6 +959,15 @@ model QuarantineConfig {
   battlenetButtonLabel String   @default("Vérifier mon compte Battle.net") @map("battlenet_button_label")
   /// Texte du bloc de verification, sous le reglement. `null` = texte par defaut.
   battlenetMessage     String?  @map("battlenet_message") @db.Text
+  /// Role « BattleTag verifie », porte tant que le membre a un lien actif.
+  ///
+  /// Range ici faute d'une table Battle.net par serveur, mais **independant de
+  /// la quarantaine** : il vaut quand elle est coupee, quand elle n'exige pas
+  /// la verification, et pour un membre lie par `/lier_battlenet`. Ce n'est
+  /// pas un role d'etape — `verifyAddRoleIds` est retire a la levee, celui-ci
+  /// reste. Le bot le fait suivre les liens en continu : le lien fait foi, un
+  /// role pose ou retire a la main est corrige au passage suivant.
+  battlenetRoleId      String?  @map("battlenet_role_id") @db.VarChar(20)
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -1291,35 +1301,62 @@ model MemberRoleRequest {
 
 /// Compte Battle.net verifie, lie a un compte Discord.
 ///
-/// La cle est le `sub` rendu par `/userinfo` de Blizzard, **jamais le
-/// BattleTag** : un BattleTag se change depuis le compte Blizzard, `sub` non.
-/// C'est donc lui qui porte l'unicite, et `battletag` n'est qu'une copie
-/// d'affichage prise au moment de la verification — elle peut avoir vieilli.
+/// La cle est une **empreinte** du `sub` rendu par `/userinfo` de Blizzard
+/// (HMAC-SHA256 sous `BATTLENET_ID_SECRET`), jamais le `sub` lui-meme ni le
+/// BattleTag. Un BattleTag se change depuis le compte Blizzard, `sub` non :
+/// c'est donc lui qui porte l'unicite. L'empreinte suffit a la comparer, sans
+/// garder en base la donnee Blizzard en clair — les conditions de Blizzard en
+/// limitent la conservation a 30 jours, et l'unicite doit tenir bien plus
+/// longtemps. Perdre le secret, c'est perdre l'unicite : plus aucune empreinte
+/// ne se recalcule.
 ///
-/// `userId` est unique de son cote : un compte Discord ne porte qu'un seul
-/// compte Blizzard. Les deux unicites ensemble sont ce qui fait la valeur du
-/// dispositif — sans elles, la verification ne prouverait que la capacite a
-/// creer un compte Blizzard, ce qui est gratuit et prend deux minutes.
+/// Une ligne est soit un **lien actif** (`unlinkedAt` a `null`), soit une
+/// **trace** laissee par une deliaison. La trace garde l'empreinte pour le
+/// meme membre : sans elle, delier puis relier le meme compte Blizzard sur un
+/// autre compte Discord ouvrirait le serveur a autant de comptes qu'on veut,
+/// chacun gardant son acces apres la deliaison. Un administrateur peut
+/// supprimer la trace (« delier et liberer ») pour un cas legitime.
+///
+/// `userId` n'est donc plus unique : un membre peut porter un lien actif et
+/// les traces de comptes delies. Le code garantit qu'il n'a jamais deux liens
+/// actifs — relier un autre compte transforme l'ancien en trace.
+///
+/// Conservation (`src/tasks/battlenetRetention.ts` du bot) : BattleTag efface
+/// 30 jours apres la verification, lien et trace supprimes 12 mois apres le
+/// depart du membre ou la deliaison — fin de bannissement comprise.
 model BattlenetAccount {
-  battlenetId     String    @id @map("battlenet_id")
-  userId          String    @unique @map("user_id") @db.VarChar(20)
-  battletag       String
+  battlenetHash       String    @id @map("battlenet_hash")
+  userId              String    @map("user_id") @db.VarChar(20)
+  /// Copie d'affichage, reservee a `battlenet:read`. Effacee 30 jours apres
+  /// la verification, et des la deliaison : rien ne repose dessus.
+  battletag           String?
   /// Serveur depuis lequel la verification a ete faite, pour le journal.
-  guildId         String    @map("guild_id") @db.VarChar(20)
-  verifiedAt      DateTime  @default(now()) @map("verified_at")
-  /// Annonce de la verification deja faite sur Discord (journal de moderation
-  /// et message prive au membre).
+  guildId             String    @map("guild_id") @db.VarChar(20)
+  verifiedAt          DateTime  @default(now()) @map("verified_at")
+  /// Deliaison : la ligne n'est plus qu'une trace. Le role « BattleTag
+  /// verifie » suit les seuls liens actifs.
+  unlinkedAt          DateTime? @map("unlinked_at")
+  /// Auteur d'une deliaison depuis le dashboard.
+  unlinkedById        String?   @map("unlinked_by_id") @db.Uuid
+  /// Auteur d'une deliaison depuis Discord — le membre lui-meme ou un
+  /// administrateur. Exclusif de `unlinkedById`, meme couple que
+  /// `Sanction.revokedById` / `revokedByDiscordId`.
+  unlinkedByDiscordId String?   @map("unlinked_by_discord_id") @db.VarChar(20)
+  /// Annonce de la verification, puis de la deliaison, deja faite sur Discord
+  /// (journal de moderation et message prive au membre).
   ///
-  /// Meme patron que `Warning.discordSyncedAt` : l'API ecrit le lien sans
-  /// pouvoir toucher a Discord, le bot ramasse et marque. La ligne n'etant
-  /// creee qu'une fois par compte Blizzard, l'annonce ne part qu'une fois —
-  /// une reverification par la meme personne met a jour le BattleTag sans
-  /// reveiller cette date.
-  discordSyncedAt DateTime? @map("discord_synced_at")
+  /// Meme patron que `Warning.discordSyncedAt` : l'API ecrit sans pouvoir
+  /// toucher a Discord, le bot ramasse et marque. Une reverification par la
+  /// meme personne met a jour le BattleTag sans reveiller cette date ; une
+  /// deliaison depuis le dashboard la remet a `null` pour etre annoncee.
+  discordSyncedAt     DateTime? @map("discord_synced_at")
 
-  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user              DiscordUser  @relation("BattlenetAccountUser", fields: [userId], references: [id], onDelete: Cascade)
+  guild             Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  unlinkedBy        AppUser?     @relation("BattlenetUnlinker", fields: [unlinkedById], references: [id], onDelete: SetNull)
+  unlinkedByDiscord DiscordUser? @relation("BattlenetDiscordUnlinker", fields: [unlinkedByDiscordId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@map("battlenet_accounts")
 }
 
@@ -1739,6 +1776,7 @@ model AppUser {
   raidIncidentsResolved RaidIncident[]
   accountFlagsReviewed  AccountFlag[]
   quarantineReleases    QuarantineStatus[]      @relation("QuarantineReleasedBy")
+  battlenetUnlinks      BattlenetAccount[]      @relation("BattlenetUnlinker")
   memberRoleRequests    MemberRoleRequest[]
   esportWeeks           EsportWeek[]
   discordLinkCode       AccountLinkCode?
