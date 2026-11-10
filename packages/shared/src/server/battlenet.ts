@@ -1,4 +1,3 @@
-import type { Prisma } from "../../generated/client";
 import { battlenetUnlinkResetsVerification } from "../battlenet";
 import { quarantineStage } from "../dto/quarantine";
 
@@ -14,10 +13,51 @@ import { quarantineStage } from "../dto/quarantine";
  */
 
 /**
- * Tout client Prisma convient — celui du bot, le service de l'API, ou une
- * transaction en cours.
+ * Ce que la deliaison demande au client Prisma, et rien de plus. Le client du
+ * bot, le service de l'API ou une transaction en cours s'y conforment.
+ *
+ * Decrit a la main plutot qu'importe de `generated/client` : le package
+ * partage se compile **avant** `prisma generate` (images Docker de l'API et du
+ * bot), et le dashboard verifie ses sources sans jamais generer le client.
+ * Importer le type faisait echouer les deux constructions.
  */
-type Db = Prisma.TransactionClient;
+interface Db {
+	battlenetAccount: {
+		findMany(args: {
+			where: { userId: string };
+		}): Promise<{ battlenetHash: string; unlinkedAt: Date | null }[]>;
+		deleteMany(args: { where: { userId: string } }): Promise<unknown>;
+		update(args: {
+			where: { battlenetHash: string };
+			data: {
+				unlinkedAt: Date;
+				unlinkedById: string | null;
+				unlinkedByDiscordId: string | null;
+				battletag: null;
+				discordSyncedAt: null;
+			};
+		}): Promise<unknown>;
+	};
+	quarantineConfig: {
+		findUnique(args: {
+			where: { guildId: string };
+			select: { battlenetRequired: true };
+		}): Promise<{ battlenetRequired: boolean } | null>;
+	};
+	quarantineStatus: {
+		findUnique(args: {
+			where: { guildId_userId: { guildId: string; userId: string } };
+		}): Promise<{
+			acceptedAt: Date | null;
+			battlenetVerifiedAt: Date | null;
+			releasedAt?: Date | null;
+		} | null>;
+		update(args: {
+			where: { guildId_userId: { guildId: string; userId: string } };
+			data: { battlenetVerifiedAt: null; discordSyncedAt: null };
+		}): Promise<unknown>;
+	};
+}
 
 export type BattlenetUnlinkAuthor =
 	| { appUserId: string }

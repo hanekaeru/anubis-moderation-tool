@@ -49,8 +49,14 @@ essentielle :
   au bot **qui a besoin de la base** : chaque fonction recoit le client Prisma
   de l'appelant. Le bot n'appelle jamais l'API, une regle qui s'applique des
   deux cotes etait donc recopiee, et les copies divergeaient. **Rien de
-  `src/server/` n'est exporte par `src/index.ts`** ; il n'importe le client
-  Prisma qu'en `import type`. Aujourd'hui : `unlinkBattlenet`. Les regles sans
+  `src/server/` n'est exporte par `src/index.ts`**, et le dashboard l'exclut
+  de sa compilation (`webapp/tsconfig.app.json`, qui inclut sinon toutes les
+  sources partagees). Il **n'importe jamais `generated/client`**, pas meme en
+  `import type` : le package se compile avant `prisma generate` dans les
+  images Docker, et le dashboard ne genere jamais le client — un tel import a
+  casse les deux constructions en CI alors que le poste local, qui a deja
+  `generated/`, passait. Chaque fonction decrit a la main le sous-ensemble du
+  client qu'elle emploie. Aujourd'hui : `unlinkBattlenet`. Les regles sans
   base vont dans le point d'entree principal (`sanctionSchedule`,
   `moderationPointsFromRow`).
 
