@@ -1013,8 +1013,9 @@ le dev avec rechargement).
   - `/owdle_salon` est une **commande a part** et non une sous-commande :
     Discord ne regle les permissions qu'a l'echelle d'une commande entiere.
   **Un essai s'affiche en paires case-valeur** (`renderOwdleGuess`, deux lignes
-  de trois : « 🟩 Dégâts · 🟥 Flancs · 🟩 Humain »), le plus recent en premier,
-  avec une legende d'une ligne (`OWDLE_LEGEND`). La vue precedente alignait une
+  de trois : « 🟩 Dégâts · 🟥 Flancs · 🟩 Humain »), dans l'ordre propose — le
+  dernier en bas —, sous la grille de l'annonce publique servie en apercu, avec
+  une legende d'une ligne (`OWDLE_LEGEND`). La vue precedente alignait une
   ligne de cases sous un **en-tete d'icones** : parfaite sur ordinateur,
   illisible sur mobile, ou Discord ne donne pas la meme largeur aux icones et aux
   carres. Rien dans un message ne force des colonnes — ne pas y revenir. Les
