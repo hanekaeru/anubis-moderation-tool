@@ -252,27 +252,47 @@ const YEAR_EMOJI: Record<OwdleYearMatch, string> = {
 };
 
 /**
- * Colonnes de la grille, dans l'ordre des cases.
+ * Libelles courts de la vue d'un essai.
  *
- * Chaque colonne a son icone parce que Discord affiche tout emoji a la meme
- * largeur, sur ordinateur comme sur mobile : une ligne d'icones posee au-dessus
- * des cases reste alignee avec elles, la ou des intitules en texte se
- * decalaient des que le nom d'un heros etait un peu long.
+ * Une ligne de trois paires doit tenir sur un ecran de telephone : « Attaque
+ * par les flancs » la faisait deborder a elle seule. Les noms complets restent
+ * ceux du dashboard (`OWDLE_SUB_ROLE_LABELS`).
  */
-export const OWDLE_COLUMNS = [
-	{ icon: "🎭", label: "rôle" },
-	{ icon: "🧩", label: "sous-rôle" },
-	{ icon: "🧬", label: "espèce" },
-	{ icon: "🌍", label: "origine" },
-	{ icon: "🚩", label: "affiliation" },
-	{ icon: "📅", label: "sortie" },
-] as const;
+export const OWDLE_SUB_ROLE_SHORT_LABELS: Record<OwdleSubRole, string> = {
+	BRUISER: "Colosse",
+	INITIATOR: "Engagement",
+	STALWART: "Indéfectible",
+	FLANKER: "Flancs",
+	RECON: "Reco",
+	SHARPSHOOTER: "Gâchette",
+	SPECIALIST: "Spécialiste",
+	MEDIC: "Secouriste",
+	SURVIVOR: "Survie",
+	TACTICIAN: "Tactique",
+};
 
-/** En-tete de la grille : une icone au-dessus de chaque case. */
-export const OWDLE_COLUMN_HEADER = OWDLE_COLUMNS.map((c) => c.icon).join("");
+const SPECIES_SHORT_LABELS: Record<OwdleSpecies, string> = {
+	HUMAN: "Humain",
+	OMNIC: "Omniaque",
+	ANIMAL: "Animal",
+};
 
-/** Les six cases d'un essai, sans separateur pour rester sous l'en-tete. */
-function renderOwdleCells(c: OwdleComparison): string {
+/** Explication des couleurs, en une ligne : chaque case dit deja sa valeur. */
+export const OWDLE_LEGEND = "🟩 juste · 🟨 même continent · 🟥 faux · ⬆️⬇️ sorti plus tard / plus tôt";
+
+/**
+ * En-tete de la grille publique : une icone par colonne, dans l'ordre des
+ * cases (role, sous-role, espece, origine, affiliation, sortie).
+ *
+ * Il ne sert plus qu'a l'annonce publique. Sur mobile, Discord ne donne pas
+ * tout a fait la meme largeur aux icones et aux carres et l'alignement glisse
+ * un peu ; le proprietaire l'accepte la, ou l'on ne lit qu'une forme d'un coup
+ * d'oeil. La vue privee, elle, n'en depend plus (`renderOwdleGuess`).
+ */
+export const OWDLE_SHARE_HEADER = "🎭🧩🧬🌍🚩📅";
+
+/** Les six cases d'un essai, dans l'ordre de la vue detaillee. */
+function renderOwdleCells(c: OwdleComparison): string[] {
 	return [
 		MATCH_EMOJI[c.role],
 		MATCH_EMOJI[c.subRole],
@@ -280,26 +300,31 @@ function renderOwdleCells(c: OwdleComparison): string {
 		MATCH_EMOJI[c.origin],
 		MATCH_EMOJI[c.affiliation],
 		YEAR_EMOJI[c.releaseYear],
-	].join("");
+	];
 }
 
 /**
  * Un essai, avec les valeurs : visible du seul joueur.
  *
- * Deux lignes : les cases puis le nom, et les valeurs en petit dessous. Les
- * cases ouvrent la ligne pour que la longueur du nom ne puisse jamais les
- * decaler, et les valeurs suivent l'ordre des colonnes.
+ * **Chaque case porte sa valeur a cote d'elle**, en deux lignes de trois. La
+ * vue precedente alignait une ligne de cases sous un en-tete d'icones : parfait
+ * sur ordinateur, illisible sur mobile, ou Discord ne donne pas la meme largeur
+ * aux icones et aux carres et ou l'ecart grandit de colonne en colonne. Rien
+ * dans un message ne permet de forcer des colonnes ; une paire case-valeur n'a
+ * besoin d'aucun alignement, et se lit pareil partout.
  */
-export function renderOwdleGuessLine(guess: OwdleHero, comparison: OwdleComparison): string {
+export function renderOwdleGuess(guess: OwdleHero, comparison: OwdleComparison): string {
+	const cases = renderOwdleCells(comparison);
 	const valeurs = [
 		OWDLE_ROLE_LABELS[guess.role],
-		OWDLE_SUB_ROLE_LABELS[guess.subRole],
-		OWDLE_SPECIES_LABELS[guess.species],
+		OWDLE_SUB_ROLE_SHORT_LABELS[guess.subRole],
+		SPECIES_SHORT_LABELS[guess.species],
 		guess.origin,
 		guess.affiliation.label,
 		String(guess.releaseYear),
 	];
-	return `${renderOwdleCells(comparison)} **${guess.name}**\n-# ${valeurs.join(" · ")}`;
+	const paires = valeurs.map((valeur, i) => `${cases[i]} ${valeur}`);
+	return [`**${guess.name}**`, paires.slice(0, 3).join(" · "), paires.slice(3).join(" · ")].join("\n");
 }
 
 /**
@@ -308,7 +333,7 @@ export function renderOwdleGuessLine(guess: OwdleHero, comparison: OwdleComparis
  * Les fleches de l'annee restent : elles disent une direction, pas une reponse.
  */
 export function renderOwdleShareGrid(comparisons: readonly OwdleComparison[]): string {
-	return comparisons.map(renderOwdleCells).join("\n");
+	return comparisons.map((c) => renderOwdleCells(c).join("")).join("\n");
 }
 
 /** Jour de l'OWdle auquel appartient un instant. */

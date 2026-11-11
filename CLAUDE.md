@@ -1012,10 +1012,17 @@ le dev avec rechargement).
     son `count` — deux validations simultanees n'en font qu'une.
   - `/owdle_salon` est une **commande a part** et non une sous-commande :
     Discord ne regle les permissions qu'a l'echelle d'une commande entiere.
-  La grille s'intitule par une **ligne d'icones** (`OWDLE_COLUMN_HEADER`), pas
-  par des mots : Discord rend tout emoji a la meme largeur, l'en-tete reste donc
-  aligne sur les cases, et chaque essai **commence** par ses cases pour qu'un nom
-  long ne puisse pas les decaler. Les valeurs suivent en sous-texte (`-#`).
+  **Un essai s'affiche en paires case-valeur** (`renderOwdleGuess`, deux lignes
+  de trois : « 🟩 Dégâts · 🟥 Flancs · 🟩 Humain »), le plus recent en premier,
+  avec une legende d'une ligne (`OWDLE_LEGEND`). La vue precedente alignait une
+  ligne de cases sous un **en-tete d'icones** : parfaite sur ordinateur,
+  illisible sur mobile, ou Discord ne donne pas la meme largeur aux icones et aux
+  carres. Rien dans un message ne force des colonnes — ne pas y revenir. Les
+  sous-roles longs ont un libelle court (`OWDLE_SUB_ROLE_SHORT_LABELS`) pour
+  qu'une ligne tienne sur un telephone. L'annonce publique, elle, **garde**
+  l'en-tete d'icones (`OWDLE_SHARE_HEADER`) au-dessus de ses carres : le
+  proprietaire accepte le leger glissement sur mobile pour une grille qu'on lit
+  d'un coup d'oeil.
   C'est aussi la premiere commande a **autocompletion** : `Command.autocomplete`
   est route par `interactionCreate.ts`, sans cooldown (une requete par frappe).
   Une suggestion n'engage rien cote client, d'ou `resolveOwdleHero` a la

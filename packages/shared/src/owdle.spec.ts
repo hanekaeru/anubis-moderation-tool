@@ -1,5 +1,4 @@
 import {
-	OWDLE_COLUMN_HEADER,
 	OWDLE_SUB_ROLE_ROLE,
 	type OwdleHero,
 	compareOwdleGuess,
@@ -9,7 +8,7 @@ import {
 	owdleSubRolesOf,
 	owdleXpForGuesses,
 	pickOwdleHero,
-	renderOwdleGuessLine,
+	renderOwdleGuess,
 	renderOwdleShareGrid,
 	resolveOwdleHero,
 	searchOwdleHeroes,
@@ -104,15 +103,20 @@ describe("compareOwdleGuess", () => {
 		expect(compareOwdleGuess(hero("bastion"), hero("ramattra")).origin).toBe("WRONG");
 	});
 
-	it("ouvre la ligne d'essai par les cases, quelle que soit la longueur du nom", () => {
-		// Ana contre Soldat : 76 — la ligne doit commencer par les six cases,
-		// alignees sous l'en-tete, et garder les valeurs dans l'ordre des colonnes.
-		const ligne = renderOwdleGuessLine(hero("ana"), compareOwdleGuess(hero("ana"), hero("soldier-76")));
-		expect(ligne.split("\n")).toEqual([
-			"🟥🟥🟩🟥🟥🟩 **Ana**",
-			"-# Soutien · Tactique · Humain · Égypte · Overwatch · 2016",
+	it("colle chaque case a sa valeur, en deux lignes de trois", () => {
+		// Ana contre Soldat : 76. Aucune colonne a aligner : la vue doit se lire
+		// pareil sur un telephone, ou un en-tete d'icones se decalait.
+		const vue = renderOwdleGuess(hero("ana"), compareOwdleGuess(hero("ana"), hero("soldier-76")));
+		expect(vue.split("\n")).toEqual([
+			"**Ana**",
+			"🟥 Soutien · 🟥 Tactique · 🟩 Humain",
+			"🟥 Égypte · 🟥 Overwatch · 🟩 2016",
 		]);
-		expect(OWDLE_COLUMN_HEADER).toBe("🎭🧩🧬🌍🚩📅");
+	});
+
+	it("raccourcit les sous-roles trop longs pour un ecran de telephone", () => {
+		const vue = renderOwdleGuess(hero("tracer"), compareOwdleGuess(hero("tracer"), hero("tracer")));
+		expect(vue.split("\n")[1]).toEqual("🟩 Dégâts · 🟩 Flancs · 🟩 Humain");
 	});
 
 	it("indique le sens de l'annee de sortie", () => {
