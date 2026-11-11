@@ -29,7 +29,8 @@ import * as colors from "../../utils/constantes";
 
 /**
  * Au-dela, l'embed depasserait la limite de 4096 caracteres de sa description
- * (un essai en vue detaillee fait une centaine de caracteres).
+ * (un essai en vue detaillee fait une centaine de caracteres, et la grille
+ * d'apercu en prend jusqu'a un millier).
  */
 const ESSAIS_AFFICHES = 20;
 /** Meme raison pour l'annonce publique, limitee a 2000 caracteres. */
@@ -38,22 +39,36 @@ const LIGNES_PARTAGEES = 40;
 const jourAffiche = (key: string) => key.split("-").reverse().join("/");
 
 /**
- * Vue privee de la partie : chaque essai en deux lignes de paires case-valeur
- * (`renderOwdleGuess`), **le plus recent en premier**. A trois lignes par
- * essai, une partie longue deborde vite d'un ecran de telephone, et c'est le
- * dernier essai que le joueur vient lire. La legende tient en une ligne : les
- * cases disent deja leur valeur, il ne reste que les couleurs a expliquer.
+ * Grille sans nom ni valeur, en-tete compris : celle de l'annonce publique. Les
+ * lignes les plus anciennes tombent au-dela de `LIGNES_PARTAGEES`.
+ */
+function grillePartagee(guesses: readonly OwdleHero[], target: OwdleHero): string {
+	const lignes = renderOwdleShareGrid(guesses.map((g) => compareOwdleGuess(g, target)))
+		.split("\n")
+		.slice(-LIGNES_PARTAGEES);
+	return [OWDLE_SHARE_HEADER, ...lignes].join("\n");
+}
+
+/**
+ * Vue privee de la partie, en deux temps.
+ *
+ * En haut, **la grille de l'annonce publique** : un apercu de ce qui partira a
+ * la victoire, et la forme de la partie d'un coup d'oeil. Dessous, chaque essai
+ * en paires case-valeur (`renderOwdleGuess`), dans l'ordre ou il a ete propose
+ * — le dernier en bas, sous la grille qu'il vient d'allonger. Au-dela de
+ * `ESSAIS_AFFICHES`, ce sont les plus anciens qui disparaissent du detail ; la
+ * grille, elle, les garde. La legende tient en une ligne : les cases du detail
+ * disent deja leur valeur, il ne reste que les couleurs a expliquer.
  */
 function grilleJoueur(guesses: readonly OwdleHero[], target: OwdleHero): EmbedBuilder {
 	const n = guesses.length;
-	const essais = guesses
-		.map((g) => renderOwdleGuess(g, compareOwdleGuess(g, target)))
-		.reverse();
+	const essais = guesses.map((g) => renderOwdleGuess(g, compareOwdleGuess(g, target)));
 	const masques = essais.length - ESSAIS_AFFICHES;
 	const description = essais.length
 		? [
-				...essais.slice(0, ESSAIS_AFFICHES),
+				grillePartagee(guesses, target),
 				...(masques > 0 ? [`-# … ${masques} essai(s) plus ancien(s)`] : []),
+				...essais.slice(-ESSAIS_AFFICHES),
 			].join("\n\n")
 		: "Aucun essai pour l'instant.";
 
@@ -81,16 +96,12 @@ async function annoncerVictoire(
 		return;
 	}
 
-	const grille = renderOwdleShareGrid(guesses.map((g) => compareOwdleGuess(g, target)))
-		.split("\n")
-		.slice(-LIGNES_PARTAGEES)
-		.join("\n");
 	const n = guesses.length;
 	const rang = rank === 1 ? " — **premier du serveur** aujourd'hui !" : rank ? ` — ${rank}ᵉ du serveur aujourd'hui.` : "";
 	const gain = xp ? `\n-# +${xp.amount} XP` : "";
 
 	await salon.send({
-		content: `🎉 ${interaction.user} a trouvé l'OWdle du jour en **${n}** essai${n > 1 ? "s" : ""}${rang}${gain}\n${OWDLE_SHARE_HEADER}\n${grille}`,
+		content: `🎉 ${interaction.user} a trouvé l'OWdle du jour en **${n}** essai${n > 1 ? "s" : ""}${rang}${gain}\n${grillePartagee(guesses, target)}`,
 		// La mention identifie le joueur sans le notifier : il vient de jouer.
 		allowedMentions: { parse: [] },
 	});
