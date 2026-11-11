@@ -6,12 +6,12 @@ import {
 	SlashCommandBuilder,
 } from "discord.js";
 import {
-	OWDLE_COLUMN_HEADER,
-	OWDLE_COLUMNS,
+	OWDLE_LEGEND,
+	OWDLE_SHARE_HEADER,
 	type OwdleHero,
 	compareOwdleGuess,
 	owdleDayKey,
-	renderOwdleGuessLine,
+	renderOwdleGuess,
 	renderOwdleShareGrid,
 } from "@anubis/shared";
 import * as owdle from "../../collectors/owdle";
@@ -27,35 +27,41 @@ import * as colors from "../../utils/constantes";
  * est annoncee publiquement, et avec la grille sans aucun nom.
  */
 
-/** Au-dela, l'embed depasserait la limite de 4096 caracteres de sa description. */
+/**
+ * Au-dela, l'embed depasserait la limite de 4096 caracteres de sa description
+ * (un essai en vue detaillee fait une centaine de caracteres).
+ */
 const ESSAIS_AFFICHES = 20;
 /** Meme raison pour l'annonce publique, limitee a 2000 caracteres. */
 const LIGNES_PARTAGEES = 40;
 
-// L'en-tete d'icones vit en haut de la grille ; le pied ne fait que le
-// traduire, pour qui ne l'a pas encore retenu.
-const LEGENDE =
-	OWDLE_COLUMNS.map((c) => `${c.icon} ${c.label}`).join(" · ") +
-	"\n🟩 identique · 🟨 même continent (origine) · 🟥 différent · ⬆️⬇️ sorti plus tard / plus tôt";
-
 const jourAffiche = (key: string) => key.split("-").reverse().join("/");
 
+/**
+ * Vue privee de la partie : chaque essai en deux lignes de paires case-valeur
+ * (`renderOwdleGuess`), **le plus recent en premier**. A trois lignes par
+ * essai, une partie longue deborde vite d'un ecran de telephone, et c'est le
+ * dernier essai que le joueur vient lire. La legende tient en une ligne : les
+ * cases disent deja leur valeur, il ne reste que les couleurs a expliquer.
+ */
 function grilleJoueur(guesses: readonly OwdleHero[], target: OwdleHero): EmbedBuilder {
-	const lignes = guesses.map((g) => renderOwdleGuessLine(g, compareOwdleGuess(g, target)));
-	const masquees = lignes.length - ESSAIS_AFFICHES;
-	const description = lignes.length
+	const n = guesses.length;
+	const essais = guesses
+		.map((g) => renderOwdleGuess(g, compareOwdleGuess(g, target)))
+		.reverse();
+	const masques = essais.length - ESSAIS_AFFICHES;
+	const description = essais.length
 		? [
-				OWDLE_COLUMN_HEADER,
-				...(masquees > 0 ? [`-# … ${masquees} essai(s) précédent(s)`] : []),
-				...lignes.slice(-ESSAIS_AFFICHES),
-			].join("\n")
+				...essais.slice(0, ESSAIS_AFFICHES),
+				...(masques > 0 ? [`-# … ${masques} essai(s) plus ancien(s)`] : []),
+			].join("\n\n")
 		: "Aucun essai pour l'instant.";
 
 	return new EmbedBuilder()
 		.setColor(colors.info)
-		.setTitle(`OWdle du ${jourAffiche(owdleDayKey(new Date()))}`)
+		.setTitle(`OWdle du ${jourAffiche(owdleDayKey(new Date()))} — ${n} essai${n > 1 ? "s" : ""}`)
 		.setDescription(description)
-		.setFooter({ text: `${LEGENDE}\nEssais : ${guesses.length}` });
+		.setFooter({ text: OWDLE_LEGEND });
 }
 
 async function annoncerVictoire(
@@ -84,7 +90,7 @@ async function annoncerVictoire(
 	const gain = xp ? `\n-# +${xp.amount} XP` : "";
 
 	await salon.send({
-		content: `🎉 ${interaction.user} a trouvé l'OWdle du jour en **${n}** essai${n > 1 ? "s" : ""}${rang}${gain}\n${OWDLE_COLUMN_HEADER}\n${grille}`,
+		content: `🎉 ${interaction.user} a trouvé l'OWdle du jour en **${n}** essai${n > 1 ? "s" : ""}${rang}${gain}\n${OWDLE_SHARE_HEADER}\n${grille}`,
 		// La mention identifie le joueur sans le notifier : il vient de jouer.
 		allowedMentions: { parse: [] },
 	});
