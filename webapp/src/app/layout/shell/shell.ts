@@ -164,6 +164,12 @@ const NAV_SECTIONS: NavSection[] = [
         permissions: [Permission.OWDLE_READ],
       },
       {
+        path: '/mini-jeux',
+        label: 'Mini-jeux',
+        icon: 'event',
+        permissions: [Permission.MINIGAMES_READ],
+      },
+      {
         path: '/esport',
         label: 'Esport',
         icon: 'sports_esports',

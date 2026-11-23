@@ -103,6 +103,11 @@ export const AppUserRole = {
 	MODERATOR: "MODERATOR",
 	ADMIN: "ADMIN",
 	OWNER: "OWNER",
+	/**
+	 * Animation du serveur. Branche a part : n'herite pas de VIEWER, qui lit
+	 * deja de la moderation. Voir `STAFF_PERMISSIONS`.
+	 */
+	STAFF: "STAFF",
 } as const;
 export type AppUserRole = (typeof AppUserRole)[keyof typeof AppUserRole];
 
@@ -212,6 +217,17 @@ export const OwdleRegion = {
 } as const;
 export type OwdleRegion = (typeof OwdleRegion)[keyof typeof OwdleRegion];
 
+/** Type d'un mini-jeu du calendrier. Ordre = celui de la semaine type. */
+export const MinigameType = {
+	CLIP: "CLIP",
+	GUESS_HERO: "GUESS_HERO",
+	DUEL: "DUEL",
+	GUESS_MAP: "GUESS_MAP",
+	TRUE_FALSE: "TRUE_FALSE",
+	GUESS_SKIN: "GUESS_SKIN",
+} as const;
+export type MinigameType = (typeof MinigameType)[keyof typeof MinigameType];
+
 export const VoicePlacementMode = {
 	FIXED_CATEGORY: "FIXED_CATEGORY",
 	RANK_CATEGORY: "RANK_CATEGORY",
@@ -273,6 +289,7 @@ export const APP_USER_ROLE_LABELS: Record<AppUserRole, string> = {
 	MODERATOR: "Modérateur",
 	ADMIN: "Administrateur",
 	OWNER: "Propriétaire",
+	STAFF: "Staff (animation)",
 };
 
 export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {

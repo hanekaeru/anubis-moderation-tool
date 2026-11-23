@@ -60,6 +60,9 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 	"esport:read": "Consulter les matchs esport",
 	"esport:write": "Composer et envoyer les matchs esport, saisir les scores",
 	"esport:manage": "Régler l'esport et retirer un message publié",
+	"minigames:read": "Consulter le calendrier des mini-jeux (réponses comprises)",
+	"minigames:write": "Préparer les mini-jeux jusqu'à la veille 23h59",
+	"minigames:manage": "Corriger un mini-jeu verrouillé, régler les mini-jeux et les maps",
 	"sessions:read": "Consulter les sessions ouvertes de l'équipe",
 	"sessions:revoke": "Fermer la session d'un compte",
 };
@@ -130,6 +133,9 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
 			Permission.ESPORT_READ,
 			Permission.ESPORT_WRITE,
 			Permission.ESPORT_MANAGE,
+			Permission.MINIGAMES_READ,
+			Permission.MINIGAMES_WRITE,
+			Permission.MINIGAMES_MANAGE,
 		],
 	},
 	{

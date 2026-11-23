@@ -181,6 +181,18 @@ EXISTS` dans la migration initiale, pour ne pas ecraser les donnees d'XP
   `Object.values(Permission)`. `permissions.spec.ts` verifie qu'aucun n'a glisse
   dans `ADMIN_PERMISSIONS` — l'heritage etant cumulatif, l'oubli serait
   silencieux.
+- **`STAFF` est une branche a part**, hors de la chaine VIEWER < MODERATOR <
+  ADMIN : un compte d'animation (mini-jeux, esport, concours, statut). Il
+  **n'herite pas de VIEWER**, qui lit deja fiches membres, sanctions et
+  tickets, et n'a **ni wiki** (il porte la doctrine de moderation, decision du
+  proprietaire) ni messages composes. `STAFF_PERMISSIONS` se tient a la main,
+  et `permissions.spec.ts` verifie qu'aucun droit de moderation n'y glisse.
+  Rang 0 (`ROLE_RANK`) : seuls les administrateurs creent ces comptes. La vue
+  d'ensemble n'affichant que des statistiques de moderation, `homeGuard`
+  (`webapp/src/app/core/auth/auth.guard.ts`) envoie un compte sans
+  `stats:read` sur sa premiere page permise — toujours une page qu'il peut
+  ouvrir, sinon `permissionGuard`, qui renvoie sur `/`, tournerait en boucle
+  avec lui.
 - Les permissions se declarent avec `@RequirePermissions(...)`, jamais par un
   `if` sur le role dans un service.
 - `jwt.sign` recoit `expiresIn` **en secondes** (nombre). La forme chaine
@@ -910,8 +922,8 @@ le dev avec rechargement).
   identifiants des deux sources ne se correspondent pas.
 - **Ce qui n'est PAS rattrape automatiquement.** Le patron `discordSyncedAt`
   couvre sanctions, avertissements (message prive), tickets, anti-raid,
-  quarantine (etapes et levees), signalements de compte, concours et messages
-  composes. Il reste **un** reglage du dashboard sans effet automatique sur
+  quarantine (etapes et levees), signalements de compte, concours, messages
+  composes et mini-jeux. Il reste **un** reglage du dashboard sans effet automatique sur
   Discord, a savoir avant de chercher un bug : le **message de reglement de
   quarantaine** n'est publie que par `/quarantaine-message`. Modifier le texte,
   le libelle d'un bouton, ou **activer la verification Battle.net** (qui ajoute
@@ -1028,6 +1040,63 @@ le dev avec rechargement).
   est route par `interactionCreate.ts`, sans cooldown (une requete par frappe).
   Une suggestion n'engage rien cote client, d'ou `resolveOwdleHero` a la
   reception.
+- **Calendrier des mini-jeux** (`minigame_*`, `packages/shared/src/minigames.ts`,
+  `api/src/minigames/`, `src/tasks/minigameSync.ts`,
+  `src/collectors/minigames.ts`, `/devine`, `features/minigames/`) : un jeu par
+  jour et par serveur, six types (clip, devine le heros, duel, devine la map,
+  vrai ou faux patch-note, devine le skin). Le jeu du jour J se joue de 00:00 a
+  23:59, **heure de Paris**. Six points a garder :
+  - **le verrou** : le jeu du jour J se modifie jusqu'a J-1 23:59 avec
+    `minigames:write` ; des minuit, seulement avec `minigames:manage`
+    (administrateur), pour rattraper une coquille. C'est une regle de date, pas
+    de route : elle se tranche dans `MinigamesService`, le dashboard ne fait que
+    griser. Un jour passe ne se cree plus, un jeu termine ne se modifie plus.
+  - **un jeu enregistre est toujours publiable** : `minigameEventProblem`
+    (partage) est rejoue par l'API sur le jeu complet a chaque ecriture, et les
+    champs etrangers au type sont remis a `null`. Le bot n'a jamais a decouvrir
+    a minuit qu'il manque la reponse.
+  - **quatre etapes, chacune lue sur sa date** (`minigameSync.ts`) :
+    publication a minuit **sans ping** (`publishedAt`), corrections
+    (`discordSyncedAt` remis a `null` par l'API), **ping dans un message separe**
+    a `pingTime` (`pingedAt` — une mention ajoutee en editant ne notifie
+    personne), fermeture (`closedAt`). Un jeu jamais publie de sa journee (bot
+    eteint) n'est **pas** rattrape le lendemain. Un verrou `enCours` empeche deux
+    passages du cycle de 5 s de publier deux fois.
+  - **le sondage vit dans son propre message**, sous l'embed : un sondage Discord
+    ne se modifie plus du tout une fois publie, l'embed doit rester corrigeable.
+    D'ou le refus de l'API de toucher au type ou au sondage d'un jeu publie. La
+    duree se compte en heures entieres (`minigamePollHours`, arrondie au-dessus)
+    et le bot **termine** le sondage a la fermeture. Le vrai ou faux paie
+    d'apres les votes **finaux** (on peut changer d'avis jusqu'au bout), une
+    ligne `minigame_games` par votant creee une seule fois — le conflit de cle
+    empeche de payer deux fois si la fermeture se rejoue. Le bot a besoin de la
+    permission Discord **« Creer des sondages »** dans le salon d'annonce.
+  - **meilleur des deux au jeu du skin** (`minigameXpDelta`) : le heros seul
+    rapporte la moitie du palier de son essai, trouver ensuite le skin porte le
+    total au palier de **cet** essai, jamais cumule — avec 100/60/30, heros au 1er
+    (50) puis skin au 2e donne 60 au total, pas 110. Le proprietaire l'a voulu :
+    cumuler paierait mieux en deux temps que d'emblee. `xpAwarded` retient ce
+    qui a deja ete verse ; l'essai se pose par un `updateMany` filtre sur le
+    compteur `attempts`, lu a son `count`, comme la victoire de l'OWdle.
+  - **la saisie du skin est libre et approximative** (`judgeSkinGuess`) : casse,
+    accents, ponctuation et quelques fautes toleres selon la longueur, **aucune**
+    sur un nom de quatre lettres ou moins (« Ana » a une faute pres accepterait
+    n'importe quoi). Pas d'autocompletion ce jour-la : une liste devoilerait la
+    reponse. Un heros ou une map inconnus, un doublon, le heros deja trouve ne
+    coutent **pas** d'essai.
+  Les maps sont une table commune (`minigame_maps`), comme les heros de l'OWdle,
+  pre-remplie par sa migration : une map se desactive, ne se supprime pas. Les
+  images (quatre au plus, galerie Discord par embeds de meme `url`) vivent en
+  base ; son et video se postent a la main, choix du proprietaire pour ne pas
+  charger le serveur. Supprimer un jeu depuis le dashboard ne retire rien de
+  Discord, meme regle que les messages composes.
+- **`/xp-admin ajouter|retirer`** : seule source d'XP « a la main » (le meilleur
+  clip de la semaine se recompense ainsi). Permission `Administrator` declaree
+  **et** reverifiee, une ligne `xp_adjustments` et une entree au journal de
+  moderation par ajustement, retrait borne au total. **C'est le seul chemin qui
+  fait descendre les paliers** (`applyForMember(..., { demote: true })`) :
+  ni une montee ni le rattrapage periodique ne retirent un role de palier, qu'un
+  administrateur a pu poser a la main a un membre de niveau inferieur.
 - **`/clear`** : `bulkDelete` refuse les messages de plus de 14 jours, la
   commande le dit plutot que de laisser remonter une erreur opaque. Avec
   l'option `membre`, elle relit 100 messages pour en trouver N de cette

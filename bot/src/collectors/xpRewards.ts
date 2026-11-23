@@ -45,35 +45,66 @@ export function invalidateCache(guildId?: string): void {
 	else cache.clear();
 }
 
+export interface ResolveOptions {
+	/**
+	 * Retirer aussi les roles des paliers **au-dessus** du niveau : c'est la
+	 * descente, apres un retrait d'experience par `/xp-admin`.
+	 *
+	 * Desactive partout ailleurs, et volontairement : une montee ou le
+	 * rattrapage periodique ne doivent jamais retirer un role de palier qu'un
+	 * administrateur aurait pose a la main a un membre de niveau inferieur.
+	 * Seul un retrait explicite d'experience dit « ce membre ne merite plus ce
+	 * rang ».
+	 */
+	demote?: boolean;
+}
+
 /**
  * Roles a poser et a retirer pour un niveau donne.
  *
  * `replacePrevious` porte sur le palier **atteint** : quand il est coche, les
  * roles des paliers inferieurs sont retires, pour une echelle ou un membre ne
  * porte qu'un seul rang a la fois. Le reglage est lu sur le palier le plus haut
- * merite, pas sur chacun : c'est lui qui decrit le rang courant du membre.
+ * merite, pas sur chacun : c'est lui qui decrit le rang courant du membre — et
+ * c'est ce qui rend, a la descente, le role du palier redevenu le plus haut.
  */
 export function resolveRoles(
 	rewards: XpRewardRole[],
 	level: number,
+	options: ResolveOptions = {},
 ): { toAdd: string[]; toRemove: string[] } {
 	const earned = rewards.filter((reward) => reward.level <= level);
-	if (!earned.length) return { toAdd: [], toRemove: [] };
+	const above = options.demote ? rewards.filter((reward) => reward.level > level) : [];
 
-	const highest = earned[earned.length - 1]!;
+	let toAdd: string[];
+	let toRemove: string[];
 
-	if (!highest.replacePrevious) {
-		return { toAdd: earned.map((reward) => reward.roleId), toRemove: [] };
+	if (!earned.length) {
+		toAdd = [];
+		toRemove = [];
+	} else {
+		const highest = earned[earned.length - 1]!;
+		if (!highest.replacePrevious) {
+			toAdd = earned.map((reward) => reward.roleId);
+			toRemove = [];
+		} else {
+			toAdd = [highest.roleId];
+			// Un meme role peut servir a deux paliers : ne jamais le retirer s'il
+			// est aussi celui du palier courant.
+			toRemove = earned
+				.slice(0, -1)
+				.map((reward) => reward.roleId)
+				.filter((roleId) => roleId !== highest.roleId);
+		}
 	}
 
-	// Un meme role peut servir a deux paliers : ne jamais le retirer s'il est
-	// aussi celui du palier courant.
-	const lower = earned
-		.slice(0, -1)
-		.map((reward) => reward.roleId)
-		.filter((roleId) => roleId !== highest.roleId);
+	for (const reward of above) {
+		if (!toAdd.includes(reward.roleId) && !toRemove.includes(reward.roleId)) {
+			toRemove.push(reward.roleId);
+		}
+	}
 
-	return { toAdd: [highest.roleId], toRemove: lower };
+	return { toAdd: [...new Set(toAdd)], toRemove };
 }
 
 /**
@@ -87,11 +118,12 @@ export function resolveRoles(
 export async function applyForMember(
 	member: GuildMember,
 	level: number,
+	options: ResolveOptions = {},
 ): Promise<string[]> {
 	const rewards = await rewardsFor(member.guild.id);
 	if (!rewards.length) return [];
 
-	const { toAdd, toRemove } = resolveRoles(rewards, level);
+	const { toAdd, toRemove } = resolveRoles(rewards, level, options);
 
 	const missing = toAdd.filter((roleId) => !member.roles.cache.has(roleId));
 	const extra = toRemove.filter((roleId) => member.roles.cache.has(roleId));
@@ -117,7 +149,10 @@ export async function applyForMember(
 
 	for (const roleId of extra) {
 		try {
-			await member.roles.remove(roleId, "Remplacé par un palier supérieur");
+			await member.roles.remove(
+				roleId,
+				options.demote ? `Palier d'expérience perdu (niveau ${level})` : "Remplacé par un palier supérieur",
+			);
 		} catch (err) {
 			console.error(`[XP] Rôle ${roleId} non retiré de ${member.id} :`, err);
 		}

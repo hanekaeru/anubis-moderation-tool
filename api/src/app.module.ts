@@ -34,6 +34,7 @@ import { VoiceModule } from "./voice/voice.module";
 import { WelcomeModule } from "./welcome/welcome.module";
 import { WikiModule } from "./wiki/wiki.module";
 import { OwdleModule } from "./owdle/owdle.module";
+import { MinigamesModule } from "./minigames/minigames.module";
 import { XpModule } from "./xp/xp.module";
 
 @Module({
@@ -77,6 +78,7 @@ import { XpModule } from "./xp/xp.module";
 		OwdleModule,
 		WelcomeModule,
 		EsportModule,
+		MinigamesModule,
 	],
 	providers: [
 		// L'ordre compte : on limite le debit, puis on authentifie, puis on

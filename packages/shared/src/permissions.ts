@@ -92,6 +92,19 @@ export const Permission = {
 	 * moderateur.
 	 */
 	ESPORT_MANAGE: "esport:manage",
+	/**
+	 * Voir le calendrier des mini-jeux. La page montre les reponses : elle
+	 * n'est pas ouverte aux comptes en lecture seule, qui jouent aussi.
+	 */
+	MINIGAMES_READ: "minigames:read",
+	/** Preparer les jeux, jusqu'a la veille 23:59 (heure de Paris). */
+	MINIGAMES_WRITE: "minigames:write",
+	/**
+	 * Corriger un jeu deja verrouille, regler salons, baremes et semaine type,
+	 * gerer les maps. Le bareme pese sur les niveaux de tout le serveur : meme
+	 * rang que `XP_MANAGE`.
+	 */
+	MINIGAMES_MANAGE: "minigames:manage",
 	SESSIONS_READ: "sessions:read",
 	SESSIONS_REVOKE: "sessions:revoke",
 } as const;
@@ -146,6 +159,8 @@ const MODERATOR_PERMISSIONS: Permission[] = [
 	// Meme raison que les concours : tenir le calendrier des matchs fait partie
 	// de l'animation, pas de la configuration.
 	Permission.ESPORT_WRITE,
+	Permission.MINIGAMES_READ,
+	Permission.MINIGAMES_WRITE,
 	// Lire les messages composes par l'equipe : savoir ce qui a ete annonce
 	// fait partie du contexte d'une moderation.
 	Permission.EMBEDS_READ,
@@ -193,6 +208,26 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	Permission.XP_MANAGE,
 	Permission.OWDLE_MANAGE,
 	Permission.ESPORT_MANAGE,
+	Permission.MINIGAMES_MANAGE,
+];
+
+/**
+ * Animation du serveur : mini-jeux, esport, concours, et la page de statut
+ * pour dire si quelque chose est tombe quand aucun moderateur n'est la.
+ *
+ * **N'herite pas de `VIEWER_PERMISSIONS`**, qui lit deja des fiches membres,
+ * des sanctions et des tickets. Ni wiki (il porte la doctrine de moderation),
+ * ni messages composes : parler au nom du serveur reste aux administrateurs.
+ * `permissions.spec.ts` verifie qu'aucun droit de moderation n'y glisse.
+ */
+export const STAFF_PERMISSIONS: readonly Permission[] = [
+	Permission.MINIGAMES_READ,
+	Permission.MINIGAMES_WRITE,
+	Permission.ESPORT_READ,
+	Permission.ESPORT_WRITE,
+	Permission.GIVEAWAY_READ,
+	Permission.GIVEAWAY_WRITE,
+	Permission.STATUS_READ,
 ];
 
 /**
@@ -220,6 +255,7 @@ export const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
 	MODERATOR: MODERATOR_PERMISSIONS,
 	ADMIN: ADMIN_PERMISSIONS,
 	OWNER: Object.values(Permission),
+	STAFF: STAFF_PERMISSIONS,
 };
 
 export function permissionsForRole(role: AppUserRole): readonly Permission[] {
@@ -282,4 +318,7 @@ export const ROLE_RANK: Record<AppUserRole, number> = {
 	MODERATOR: 1,
 	ADMIN: 2,
 	OWNER: 3,
+	// Au rang de la lecture seule : seuls les administrateurs creent et gerent
+	// ces comptes.
+	STAFF: 0,
 };

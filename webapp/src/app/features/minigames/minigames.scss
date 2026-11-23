@@ -1,0 +1,246 @@
+.header-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-3);
+}
+
+.banner {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	margin: 0;
+	padding: 10px 12px;
+	border-radius: 8px;
+	background: var(--mat-sys-error-container);
+	color: var(--mat-sys-on-error-container);
+}
+
+/* --- Navigation ------------------------------------------------------------ */
+
+.month-nav {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	margin-bottom: var(--space-4);
+
+	h2 {
+		margin: 0;
+		min-width: 9em;
+		text-align: center;
+		font-size: 1.1rem;
+		font-weight: 500;
+	}
+
+	.today {
+		margin-left: auto;
+	}
+}
+
+/* --- Grille ---------------------------------------------------------------- */
+
+.grid {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: var(--space-2);
+}
+
+.weekday {
+	padding-bottom: var(--space-1);
+	text-align: center;
+	font-size: 0.8rem;
+	font-weight: 500;
+	color: var(--mat-sys-on-surface-variant);
+}
+
+.cell {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--space-1);
+	min-height: 112px;
+	padding: var(--space-2);
+	border: 1px solid var(--mat-sys-outline-variant);
+	border-left-width: 4px;
+	border-radius: 8px;
+	background: var(--mat-sys-surface);
+	color: var(--mat-sys-on-surface);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+
+	&:hover:not(:disabled) {
+		background: var(--mat-sys-surface-container);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--mat-sys-primary);
+		outline-offset: 2px;
+	}
+
+	&:disabled {
+		cursor: default;
+	}
+
+	&.out {
+		opacity: 0.55;
+	}
+
+	&.today {
+		border-color: var(--mat-sys-primary);
+	}
+
+	&.today .day {
+		color: var(--mat-sys-primary);
+		font-weight: 600;
+	}
+}
+
+/* L'etat se lit sur la bordure gauche, et redit en toutes lettres dans la case :
+   la couleur seule ne doit jamais porter l'information. */
+.cell[data-state='SCHEDULED'] {
+	border-left-color: var(--mat-sys-outline);
+}
+
+.cell[data-state='LIVE'] {
+	border-left-color: var(--mat-sys-primary);
+	background: var(--mat-sys-primary-container);
+	color: var(--mat-sys-on-primary-container);
+}
+
+.cell[data-state='ENDED'] {
+	border-left-color: var(--mat-sys-outline-variant);
+	color: var(--mat-sys-on-surface-variant);
+}
+
+.cell[data-state='FAILED'],
+.cell[data-state='MISSED'] {
+	border-left-color: var(--mat-sys-error);
+}
+
+.day {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 0.85rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.lock {
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+	opacity: 0.7;
+}
+
+.type {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+	font-size: 0.8rem;
+	font-weight: 500;
+}
+
+.label,
+.title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.title {
+	font-size: 0.85rem;
+}
+
+.state {
+	margin-top: auto;
+	font-size: 0.75rem;
+	opacity: 0.8;
+}
+
+.ghost {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+	margin-top: auto;
+	font-size: 0.8rem;
+	color: var(--mat-sys-on-surface-variant);
+
+	mat-icon {
+		width: 18px;
+		height: 18px;
+		font-size: 18px;
+	}
+}
+
+/* --- Legende --------------------------------------------------------------- */
+
+.legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2) var(--space-4);
+	margin: var(--space-4) 0 0;
+	padding: 0;
+	list-style: none;
+	font-size: 0.8rem;
+	color: var(--mat-sys-on-surface-variant);
+
+	li {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+
+		&::before {
+			content: '';
+			width: 4px;
+			height: 14px;
+			border-radius: 2px;
+			background: var(--mat-sys-outline);
+		}
+	}
+
+	li[data-state='LIVE']::before {
+		background: var(--mat-sys-primary);
+	}
+
+	li[data-state='ENDED']::before {
+		background: var(--mat-sys-outline-variant);
+	}
+
+	li[data-state='FAILED']::before {
+		background: var(--mat-sys-error);
+	}
+}
+
+/* --- Telephone ------------------------------------------------------------- */
+
+/* Sept colonnes tiennent a peine sur 375 px : la case ne garde que le numero et
+   l'emoji du jeu, le detail s'ouvre au toucher. */
+@media (max-width: 720px) {
+	.grid {
+		gap: var(--space-1);
+	}
+
+	.cell {
+		min-height: 64px;
+		padding: var(--space-1);
+		border-left-width: 3px;
+	}
+
+	.type .label,
+	.title,
+	.state,
+	.ghost .label,
+	.lock {
+		display: none;
+	}
+
+	.type {
+		font-size: 1.1rem;
+	}
+
+	.month-nav h2 {
+		min-width: 0;
+		font-size: 1rem;
+	}
+}

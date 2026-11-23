@@ -19,6 +19,7 @@ import * as voiceHubs from "../collectors/voiceHubs";
 import * as xpRewards from "../collectors/xpRewards";
 import { checkPendingEmbeds } from "../tasks/embedSync";
 import { synchroniserEsport } from "../tasks/esportSync";
+import { synchroniserMiniJeux } from "../tasks/minigameSync";
 import {
 	checkAppliedSanctions,
 	checkExpiredShadowbans,
@@ -194,6 +195,11 @@ const event: BotEvent<typeof Events.ClientReady> = {
 			});
 			synchroniserEsport(client).catch((err) => {
 				console.error("[Esport] Synchronisation échouée :", err);
+			});
+			// Publication a minuit, ping a l'heure reglee, corrections et
+			// fermeture : une journee de jeu ne depend que de ce passage.
+			synchroniserMiniJeux(client).catch((err) => {
+				console.error("[Mini-jeux] Synchronisation échouée :", err);
 			});
 			// Un salon de creation ajoute depuis le dashboard n'existe pas encore
 			// sur Discord : sans ce rattrapage, il fallait lancer `/create_parties`
