@@ -23,6 +23,7 @@ import {
 	renderMinigameEndAnnouncement,
 } from "@anubis/shared";
 import { Prisma, type MinigameEvent, type MinigameImage } from "@anubis/shared/prisma";
+import { maintenant } from "../collectors/minigameClock";
 import * as minigames from "../collectors/minigames";
 import * as referentiel from "../collectors/referentiel";
 import xpManager from "../collectors/xp";
@@ -60,7 +61,7 @@ const echecs = new Map<string, number>();
 
 type JeuAvecImages = MinigameEvent & { images: MinigameImage[] };
 
-export async function synchroniserMiniJeux(client: Client, now = new Date()): Promise<void> {
+export async function synchroniserMiniJeux(client: Client, now = maintenant()): Promise<void> {
 	if (enCours) return;
 	enCours = true;
 	try {

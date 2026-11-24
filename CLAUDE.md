@@ -1090,6 +1090,20 @@ le dev avec rechargement).
   base ; son et video se postent a la main, choix du proprietaire pour ne pas
   charger le serveur. Supprimer un jeu depuis le dashboard ne retire rien de
   Discord, meme regle que les messages composes.
+  **Recette** (`docs/recette-mini-jeux.md`, `/minijeu-test`,
+  `src/collectors/minigameClock.ts`) : avec `MINIGAME_TEST_MODE=true`, le bot
+  lit l'heure des mini-jeux sur une horloge **decalable** ; la commande la fait
+  sauter a la publication, au ping ou a la fermeture d'un jour et laisse le vrai
+  cycle agir. Trois points a garder :
+  - tout ce qui lit « maintenant » cote mini-jeux passe par `maintenant()`
+    (`synchroniserMiniJeux`, `jeuDuJour`, `proposer`). Un `new Date()` ajoute
+    ailleurs dans ce chemin echapperait a la recette sans rien signaler.
+  - sans la variable, le decalage est **ignore** (pas seulement nul) et la
+    commande n'est **ni chargee ni publiee** (`Command.testOnly`, filtre dans
+    `loadCommands`, donc aussi dans `refresh.ts`). Le decalage vit en memoire :
+    un redemarrage revient a l'heure reelle.
+  - l'API et le dashboard restent a l'heure reelle — le verrou « veille 23:59 »
+    se recette sur de vrais jours.
 - **`/xp-admin ajouter|retirer`** : seule source d'XP « a la main » (le meilleur
   clip de la semaine se recompense ainsi). Permission `Administrator` declaree
   **et** reverifiee, une ligne `xp_adjustments` et une entree au journal de

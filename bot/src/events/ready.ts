@@ -20,6 +20,7 @@ import * as xpRewards from "../collectors/xpRewards";
 import { checkPendingEmbeds } from "../tasks/embedSync";
 import { synchroniserEsport } from "../tasks/esportSync";
 import { synchroniserMiniJeux } from "../tasks/minigameSync";
+import { modeTestActif } from "../collectors/minigameClock";
 import {
 	checkAppliedSanctions,
 	checkExpiredShadowbans,
@@ -62,6 +63,14 @@ const event: BotEvent<typeof Events.ClientReady> = {
 	async execute(client) {
 		console.log(`Ready! Logged in as ${client.user.tag}`);
 		console.log(`Deployed on ${process.env.NODE_ENV} env...`);
+
+		// Reaffiche a chaque demarrage, comme `TWO_FACTOR_ENABLED` cote API : un
+		// mode recette oublie survivrait sinon a la mise en production.
+		if (modeTestActif()) {
+			console.warn(
+				"[Mini-jeux] MODE TEST ACTIF (MINIGAME_TEST_MODE=true) : /minijeu-test est disponible et peut déplacer l'horloge des mini-jeux. À ne jamais activer en production.",
+			);
+		}
 
 		// Une base publique absente ou absurde ne se voit autrement qu'au premier
 		// clic d'un arrivant, sous la forme d'un refus de Discord. Elle se signale

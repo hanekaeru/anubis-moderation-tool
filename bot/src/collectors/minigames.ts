@@ -17,6 +17,7 @@ import {
 } from "@anubis/shared";
 import { Prisma, type MinigameEvent } from "@anubis/shared/prisma";
 import prisma from "../prisma";
+import { maintenant } from "./minigameClock";
 import * as referentiel from "./referentiel";
 import xpManager from "./xp";
 
@@ -154,7 +155,7 @@ const jeux = new Map<string, { lu: number; jour: string; jeu: MinigameEvent | nu
 
 const versDate = (key: string) => new Date(`${key}T00:00:00Z`);
 
-export async function jeuDuJour(guildId: string, now = new Date()): Promise<MinigameEvent | null> {
+export async function jeuDuJour(guildId: string, now = maintenant()): Promise<MinigameEvent | null> {
 	const jour = minigameDayKey(now);
 	const cache = jeux.get(guildId);
 	if (cache && cache.jour === jour && Date.now() - cache.lu < JEU_TTL_MS) return cache.jeu;
@@ -239,7 +240,7 @@ async function crediter(guildId: string, userId: string, amount: number): Promis
 }
 
 /** Enregistre une proposition pour le jeu du jour. */
-export async function proposer(guildId: string, user: User, saisie: string, now = new Date()): Promise<GuessOutcome> {
+export async function proposer(guildId: string, user: User, saisie: string, now = maintenant()): Promise<GuessOutcome> {
 	const jeu = await jeuDuJour(guildId, now);
 	if (!jeu?.publishedAt || jeu.closedAt) return { kind: "NO_GAME" };
 

@@ -1,9 +1,43 @@
 import {
 	Collection,
+	DiscordAPIError,
 	Events,
 	type Interaction,
 	MessageFlags,
+	RESTJSONErrorCodes,
 } from "discord.js";
+
+/**
+ * Discord ne laisse que **trois secondes** pour accuser reception d'une
+ * commande. Passe ce delai, il repond « Unknown interaction » (10062) au
+ * `deferReply` — et la reponse d'erreur echoue de la meme facon, ce qui
+ * remontait en second plantage dans « Erreur du client ».
+ *
+ * Le message dit lequel des deux cas s'est produit, parce qu'ils ne se
+ * corrigent pas pareil : une interaction **recue** deja vieille signale un bot
+ * occupe (demarrage, synchronisation complete) ; une interaction recue a temps
+ * mais refusee quand meme signale une autre instance du bot sur le meme jeton,
+ * qui a repondu la premiere.
+ */
+function interactionPerdue(error: unknown): boolean {
+	return (
+		error instanceof DiscordAPIError &&
+		(error.code === RESTJSONErrorCodes.UnknownInteraction ||
+			error.code === RESTJSONErrorCodes.InteractionHasAlreadyBeenAcknowledged)
+	);
+}
+
+function signalerInteractionPerdue(interaction: Interaction, recueA: number, error: DiscordAPIError): void {
+	const ageALaReception = recueA - interaction.createdTimestamp;
+	const cause =
+		ageALaReception > 2_500
+			? "le bot l'a reçue trop tard : il était occupé (démarrage, synchronisation complète ?)."
+			: "reçue à temps, donc une autre instance du bot tourne probablement avec le même jeton et a répondu la première.";
+	console.error(
+		`[Interaction] '${"commandName" in interaction ? interaction.commandName : interaction.id}' expirée (code ${error.code}) : ` +
+			`reçue ${ageALaReception} ms après sa création, refusée ${Date.now() - recueA} ms plus tard — ${cause}`,
+	);
+}
 import {
 	EVIDENCE_MODAL_PREFIX,
 	handleEvidenceModal,
@@ -158,6 +192,8 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 	name: Events.InteractionCreate,
 	once: false,
 	async execute(interaction) {
+		// Avant tout `await` : c'est l'heure d'arrivee qui dit si le bot etait en retard.
+		const recueA = Date.now();
 		for (const route of ROUTES) {
 			if (!route.accepte(interaction)) continue;
 			try {
@@ -212,6 +248,12 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 		try {
 			await command.execute(interaction);
 		} catch (error) {
+			// Rien a repondre : l'interaction n'existe plus pour Discord, et la
+			// reponse d'erreur echouerait a son tour.
+			if (interactionPerdue(error)) {
+				signalerInteractionPerdue(interaction, recueA, error as DiscordAPIError);
+				return;
+			}
 			console.error(
 				`[Interaction] '${interaction.commandName}' a échoué :`,
 				error,

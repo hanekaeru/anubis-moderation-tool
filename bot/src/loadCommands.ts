@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Collection } from "discord.js";
+import { modeTestActif } from "./collectors/minigameClock";
 import type { Command } from "./types";
 
 const COMMANDS_DIR = path.join(__dirname, "commands");
@@ -35,6 +36,9 @@ export function loadCommands(): Collection<string, Command> {
 			const command: unknown = require(filePath);
 
 			if (isCommandModule(command)) {
+				// Une commande de recette n'est ni enregistree ni publiee hors mode
+				// test : `refresh.ts` passe par ici lui aussi.
+				if (command.testOnly && !modeTestActif()) continue;
 				commands.set(command.data.name, command);
 			} else {
 				console.log(

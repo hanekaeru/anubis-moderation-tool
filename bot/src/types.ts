@@ -25,6 +25,12 @@ export interface Command {
 	 */
 	autocomplete?(interaction: AutocompleteInteraction): Promise<void>;
 	cooldown?: number;
+	/**
+	 * Commande de recette : ni chargee ni publiee aupres de Discord sans
+	 * `MINIGAME_TEST_MODE=true`. Elle n'existe donc pas du tout en production,
+	 * pas meme masquee derriere une permission.
+	 */
+	testOnly?: boolean;
 }
 
 /**
