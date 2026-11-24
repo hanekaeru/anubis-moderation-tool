@@ -31,9 +31,11 @@ import {
 	type MinigameEventDto,
 	type MinigameImageDto,
 	type MinigameMapDto,
+	type MinigameParticipantDto,
 } from "@anubis/shared";
 import { AuditService } from "../audit/audit.service";
 import { GuildContextService } from "../common/guild-context.service";
+import { toMemberRef } from "../common/mappers";
 import type { AuthenticatedUser } from "../common/types";
 import { PrismaService } from "../prisma/prisma.service";
 import type {
@@ -515,6 +517,62 @@ export class MinigamesService {
 		});
 		if (!image) throw new NotFoundException("Image introuvable.");
 		return image;
+	}
+
+	// -----------------------------------------------------------------------
+	// Participants
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Qui a joue, et comment. Les lignes sans essai sont ecartees : le bot en
+	 * cree une des la premiere saisie, meme refusee (map inconnue, doublon), et
+	 * le compteur `participants` du calendrier ne les compte pas non plus.
+	 *
+	 * Les gagnants d'abord, dans l'ordre ou ils ont trouve — c'est la question
+	 * que le staff pose le plus souvent —, puis les heros seuls, puis le reste.
+	 */
+	async participants(id: string): Promise<MinigameParticipantDto[]> {
+		const event = await this.loadEvent(id);
+		const type = event.type as MinigameType;
+
+		const [rows, names] = await Promise.all([
+			this.prisma.minigameGame.findMany({
+				where: { eventId: id, attempts: { gt: 0 } },
+				include: { user: { select: { id: true, username: true, globalName: true, avatarUrl: true } } },
+			}),
+			this.guessNames(type),
+		]);
+
+		const rang = (row: (typeof rows)[number]) => (row.solvedAt ? 0 : row.heroFoundAt ? 1 : 2);
+		const instant = (row: (typeof rows)[number]) =>
+			(row.solvedAt ?? row.heroFoundAt ?? row.updatedAt).getTime();
+		rows.sort((a, b) => rang(a) - rang(b) || instant(a) - instant(b));
+
+		return rows.map((row) => ({
+			member: toMemberRef(row.user),
+			attempts: row.attempts,
+			guesses: row.guesses.map((guess) => names.get(guess) ?? guess),
+			heroFoundAt: row.heroFoundAt?.toISOString() ?? null,
+			solvedAt: row.solvedAt?.toISOString() ?? null,
+			xpAwarded: row.xpAwarded,
+			playedAt: row.updatedAt.toISOString(),
+		}));
+	}
+
+	/**
+	 * Les essais stockent la cle du heros ou de la map : le staff lit le nom.
+	 * Le skin est garde tel que compare, et un vote est deja un libelle.
+	 */
+	private async guessNames(type: MinigameType): Promise<Map<string, string>> {
+		if (type === MinigameType.GUESS_HERO) {
+			const heroes = await this.prisma.owdleHero.findMany({ select: { key: true, name: true } });
+			return new Map(heroes.map((h) => [h.key, h.name]));
+		}
+		if (type === MinigameType.GUESS_MAP) {
+			const maps = await this.prisma.minigameMap.findMany({ select: { key: true, name: true } });
+			return new Map(maps.map((m) => [m.key, m.name]));
+		}
+		return new Map();
 	}
 
 	/** Une image ajoutee ou retiree apres publication : le message est a corriger. */

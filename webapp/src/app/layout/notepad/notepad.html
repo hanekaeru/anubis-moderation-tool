@@ -1,0 +1,61 @@
+<button type="button" class="trigger" [class.compact]="compact()" [class.floating]="floating()" [class.open]="open()"
+  cdkOverlayOrigin #origin="cdkOverlayOrigin" aria-haspopup="dialog" [attr.aria-expanded]="open()"
+  aria-label="Bloc-notes" [matTooltip]="compact() ? 'Bloc-notes' : ''" matTooltipPosition="right"
+  [matTooltipDisabled]="!compact() || open()" (click)="toggle()">
+  <span class="mark" aria-hidden="true">
+    <mat-icon>edit_note</mat-icon>
+    @if (hasNotes()) {
+    <span class="dot"></span>
+    }
+  </span>
+  <span class="trigger-text">
+    <span class="trigger-title">Bloc-notes</span>
+    <span class="trigger-sub">{{ hasNotes() ? 'Notes en cours' : 'Actuellement vide' }}</span>
+  </span>
+</button>
+
+<ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origin" [cdkConnectedOverlayOpen]="open()"
+  [cdkConnectedOverlayPositions]="positions" [cdkConnectedOverlayPush]="true" [cdkConnectedOverlayViewportMargin]="12"
+  (attach)="onAttach()" (detach)="close()" (overlayOutsideClick)="onOutsideClick($event)"
+  (overlayKeydown)="onKeydown($event)">
+  <section class="panel" role="dialog" aria-labelledby="notepad-title">
+    <header class="panel-header">
+      <span class="panel-icon" aria-hidden="true"><mat-icon>edit_note</mat-icon></span>
+      <div class="panel-heading">
+        <h2 id="notepad-title">Bloc-notes</h2>
+        <p>Enregistré dans ce navigateur, pour ce compte.</p>
+      </div>
+      <button matIconButton type="button" aria-label="Fermer le bloc-notes" (click)="close()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </header>
+
+    <textarea #area class="area" aria-label="Notes"
+      placeholder="Un pseudo à surveiller, un lien, une idée pour le prochain mini-jeu…" spellcheck="true"
+      [maxLength]="maxLength" [value]="text()" (input)="onInput($event)"></textarea>
+
+    <footer class="panel-footer">
+      <span class="status" [class.error]="state() === 'error'" aria-live="polite">
+        @switch (state()) {
+        @case ('pending') {
+        Enregistrement…
+        }
+        @case ('error') {
+        <mat-icon aria-hidden="true">error</mat-icon> Stockage du navigateur indisponible
+        }
+        @default {
+        <mat-icon aria-hidden="true">check</mat-icon> Enregistré
+        }
+        }
+      </span>
+      <span class="count">{{ text().length }} / {{ maxLength }}</span>
+      <button matButton type="button" class="clear" [disabled]="!text()" (click)="clear()">
+        Effacer
+      </button>
+    </footer>
+    <p class="privacy">
+      Non chiffré, et absent sur tes autres appareils : n'y mets ni mot de passe ni donnée
+      sensible.
+    </p>
+  </section>
+</ng-template>

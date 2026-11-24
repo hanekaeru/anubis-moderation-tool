@@ -65,6 +65,24 @@ html {
 
 	--anubis-warning-soft: rgb(245 158 11 / 16%);
 	--anubis-warning-text: #fcd34d;
+
+	/* Seconde teinte, pour les degrades et les halos : un indigo voisin de
+	   l'accent, jamais une couleur de statut. */
+	--anubis-accent-2: #7c6cff;
+	--anubis-accent-glow: rgb(76 141 255 / 55%);
+	--anubis-accent-ring: rgb(76 141 255 / 22%);
+
+	--anubis-halo-1: rgb(76 141 255 / 18%);
+	--anubis-halo-2: rgb(124 108 255 / 13%);
+	--anubis-halo-3: rgb(34 211 238 / 7%);
+
+	/* Verre : des surfaces qui laissent passer les halos, floutees par
+	   `backdrop-filter`. Trois opacites, du plus discret au plus lisible. */
+	--anubis-glass-soft: rgb(11 13 17 / 62%);
+	--anubis-glass: rgb(18 21 27 / 64%);
+	--anubis-glass-strong: rgb(20 24 31 / 86%);
+	--anubis-glass-border: rgb(255 255 255 / 7%);
+	--anubis-hover: rgb(255 255 255 / 5%);
 }
 
 /* --- Espacement ------------------------------------------------------------
@@ -104,6 +122,16 @@ html {
 	--space-6: 32px;
 	--space-7: 48px;
 
+	/* Hauteur de l'en-tete colle en haut : tout autre element colle se range
+	   dessous, sinon il glisse sous la barre floutee. */
+	--topbar-height: 56px;
+
+	/* Une seule courbe pour tout ce qui se replie, s'ouvre ou apparait :
+	   depart vif, arrivee douce. Des durees disparates font une interface
+	   qui semble hesiter. */
+	--anubis-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--anubis-ease-duration: 220ms;
+
 	/* Longueur de ligne confortable pour du texte suivi. */
 	--measure: 72ch;
 
@@ -137,6 +165,20 @@ html {
 
 	--anubis-warning-soft: rgb(217 119 6 / 12%);
 	--anubis-warning-text: #b45309;
+
+	--anubis-accent-2: #6d5dfc;
+	--anubis-accent-glow: rgb(37 99 235 / 35%);
+	--anubis-accent-ring: rgb(37 99 235 / 18%);
+
+	--anubis-halo-1: rgb(37 99 235 / 9%);
+	--anubis-halo-2: rgb(109 93 252 / 7%);
+	--anubis-halo-3: rgb(14 165 233 / 5%);
+
+	--anubis-glass-soft: rgb(246 247 249 / 66%);
+	--anubis-glass: rgb(255 255 255 / 62%);
+	--anubis-glass-strong: rgb(255 255 255 / 88%);
+	--anubis-glass-border: rgb(15 21 32 / 8%);
+	--anubis-hover: rgb(15 21 32 / 4%);
 }
 
 /* --- Cablage sur les jetons Material --------------------------------------
@@ -206,8 +248,15 @@ body {
 	margin: 0;
 }
 
-body {
+/* Le fond est porte par `html`, et `body` reste transparent : peint sur
+   `body`, il recouvrait les halos (`body::before`, z-index negatif), qui
+   passent apres le fond de la racine mais avant celui de ses blocs. */
+html {
 	background: var(--anubis-surface-0);
+}
+
+body {
+	background: transparent;
 	color: var(--anubis-text-1);
 	font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
 	/* Interlettrage legerement resserre : c'est ce qui distingue une interface
@@ -216,6 +265,24 @@ body {
 	/* `normal` laissait Inter a ~1.2 : des lignes qui se touchent presque. */
 	line-height: var(--line-normal);
 	-webkit-font-smoothing: antialiased;
+}
+
+/* --- Halos -----------------------------------------------------------------
+ * Trois taches de lumiere tres diffuses derriere toute l'application : c'est
+ * ce que les surfaces de verre laissent deviner. Fixees a la fenetre et non a
+ * la page, elles ne defilent pas — un fond qui bouge avec le contenu fatigue
+ * l'oeil sur une longue liste. Elles ne captent rien et passent sous tout.
+ */
+body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+	background:
+		radial-gradient(60vw 50vh at 8% -8%, var(--anubis-halo-1), transparent 70%),
+		radial-gradient(50vw 45vh at 105% 10%, var(--anubis-halo-2), transparent 70%),
+		radial-gradient(55vw 50vh at 60% 115%, var(--anubis-halo-3), transparent 70%);
 }
 
 /* Les titres se resserrent, le texte suivi s'ouvre : l'inverse donnerait des
@@ -245,9 +312,38 @@ table,
 
 /* --- Ajustements de composants Material ------------------------------------ */
 
+/* --- Verre -----------------------------------------------------------------
+ * Cartes, tables et panneaux deviennent translucides et floutent ce qu'ils
+ * recouvrent. Le flou n'est pas decoratif : sans lui, un halo qui passe sous
+ * un texte en baisse le contraste ; avec, il ne reste qu'une teinte.
+ */
+:root {
+	--mat-card-outlined-container-color: var(--anubis-glass);
+	--mat-card-outlined-outline-color: var(--anubis-glass-border);
+	--mat-card-elevated-container-color: var(--anubis-glass);
+	--mat-table-background-color: transparent;
+	--mat-paginator-container-background-color: transparent;
+	--mat-expansion-container-background-color: var(--anubis-glass);
+	--mat-sidenav-content-background-color: transparent;
+	--mat-sidenav-container-background-color: transparent;
+	--mat-sidenav-container-shape: 0;
+	--mat-dialog-container-color: var(--anubis-glass-strong);
+}
+
+.mat-mdc-card,
+.mat-expansion-panel {
+	backdrop-filter: blur(14px) saturate(130%);
+	transition:
+		border-color 200ms ease,
+		box-shadow 200ms ease;
+}
+
 .mat-mdc-card-outlined {
-	border-color: var(--anubis-border);
-	border-radius: 12px;
+	border-color: var(--anubis-glass-border);
+	border-radius: 14px;
+	/* Un liseré clair en haut, comme une arete qui prend la lumiere : la carte
+	   se lit comme une plaque posee, pas comme un trou dans la page. */
+	box-shadow: 0 1px 0 0 rgb(255 255 255 / 4%) inset;
 }
 
 /* --- Respiration des cartes -------------------------------------------------
@@ -304,8 +400,12 @@ table,
 	border-bottom-color: var(--anubis-border);
 }
 
+.mat-mdc-row .mat-mdc-cell {
+	transition: background-color 120ms ease;
+}
+
 .mat-mdc-row:hover .mat-mdc-cell {
-	background: var(--anubis-surface-2);
+	background: var(--anubis-hover);
 }
 
 .mat-mdc-cell {
@@ -348,10 +448,11 @@ table,
 .mat-mdc-menu-panel,
 .mat-mdc-select-panel,
 .mat-mdc-autocomplete-panel {
-	background: var(--anubis-surface-2) !important;
-	border: 1px solid var(--anubis-border-strong);
-	border-radius: 10px !important;
-	box-shadow: 0 8px 24px rgb(0 0 0 / 28%) !important;
+	background: var(--anubis-glass-strong) !important;
+	backdrop-filter: blur(20px) saturate(140%);
+	border: 1px solid var(--anubis-glass-border);
+	border-radius: 12px !important;
+	box-shadow: 0 12px 32px -8px rgb(0 0 0 / 40%) !important;
 }
 
 .mat-mdc-menu-item,
@@ -367,10 +468,74 @@ table,
  * de l'interface desormais plate et a angles resserres.
  */
 .mat-mdc-dialog-container .mdc-dialog__surface {
-	background: var(--anubis-surface-1) !important;
-	border: 1px solid var(--anubis-border);
-	border-radius: 12px !important;
-	box-shadow: 0 16px 40px rgb(0 0 0 / 32%) !important;
+	background: var(--anubis-glass-strong) !important;
+	backdrop-filter: blur(24px) saturate(140%);
+	border: 1px solid var(--anubis-glass-border);
+	border-radius: 16px !important;
+	box-shadow:
+		0 1px 0 0 rgb(255 255 255 / 5%) inset,
+		0 24px 64px -12px rgb(0 0 0 / 50%) !important;
+}
+
+/* Le fond derriere un dialogue se floute aussi : la page passe au second plan
+   sans disparaitre, on garde sous les yeux ce qu'on est en train de modifier. */
+.cdk-overlay-dark-backdrop {
+	background: rgb(5 7 10 / 45%);
+	backdrop-filter: blur(3px);
+}
+
+/* --- Boutons -----------------------------------------------------------------
+ * Le bouton plein porte l'action principale : il prend un leger halo au
+ * survol, la seule lueur que l'interface accorde a un controle.
+ */
+.mat-mdc-unelevated-button:not(:disabled) {
+	transition:
+		box-shadow 200ms ease,
+		transform 120ms ease,
+		background-color 150ms ease;
+
+	&:hover {
+		box-shadow: 0 6px 20px -6px var(--anubis-accent-glow);
+	}
+
+	&:active {
+		transform: translateY(1px);
+	}
+}
+
+/* --- Barres de defilement -----------------------------------------------------
+ * Fines et translucides : une gouttiere grise opaque est le detail qui date le
+ * plus une interface sombre.
+ */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--anubis-border-strong) transparent;
+}
+
+/* --- Entree des pages ---------------------------------------------------------
+ * La page routee apparait en fondu avec un leger glissement : assez pour que
+ * l'oeil suive le changement d'ecran, trop court pour faire attendre. Le
+ * composant route est le frere qui suit `<router-outlet>`.
+ */
+@keyframes anubis-page-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+}
+
+main > router-outlet + * {
+	animation: anubis-page-in 260ms var(--anubis-ease);
+}
+
+/* Qui a demande moins de mouvement n'en a pas : ni fondu, ni repli anime. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 1ms !important;
+		transition-duration: 1ms !important;
+	}
 }
 
 /* --- Anneau de focus ---------------------------------------------------------
@@ -431,8 +596,12 @@ table,
 .filters {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--space-3);
-	align-items: flex-start;
+	gap: var(--space-3) var(--space-4);
+	/* Centre, pas `flex-start` : un bouton (36 px) aligne sur le haut d'un champ
+	   (48 px) paraissait decale vers le haut. Les champs ne reservent aucune
+	   place sous eux (`subscriptSizing: 'dynamic'`), le centre est donc bien
+	   celui de la zone de saisie. */
+	align-items: center;
 }
 
 /* Texte explicatif d'une page ou d'un bloc, partout ou il apparait. */

@@ -1,27 +1,142 @@
-.shell {
-	height: 100vh;
-	background: var(--anubis-surface-0);
+/* --- Cadre ------------------------------------------------------------------
+ * Une grille a deux colonnes, dont la premiere suit `--nav-width` : c'est ce
+ * qui permet a la barre de se replier en transition et de suivre la poignee
+ * au pixel, la ou `mat-sidenav` fige la marge du contenu. Le fond reste
+ * transparent : les halos de `styles.scss` doivent se voir au travers.
+ */
+.frame {
+	display: grid;
+	grid-template-columns: var(--nav-width) minmax(0, 1fr);
+	min-height: 100vh;
+	transition: grid-template-columns var(--anubis-ease-duration) var(--anubis-ease);
 }
 
-.sidenav {
-	width: 236px;
-	border-right: 1px solid var(--anubis-border);
-	background: var(--anubis-surface-1);
-	padding: 8px;
+/* Pendant le glissement, la colonne suit le pointeur sans retard. */
+.frame.resizing {
+	transition: none;
+	cursor: col-resize;
+	user-select: none;
 }
+
+.content {
+	min-width: 0;
+}
+
+.sidebar {
+	position: sticky;
+	top: 0;
+	height: 100vh;
+	display: flex;
+	flex-direction: column;
+	/* Rien en bas : le pied colle du bloc-notes s'y loge. Un sticky s'arrete a
+	   la marge interieure du conteneur qui defile, et les 8 px du bas le
+	   faisaient remonter d'autant sur la derniere entree. */
+	padding: var(--space-2) var(--space-2) 0;
+	overflow: hidden auto;
+	background: var(--anubis-glass);
+	backdrop-filter: blur(18px) saturate(140%);
+	border-right: 1px solid var(--anubis-glass-border);
+	scrollbar-width: none;
+}
+
+.sidebar::-webkit-scrollbar {
+	display: none;
+}
+
+/* --- Poignee --------------------------------------------------------------- */
+
+/* Collee au bord interieur : la barre defile (`overflow`), une poignee qui
+   en depasserait serait rognee. */
+.resize-handle {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: 6px;
+	cursor: col-resize;
+	z-index: 3;
+	touch-action: none;
+
+	/* Un filet d'accent apparait au survol : la poignee se decouvre sans
+	   occuper de place le reste du temps. */
+	&::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		right: 0;
+		width: 1px;
+		background: var(--anubis-accent);
+		box-shadow: 0 0 12px var(--anubis-accent);
+		opacity: 0;
+		transition: opacity 150ms ease;
+	}
+
+	&:hover::after,
+	&:focus-visible::after,
+	.resizing &::after {
+		opacity: 0.8;
+	}
+
+	&:focus-visible {
+		outline: none;
+	}
+}
+
+/* --- Tiroir (telephone) ---------------------------------------------------- */
+
+.handset {
+	min-height: 100vh;
+	background: transparent;
+}
+
+.drawer {
+	width: 264px;
+	/* Le bas du tiroir est laisse a la pastille du bloc-notes (48 px, posee a
+	   `--space-4` du bord) : sans cette reserve, elle couvrait la derniere
+	   entree de la navigation. */
+	padding: var(--space-2) var(--space-2) calc(48px + 2 * var(--space-4));
+	background: var(--anubis-glass-strong);
+	backdrop-filter: blur(24px) saturate(140%);
+	border-right: 1px solid var(--anubis-glass-border);
+}
+
+/* --- Marque ---------------------------------------------------------------- */
 
 .brand {
 	display: flex;
 	align-items: center;
-	gap: 10px;
-	padding: 14px 12px 18px;
+	gap: var(--space-3);
+	padding: var(--space-3) var(--space-2) var(--space-4);
+	white-space: nowrap;
 }
 
-.brand-icon {
-	color: var(--anubis-accent);
-	font-size: 24px;
-	width: 24px;
-	height: 24px;
+/* Le bouclier pose sur une pastille degradee, avec son halo : c'est le seul
+   endroit ou l'accent s'autorise un eclat, il signe l'application. */
+.brand-mark {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 36px;
+	height: 36px;
+	margin-left: 8px;
+	border-radius: 10px;
+	background: linear-gradient(140deg, var(--anubis-accent), var(--anubis-accent-2));
+	box-shadow:
+		0 0 0 1px rgb(255 255 255 / 10%) inset,
+		0 6px 20px -6px var(--anubis-accent-glow);
+
+	mat-icon {
+		width: 20px;
+		height: 20px;
+		font-size: 20px;
+		color: #fff;
+	}
+}
+
+.brand-text {
+	min-width: 0;
+	transition: opacity var(--anubis-ease-duration) var(--anubis-ease);
 }
 
 .brand-name {
@@ -29,6 +144,7 @@
 	font-size: 1rem;
 	font-weight: 600;
 	letter-spacing: -0.02em;
+	line-height: var(--line-tight);
 }
 
 .brand-tag {
@@ -36,71 +152,111 @@
 	font-size: 0.68rem;
 	text-transform: uppercase;
 	letter-spacing: 0.09em;
+	line-height: var(--line-tight);
 	color: var(--anubis-text-3);
+}
+
+/* --- Navigation ------------------------------------------------------------ */
+
+.nav {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 
 /* Intertitre de section : il classe la navigation sans y ajouter une cible
    cliquable de plus. Petit, en capitales espacees et dans la teinte la plus
-   recessive, il se lit comme une etiquette et jamais comme une entree — ce
-   qu'un titre de la meme taille que les liens laisserait croire. */
-/* L'intertitre se detache nettement plus de la section precedente que de ses
-   propres entrees : c'est cet ecart asymetrique qui fait lire le groupe. */
+   recessive, il se lit comme une etiquette et jamais comme une entree. Il se
+   detache nettement plus de la section precedente que de ses propres
+   entrees : c'est cet ecart asymetrique qui fait lire le groupe. */
 .nav-section {
+	position: relative;
 	margin: 0;
 	padding: var(--space-5) var(--space-3) var(--space-2);
 	font-size: 0.66rem;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
+	line-height: 1;
+	white-space: nowrap;
 	color: var(--anubis-text-3);
 }
 
-/* Le premier intertitre suit immediatement le trait sous la marque : la marge
-   haute ferait un blanc de trop a cet endroit precis. */
-.nav-section:first-of-type {
-	padding-top: var(--space-3);
+.nav-section:first-child {
+	padding-top: var(--space-2);
 }
 
-/* La navigation est ramenee a des lignes compactes et arrondies : c'est ce
-   detail qui distingue une barre laterale d'outil moderne d'une liste
-   Material par defaut, haute et pleine largeur. */
-.mat-mdc-nav-list {
-	padding: 0;
+/* Replie, l'intertitre devient un simple filet : le groupe reste lisible. */
+.nav-section::before {
+	content: '';
+	position: absolute;
+	left: 18px;
+	right: 18px;
+	bottom: calc(var(--space-2) + 4px);
+	height: 1px;
+	background: var(--anubis-border);
+	opacity: 0;
+	transition: opacity var(--anubis-ease-duration) var(--anubis-ease);
+}
+
+.nav-link {
+	position: relative;
 	display: flex;
-	flex-direction: column;
-	gap: var(--space-1);
-}
-
-.mat-mdc-list-item {
-	border-radius: 8px;
-	height: 40px !important;
+	align-items: center;
+	gap: var(--space-3);
+	height: 40px;
+	padding: 0 var(--space-3) 0 18px;
+	border-radius: 10px;
 	color: var(--anubis-text-2);
-
-	.mat-mdc-list-item-title {
-		font-size: 0.875rem;
-		font-weight: 500;
-	}
+	font-size: 0.875rem;
+	font-weight: 500;
+	text-decoration: none;
+	white-space: nowrap;
+	transition:
+		background-color 150ms ease,
+		color 150ms ease,
+		box-shadow 200ms ease;
 
 	mat-icon {
-		font-size: 19px;
-		width: 19px;
-		height: 19px;
+		flex: none;
+		width: 20px;
+		height: 20px;
+		font-size: 20px;
 		color: var(--anubis-text-3);
+		transition: color 150ms ease;
 	}
 
 	&:hover {
-		background: var(--anubis-surface-2);
+		background: var(--anubis-hover);
 		color: var(--anubis-text-1);
+
+		mat-icon {
+			color: var(--anubis-text-2);
+		}
+	}
+
+	&:focus-visible {
+		outline: 1.5px solid var(--anubis-accent);
+		outline-offset: -1.5px;
 	}
 }
 
-/* L'entree active se signale par un fond doux et une barre d'accent a gauche,
-   plutot que par un aplat de couleur qui ecraserait le reste de la liste. */
-a.active {
-	position: relative;
-	background: var(--anubis-accent-soft);
+.nav-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	transition: opacity var(--anubis-ease-duration) var(--anubis-ease);
+}
 
-	.mat-mdc-list-item-title,
+/* L'entree active : fond d'accent doux, barre lumineuse a gauche et un halo
+   discret — assez pour se reperer d'un coup d'oeil, pas assez pour ecraser le
+   reste de la liste. */
+.nav-link.active {
+	background: var(--anubis-accent-soft);
+	color: var(--anubis-accent-text);
+	box-shadow:
+		0 0 0 1px var(--anubis-accent-ring) inset,
+		0 6px 22px -10px var(--anubis-accent-glow);
+
 	mat-icon {
 		color: var(--anubis-accent-text);
 	}
@@ -109,25 +265,64 @@ a.active {
 		content: '';
 		position: absolute;
 		left: 0;
-		top: 9px;
-		bottom: 9px;
-		width: 2px;
-		border-radius: 0 2px 2px 0;
+		top: 10px;
+		bottom: 10px;
+		width: 3px;
+		border-radius: 0 3px 3px 0;
 		background: var(--anubis-accent);
+		box-shadow: 0 0 10px var(--anubis-accent);
 	}
 }
+
+/* --- Etat replie ------------------------------------------------------------
+ * Les libelles restent dans le DOM, masques visuellement : un lecteur d'ecran
+ * continue de lire « Membres » sur une entree qui n'affiche plus qu'une icone.
+ * L'infobulle prend le relais pour la souris.
+ */
+.collapsed {
+	.brand-text,
+	.nav-label,
+	.nav-section-label {
+		opacity: 0;
+	}
+
+	.nav-label,
+	.nav-section-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+	}
+
+	.nav-section {
+		padding-top: var(--space-4);
+	}
+
+	.nav-section::before {
+		opacity: 1;
+	}
+
+	.nav-section:first-child {
+		padding-top: var(--space-2);
+	}
+}
+
+/* --- En-tete --------------------------------------------------------------- */
 
 .topbar {
 	position: sticky;
 	top: 0;
 	z-index: 2;
-	height: 56px;
-	background: color-mix(in srgb, var(--anubis-surface-0) 82%, transparent);
+	height: var(--topbar-height);
+	gap: var(--space-1);
+	padding: 0 var(--space-4) 0 var(--space-3);
+	background: var(--anubis-glass-soft);
 	/* Le flou laisse deviner le contenu qui defile dessous sans le rendre
 	   lisible : la barre reste posee sur la page au lieu de la couper. */
-	backdrop-filter: blur(10px);
-	border-bottom: 1px solid var(--anubis-border);
-	padding: 0 20px;
+	backdrop-filter: blur(16px) saturate(140%);
+	border-bottom: 1px solid var(--anubis-glass-border);
+	color: var(--anubis-text-2);
 }
 
 .spacer {
@@ -160,12 +355,99 @@ a.active {
 	color: var(--anubis-text-3);
 }
 
+/* Le pied de page tombe en bas de la fenetre sur une page courte, sous le
+   contenu sur une page longue : `main` occupe tout ce qu'il ne prend pas. */
 main {
-	min-height: calc(100vh - 56px);
+	min-height: calc(100vh - var(--topbar-height) - var(--footer-height));
+}
+
+/* --- Pied de page ------------------------------------------------------------- */
+
+:host {
+	--footer-height: 48px;
+}
+
+.page-footer {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--space-2);
+	height: var(--footer-height);
+	padding: 0 var(--space-5);
+	border-top: 1px solid var(--anubis-glass-border);
+	font-size: 0.75rem;
+	color: var(--anubis-text-3);
+}
+
+.footer-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 6px;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	transition:
+		color 150ms ease,
+		background-color 150ms ease;
+
+	mat-icon {
+		width: 14px;
+		height: 14px;
+		font-size: 14px;
+	}
+
+	&:hover {
+		color: var(--anubis-text-1);
+		background: var(--anubis-hover);
+	}
+
+	&:focus-visible {
+		outline: 1.5px solid var(--anubis-accent);
+		outline-offset: 1px;
+	}
 }
 
 @media (max-width: 600px) {
 	.account-name {
 		display: none;
 	}
+
+	/* La pastille du bloc-notes occupe le bas gauche : le texte s'arrete avant. */
+	.page-footer {
+		padding-left: 80px;
+		padding-right: var(--space-4);
+	}
+
+	.page-footer > span:first-child,
+	.footer-sep {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+}
+
+/* --- Pied de barre ------------------------------------------------------------
+ * Colle au bas de la barre, sur un fond de verre : la navigation peut defiler
+ * dessous, le bloc-notes reste a la meme place quelle que soit la page.
+ */
+.sidebar-footer {
+	position: sticky;
+	bottom: 0;
+	margin: auto calc(-1 * var(--space-2)) 0;
+	padding: var(--space-2);
+	border-top: 1px solid var(--anubis-glass-border);
+	background: var(--anubis-glass-strong);
+}
+
+/* Telephone : pas de barre a demeure, le bloc-notes devient une pastille
+   flottante en bas a gauche, au-dessus du contenu. */
+.notepad-fab {
+	position: fixed;
+	left: var(--space-4);
+	bottom: var(--space-4);
+	z-index: 5;
 }

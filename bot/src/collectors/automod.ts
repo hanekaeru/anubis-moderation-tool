@@ -397,15 +397,20 @@ async function handleTrigger(
 	await alertStaff(message, trigger);
 }
 
-export async function processMessage(message: Message<true>): Promise<void> {
-	if (message.author.bot) return;
+/**
+ * Renvoie `true` quand une regle a fait supprimer le message : la suite de
+ * `messageCreate` (apercu des liens, notamment) n'a alors plus rien a citer ni
+ * a quoi repondre.
+ */
+export async function processMessage(message: Message<true>): Promise<boolean> {
+	if (message.author.bot) return false;
 
 	const rules = await getEnabledRules(message.guild.id);
-	if (!rules.length) return;
+	if (!rules.length) return false;
 
 	const member =
 		message.member ?? (await message.guild.members.fetch(message.author.id).catch(() => null));
-	if (!member) return;
+	if (!member) return false;
 
 	for (const rule of rules) {
 		if (isExempt(member, rule.exemptRoleIds)) continue;
@@ -414,8 +419,10 @@ export async function processMessage(message: Message<true>): Promise<void> {
 		if (!trigger) continue;
 
 		await handleTrigger(message, member, trigger);
-		return;
+		return rule.action !== AutomodAction.LOG_ONLY;
 	}
+
+	return false;
 }
 
 /** A appeler quand une regle est modifiee depuis la webapp, si on veut une reaction plus rapide que le TTL. */

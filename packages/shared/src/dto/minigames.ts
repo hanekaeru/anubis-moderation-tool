@@ -1,5 +1,6 @@
 import type { MinigameType } from "../enums";
 import type { IsoDateString, Snowflake } from "./common";
+import type { MemberRef } from "./moderation";
 
 /**
  * Contrats de la page Mini-jeux du dashboard.
@@ -99,6 +100,26 @@ export interface MinigameEventDto {
 	/** Le jour a commence : seul un administrateur peut encore y toucher. */
 	locked: boolean;
 	updatedAt: IsoDateString;
+}
+
+/**
+ * Un membre ayant joue a un mini-jeu. Pour les jeux a deviner, une ligne par
+ * membre ayant depense au moins un essai ; pour le vrai ou faux, une ligne par
+ * votant, posee a la fermeture. Le duel et le clip n'en ont aucune.
+ */
+export interface MinigameParticipantDto {
+	member: MemberRef;
+	attempts: number;
+	/**
+	 * Saisies dans l'ordre. Heros et maps en toutes lettres ; le skin tel que le
+	 * bot l'a compare (minuscules, sans accents) ; « Vrai » ou « Faux » pour un vote.
+	 */
+	guesses: string[];
+	heroFoundAt: IsoDateString | null;
+	solvedAt: IsoDateString | null;
+	xpAwarded: number;
+	/** Dernier essai, ou vote enregistre. */
+	playedAt: IsoDateString;
 }
 
 /** Corps d'une creation ; en modification, tout est facultatif sauf ce qui change. */

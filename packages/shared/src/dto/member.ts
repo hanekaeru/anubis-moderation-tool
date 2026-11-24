@@ -142,6 +142,12 @@ export const TimelineKind = {
 	JOIN: "JOIN",
 	LEAVE: "LEAVE",
 	TICKET: "TICKET",
+	/**
+	 * Experience ajoutee ou retiree a la main (`/xp-admin`). Le seul endroit du
+	 * dashboard ou ces ajustements se lisent : sans lui, ils n'existaient que
+	 * dans `xp_adjustments` et dans un salon de logs peut-etre non configure.
+	 */
+	XP_ADJUSTMENT: "XP_ADJUSTMENT",
 } as const;
 export type TimelineKind = (typeof TimelineKind)[keyof typeof TimelineKind];
 

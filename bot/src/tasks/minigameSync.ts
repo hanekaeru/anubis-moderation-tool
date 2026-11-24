@@ -33,17 +33,19 @@ import prisma from "../prisma";
 /**
  * Cycle de vie des mini-jeux sur Discord, rejoue toutes les cinq secondes.
  *
- * Quatre etapes, chacune lue sur une date de la ligne :
+ * Quatre etapes, chacune lue sur une date de la ligne, dans l'ordre ou elles
+ * doivent apparaitre dans le salon :
  *
- * 1. **publication** (`publishedAt` nul, jour J commence) — embed et images,
+ * 1. **fermeture** (`closedAt` nul, jour J termine) — XP du vrai ou faux
+ *    d'apres les votes finaux, annonce de fin sans ping. Avant la publication
+ *    du lendemain, qui tombe dans le meme passage a minuit.
+ * 2. **publication** (`publishedAt` nul, jour J commence) — embed et images,
  *    puis le sondage dans un message a part : un sondage Discord ne se modifie
  *    plus, l'embed doit rester corrigeable. Aucun ping a minuit.
- * 2. **correction** (`discordSyncedAt` nul apres publication) — l'embed est
+ * 3. **correction** (`discordSyncedAt` nul apres publication) — l'embed est
  *    edite en place, images comprises.
- * 3. **ping** (`pingedAt` nul, heure du ping passee) — un message **separe** :
+ * 4. **ping** (`pingedAt` nul, heure du ping passee) — un message **separe** :
  *    une mention ajoutee en editant un message ne notifie personne.
- * 4. **fermeture** (`closedAt` nul, jour J termine) — XP du vrai ou faux
- *    d'apres les votes finaux, annonce de fin sans ping.
  *
  * Un jeu jamais publie (bot eteint toute la journee) n'est pas rattrape le
  * lendemain : jouer hors de sa journee n'aurait aucun sens.
@@ -93,7 +95,25 @@ async function synchroniserServeur(guild: Guild, now: Date): Promise<void> {
 	// Relu sans cache : le staff vient peut-etre de regler le salon d'annonce.
 	const config = await minigames.reglage(guild.id, true);
 
-	// 1. Publication du jeu du jour.
+	// 1. Fermeture de la veille, **avant** la publication du jour : les deux
+	// tombent dans le meme passage a minuit, et dans l'ordre inverse l'annonce
+	// « C'était… » d'hier s'intercalait entre le jeu du jour et son ping.
+	const aFermer = await prisma.minigameEvent.findMany({
+		where: { guildId: guild.id, publishedAt: { not: null }, closedAt: null, day: { lt: versDate(aujourdhui) } },
+	});
+	for (const jeu of aFermer) {
+		// Garde : la cle du jour change a minuit pile, la fin aussi.
+		if (now < minigameDayEnd(versCle(jeu.day))) continue;
+		await fermer(guild, jeu, config, now).catch(async (err) => {
+			console.error(`[Mini-jeux] Fermeture du jeu ${jeu.id} échouée :`, err);
+			await prisma.minigameEvent.update({
+				where: { id: jeu.id },
+				data: { closedAt: new Date(), lastError: raison(err) },
+			});
+		});
+	}
+
+	// 2. Publication du jeu du jour.
 	const aPublier = await prisma.minigameEvent.findFirst({
 		where: { guildId: guild.id, day: versDate(aujourdhui), publishedAt: null },
 		include: { images: { orderBy: { position: "asc" } } },
@@ -106,7 +126,7 @@ async function synchroniserServeur(guild: Guild, now: Date): Promise<void> {
 		});
 	}
 
-	// 2. Corrections demandees depuis le dashboard.
+	// 3. Corrections demandees depuis le dashboard.
 	const aCorriger = await prisma.minigameEvent.findMany({
 		where: { guildId: guild.id, publishedAt: { not: null }, closedAt: null, discordSyncedAt: null },
 		include: { images: { orderBy: { position: "asc" } } },
@@ -123,7 +143,7 @@ async function synchroniserServeur(guild: Guild, now: Date): Promise<void> {
 		});
 	}
 
-	// 3. Ping du jour, a l'heure reglee.
+	// 4. Ping du jour, a l'heure reglee.
 	const aPinger = await prisma.minigameEvent.findFirst({
 		where: { guildId: guild.id, day: versDate(aujourdhui), publishedAt: { not: null }, pingedAt: null },
 	});
@@ -135,22 +155,6 @@ async function synchroniserServeur(guild: Guild, now: Date): Promise<void> {
 			await prisma.minigameEvent.update({
 				where: { id: aPinger.id },
 				data: { pingedAt: new Date(), lastError: raison(err) },
-			});
-		});
-	}
-
-	// 4. Fermeture des jeux dont la journee est finie.
-	const aFermer = await prisma.minigameEvent.findMany({
-		where: { guildId: guild.id, publishedAt: { not: null }, closedAt: null, day: { lt: versDate(aujourdhui) } },
-	});
-	for (const jeu of aFermer) {
-		// Garde : la cle du jour change a minuit pile, la fin aussi.
-		if (now < minigameDayEnd(versCle(jeu.day))) continue;
-		await fermer(guild, jeu, config, now).catch(async (err) => {
-			console.error(`[Mini-jeux] Fermeture du jeu ${jeu.id} échouée :`, err);
-			await prisma.minigameEvent.update({
-				where: { id: jeu.id },
-				data: { closedAt: new Date(), lastError: raison(err) },
 			});
 		});
 	}

@@ -17,7 +17,7 @@
 
 .preview-card {
 	position: sticky;
-	top: 16px;
+	top: calc(var(--topbar-height) + var(--space-4));
 }
 
 form {

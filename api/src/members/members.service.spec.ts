@@ -386,3 +386,61 @@ describe("MembersService.listRoles", () => {
 		]);
 	});
 });
+
+describe("MembersService.timeline — ajustements d'XP", () => {
+	const query = { kinds: ["XP_ADJUSTMENT" as const], skip: 0, take: 50 } as never;
+
+	it("affiche les ajustements de /xp-admin avec leur auteur Discord", async () => {
+		const { service, prisma } = makeService({
+			xpAdjustment: {
+				findMany: jest.fn().mockResolvedValue([
+					{
+						id: "adj-2",
+						delta: -200,
+						reason: "Erreur de saisie",
+						authorId: "111111111111111111",
+						createdAt: new Date("2026-11-20T10:00:00.000Z"),
+					},
+					{
+						id: "adj-1",
+						delta: 1500,
+						reason: "Meilleur clip de la semaine",
+						// Administrateur jamais croise par le referentiel.
+						authorId: "222222222222222222",
+						createdAt: new Date("2026-11-18T10:00:00.000Z"),
+					},
+				]),
+			},
+			discordUser: {
+				findMany: jest.fn().mockResolvedValue([
+					{ id: "111111111111111111", username: "hane", globalName: "Hane" },
+				]),
+			},
+		});
+
+		const result = await service.timeline(USER_ID, query);
+
+		expect((prisma as any).xpAdjustment.findMany.mock.calls[0][0].where).toEqual({
+			guildId: "guild-1",
+			userId: USER_ID,
+		});
+		expect(result.items.map((e) => [e.id, e.kind, e.title, e.description, e.actorLabel])).toEqual([
+			["xp:adj-2", "XP_ADJUSTMENT", "−200 XP retirés", "Erreur de saisie", "Hane"],
+			// Auteur inconnu : son identifiant reste affiche plutot que rien.
+			["xp:adj-1", "XP_ADJUSTMENT", `+${(1500).toLocaleString("fr-FR")} XP ajoutés`, "Meilleur clip de la semaine", "222222222222222222"],
+		]);
+	});
+
+	it("ne relit pas les auteurs quand il n'y a aucun ajustement", async () => {
+		const discordUser = { findMany: jest.fn() };
+		const { service } = makeService({
+			xpAdjustment: { findMany: jest.fn().mockResolvedValue([]) },
+			discordUser,
+		});
+
+		const result = await service.timeline(USER_ID, query);
+
+		expect(result.items).toEqual([]);
+		expect(discordUser.findMany).not.toHaveBeenCalled();
+	});
+});

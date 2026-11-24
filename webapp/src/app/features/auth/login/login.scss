@@ -4,7 +4,7 @@
 	align-items: center;
 	justify-content: center;
 	padding: 24px;
-	background: var(--mat-sys-surface-container-low);
+	/* Pas de fond : les halos de la page passent derriere la carte de verre. */
 }
 
 .login-card {
@@ -38,17 +38,27 @@
 	font-size: 0.88rem;
 }
 
+/* Les champs ne reservent aucune place sous eux (`subscriptSizing: 'dynamic'`,
+   reglage global) : sans cet ecart, deux champs empiles se touchaient. */
+form {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+}
+
 .full {
 	width: 100%;
 }
 
+/* Le bouton se detache un peu plus des champs qu'eux entre eux : il clot le
+   formulaire, il n'en est pas un element de plus. */
 .submit {
-	margin-top: 8px;
+	margin-top: var(--space-2);
 	height: 44px;
 }
 
 .error {
-	margin: 4px 0 12px;
+	margin: 0;
 	padding: 10px 12px;
 	border-radius: 8px;
 	background: var(--mat-sys-error-container);
@@ -66,7 +76,7 @@
 /* Consigne du second facteur : au-dessus du champ, pas en bas de carte comme
    les autres indications. */
 .two-factor-hint {
-	margin: 0 0 16px;
+	margin: 0;
 	text-align: left;
 	font-size: 0.86rem;
 }

@@ -95,6 +95,7 @@ const TIMELINE_ICONS: Record<string, string | undefined> = {
 	JOIN: 'login',
 	LEAVE: 'logout',
 	TICKET: 'confirmation_number',
+	XP_ADJUSTMENT: 'auto_awesome',
 };
 
 @Component({

@@ -18,19 +18,21 @@ table {
 .roles {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: var(--space-2);
   align-items: center;
 }
 
 /* La couleur du role vient de Discord : elle est arbitraire et souvent
-   saturee. On la cantonne donc a un filet de 1 px sur un fond neutre, au lieu
-   de la laisser porter du texte — c'est lisible quelle que soit la teinte, et
-   ca reste vrai dans les deux modes. */
+   saturee. On la cantonne donc a un filet sur un fond neutre, au lieu de la
+   laisser porter du texte — c'est lisible quelle que soit la teinte, et ca
+   reste vrai dans les deux modes. Deux pixels et non un : a un pixel, la
+   couleur se devinait a peine. */
 .role-chip {
   display: inline-block;
-  padding: 1px 8px;
-  border: 1px solid;
-  border-radius: 6px;
+  /* Un peu plus de marge laterale qu'avant : l'arrondi complet mange les coins. */
+  padding: 1px 10px;
+  border: 2px solid;
+  border-radius: 999px;
   background: var(--anubis-surface-2);
   color: var(--anubis-text-2);
   font-size: 0.72rem;

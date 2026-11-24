@@ -7,6 +7,7 @@ import type {
 	MinigameConfigDto,
 	MinigameEventDto,
 	MinigameMapDto,
+	MinigameParticipantDto,
 	SaveMinigameEventRequest,
 	UpdateMinigameConfigRequest,
 	UpdateMinigameEventRequest,
@@ -35,6 +36,10 @@ export class MinigamesApi {
 
 	removeEvent(id: string): Observable<void> {
 		return this.http.delete<void>(`/api/mini-jeux/jeux/${id}`);
+	}
+
+	participants(id: string): Observable<MinigameParticipantDto[]> {
+		return this.http.get<MinigameParticipantDto[]>(`/api/mini-jeux/jeux/${id}/participants`);
 	}
 
 	addImage(id: string, file: File): Observable<MinigameEventDto> {

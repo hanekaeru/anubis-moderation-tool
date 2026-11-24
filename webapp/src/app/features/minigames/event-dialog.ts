@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
 	MAX_MINIGAME_ATTEMPTS,
@@ -39,14 +41,21 @@ import { readApiError } from '../../core/error.interceptor';
 import { NotificationService } from '../../core/notification.service';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { MinigamePreview, type MinigamePreviewData } from './minigame-preview';
+import { MinigameParticipants } from './participants';
 
 export interface EventDialogData {
 	day: string;
 	today: string;
 	/** `null` pour une creation. */
 	event: MinigameEventDto | null;
-	/** Type pre-rempli par la semaine type. */
+	/** Type pre-rempli : celui de la semaine derniere, sinon la semaine type. */
 	defaultType: MinigameType | null;
+	/**
+	 * Jeu du meme jour la semaine precedente. Une creation en reprend la
+	 * presentation — jamais la reponse, ni les reponses du duel, ni les images :
+	 * rejouer la map de la semaine derniere n'est jamais ce qu'on veut.
+	 */
+	template: MinigameEventDto | null;
 	config: MinigameConfigDto;
 	heroes: MinigameHeroOption[];
 	maps: MinigameMapDto[];
@@ -82,7 +91,10 @@ const jourAffiche = (key: string) =>
 		MatSelectModule,
 		MatSlideToggleModule,
 		MatTooltipModule,
+		MatTabsModule,
+		MinigameParticipants,
 		MinigamePreview,
+		NgTemplateOutlet,
 		ReactiveFormsModule,
 	],
 	changeDetection: ChangeDetectionStrategy.OnPush,
@@ -116,6 +128,13 @@ const jourAffiche = (key: string) =>
 				}
 			}
 
+			@if (templateLabel) {
+				<p class="notice">
+					<mat-icon>content_copy</mat-icon>
+					Pré-rempli avec le jeu du {{ templateLabel }}. La réponse et les images restent à choisir.
+				</p>
+			}
+
 			@if (data.readOnly) {
 				<p class="notice">
 					<mat-icon>lock</mat-icon>
@@ -127,189 +146,213 @@ const jourAffiche = (key: string) =>
 				</p>
 			}
 
-			<div class="layout">
-				<form class="form" [formGroup]="form">
-					<mat-form-field>
-						<mat-label>Type de jeu</mat-label>
-						<mat-select formControlName="type">
-							@for (type of types; track type) {
-								<mat-option [value]="type">{{ emojis[type] }} {{ typeLabels[type] }}</mat-option>
+			@if (showParticipants() && current(); as ev) {
+				<mat-tab-group class="tabs" animationDuration="0ms" mat-stretch-tabs="false" mat-align-tabs="start">
+					<mat-tab label="Préparation">
+						<ng-container *ngTemplateOutlet="editor" />
+					</mat-tab>
+					<mat-tab [label]="'Participants (' + ev.participants + ')'">
+						<ng-template matTabContent>
+							<app-minigame-participants
+								[eventId]="ev.id"
+								[type]="ev.type"
+								[maxAttempts]="ev.maxAttempts ?? data.config.maxAttempts"
+								[closed]="!!ev.closedAt"
+							/>
+						</ng-template>
+					</mat-tab>
+				</mat-tab-group>
+			} @else {
+				<ng-container *ngTemplateOutlet="editor" />
+			}
+
+			<ng-template #editor>
+				<div class="layout">
+					<form class="form" [formGroup]="form">
+						<mat-form-field>
+							<mat-label>Type de jeu</mat-label>
+							<mat-select formControlName="type">
+								@for (type of types; track type) {
+									<mat-option [value]="type">{{ emojis[type] }} {{ typeLabels[type] }}</mat-option>
+								}
+							</mat-select>
+							@if (published()) {
+								<mat-hint>Ne peut plus changer : le jeu est publié.</mat-hint>
 							}
-						</mat-select>
-						@if (published()) {
-							<mat-hint>Ne peut plus changer : le jeu est publié.</mat-hint>
-						}
-					</mat-form-field>
+						</mat-form-field>
 
-					<mat-form-field>
-						<mat-label>Titre</mat-label>
-						<input matInput formControlName="title" [maxlength]="limits.title" />
-					</mat-form-field>
-
-					<mat-form-field>
-						<mat-label>Message</mat-label>
-						<textarea matInput formControlName="description" rows="5" [maxlength]="limits.description"></textarea>
-						<mat-hint>Indices, consignes… Le gras (**texte**) et les liens passent comme sur Discord.</mat-hint>
-					</mat-form-field>
-
-					@switch (type()) {
-						@case ('GUESS_HERO') {
+						<div class="title-row">
 							<mat-form-field>
-								<mat-label>Héros à deviner</mat-label>
-								<mat-select formControlName="answerHeroKey">
-									@for (hero of heroOptions(); track hero.key) {
-										<mat-option [value]="hero.key">{{ hero.name }}</mat-option>
-									}
-								</mat-select>
+								<mat-label>Titre</mat-label>
+								<input matInput formControlName="title" [maxlength]="limits.title" />
 							</mat-form-field>
-						}
-						@case ('GUESS_MAP') {
-							<mat-form-field>
-								<mat-label>Map à deviner</mat-label>
-								<mat-select formControlName="answerMapKey">
-									@for (map of mapOptions(); track map.key) {
-										<mat-option [value]="map.key">{{ map.name }}</mat-option>
-									}
-								</mat-select>
-								<mat-hint>La liste se gère dans « Maps ».</mat-hint>
-							</mat-form-field>
-						}
-						@case ('GUESS_SKIN') {
-							<div class="pair">
+							<label class="swatch" matTooltip="Couleur de la barre de l'embed">
+								<input type="color" formControlName="color" aria-label="Couleur de l'embed" />
+							</label>
+						</div>
+
+						<mat-form-field>
+							<mat-label>Message</mat-label>
+							<textarea matInput formControlName="description" rows="5" [maxlength]="limits.description"></textarea>
+							<mat-hint>Indices, consignes… Le gras (**texte**) et les liens passent comme sur Discord.</mat-hint>
+						</mat-form-field>
+
+						@switch (type()) {
+							@case ('GUESS_HERO') {
 								<mat-form-field>
-									<mat-label>Nom du skin</mat-label>
-									<input matInput formControlName="answerSkin" [maxlength]="limits.skin" />
-									<mat-hint>Ex. « Rat de cale ». Fautes de frappe tolérées.</mat-hint>
-								</mat-form-field>
-								<mat-form-field>
-									<mat-label>Héros</mat-label>
+									<mat-label>Héros à deviner</mat-label>
 									<mat-select formControlName="answerHeroKey">
 										@for (hero of heroOptions(); track hero.key) {
 											<mat-option [value]="hero.key">{{ hero.name }}</mat-option>
 										}
 									</mat-select>
-									<mat-hint>Le héros seul rapporte la moitié.</mat-hint>
+								</mat-form-field>
+							}
+							@case ('GUESS_MAP') {
+								<mat-form-field>
+									<mat-label>Map à deviner</mat-label>
+									<mat-select formControlName="answerMapKey">
+										@for (map of mapOptions(); track map.key) {
+											<mat-option [value]="map.key">{{ map.name }}</mat-option>
+										}
+									</mat-select>
+									<mat-hint>La liste se gère dans « Maps ».</mat-hint>
+								</mat-form-field>
+							}
+							@case ('GUESS_SKIN') {
+								<div class="pair">
+									<mat-form-field>
+										<mat-label>Nom du skin</mat-label>
+										<input matInput formControlName="answerSkin" [maxlength]="limits.skin" />
+										<mat-hint>Ex. « Rat de cale ». Fautes de frappe tolérées.</mat-hint>
+									</mat-form-field>
+									<mat-form-field>
+										<mat-label>Héros</mat-label>
+										<mat-select formControlName="answerHeroKey">
+											@for (hero of heroOptions(); track hero.key) {
+												<mat-option [value]="hero.key">{{ hero.name }}</mat-option>
+											}
+										</mat-select>
+										<mat-hint>Le héros seul rapporte la moitié.</mat-hint>
+									</mat-form-field>
+								</div>
+							}
+							@case ('TRUE_FALSE') {
+								<mat-form-field>
+									<mat-label>Bonne réponse</mat-label>
+									<mat-select formControlName="answerTrue">
+										<mat-option value="true">✅ Vrai — c'est un vrai patch-note</mat-option>
+										<mat-option value="false">❌ Faux — c'est inventé</mat-option>
+									</mat-select>
+								</mat-form-field>
+							}
+						}
+
+						@if (isPoll()) {
+							<mat-form-field>
+								<mat-label>Question du sondage</mat-label>
+								<input
+									matInput
+									formControlName="pollQuestion"
+									[maxlength]="limits.pollQuestion"
+									[placeholder]="defaultPollQuestion()"
+								/>
+								<mat-hint>
+									{{ published() ? 'Un sondage Discord ne se modifie plus une fois publié.' : 'Vide : « ' + defaultPollQuestion() + ' »' }}
+								</mat-hint>
+							</mat-form-field>
+						}
+
+						@if (type() === 'DUEL') {
+							<mat-form-field>
+								<mat-label>Réponses du sondage</mat-label>
+								<textarea matInput formControlName="pollAnswersText" rows="3"></textarea>
+								<mat-hint>Une par ligne, de 2 à {{ limits.pollAnswersMax }}, {{ limits.pollAnswer }} caractères au plus.</mat-hint>
+							</mat-form-field>
+						}
+
+						@if (isGuess()) {
+							<div class="pair">
+								<mat-form-field>
+									<mat-label>Essais</mat-label>
+									<input matInput type="number" formControlName="maxAttempts" min="1" [max]="maxAttempts" />
+									<mat-hint>Vide : {{ data.config.maxAttempts }} (réglage).</mat-hint>
+								</mat-form-field>
+								<mat-form-field>
+									<mat-label>Message une fois les essais épuisés</mat-label>
+									<textarea
+										matInput
+										formControlName="outOfAttemptsMessage"
+										rows="2"
+										[maxlength]="limits.outOfAttemptsMessage"
+										[placeholder]="defaultOutOfAttempts"
+									></textarea>
+									<mat-hint>Vide : celui du réglage.</mat-hint>
 								</mat-form-field>
 							</div>
 						}
-						@case ('TRUE_FALSE') {
-							<mat-form-field>
-								<mat-label>Bonne réponse</mat-label>
-								<mat-select formControlName="answerTrue">
-									<mat-option value="true">✅ Vrai — c'est un vrai patch-note</mat-option>
-									<mat-option value="false">❌ Faux — c'est inventé</mat-option>
-								</mat-select>
-							</mat-form-field>
-						}
-					}
 
-					@if (isPoll()) {
-						<mat-form-field>
-							<mat-label>Question du sondage</mat-label>
-							<input
-								matInput
-								formControlName="pollQuestion"
-								[maxlength]="limits.pollQuestion"
-								[placeholder]="defaultPollQuestion()"
-							/>
-							<mat-hint>
-								{{ published() ? 'Un sondage Discord ne se modifie plus une fois publié.' : 'Vide : « ' + defaultPollQuestion() + ' »' }}
-							</mat-hint>
-						</mat-form-field>
-					}
-
-					@if (type() === 'DUEL') {
-						<mat-form-field>
-							<mat-label>Réponses du sondage</mat-label>
-							<textarea matInput formControlName="pollAnswersText" rows="3"></textarea>
-							<mat-hint>Une par ligne, de 2 à {{ limits.pollAnswersMax }}, {{ limits.pollAnswer }} caractères au plus.</mat-hint>
-						</mat-form-field>
-					}
-
-					@if (isGuess()) {
-						<div class="pair">
-							<mat-form-field>
-								<mat-label>Essais</mat-label>
-								<input matInput type="number" formControlName="maxAttempts" min="1" [max]="maxAttempts" />
-								<mat-hint>Vide : {{ data.config.maxAttempts }} (réglage).</mat-hint>
-							</mat-form-field>
-							<mat-form-field>
-								<mat-label>Message une fois les essais épuisés</mat-label>
-								<textarea
-									matInput
-									formControlName="outOfAttemptsMessage"
-									rows="2"
-									[maxlength]="limits.outOfAttemptsMessage"
-									[placeholder]="defaultOutOfAttempts"
-								></textarea>
-								<mat-hint>Vide : celui du réglage.</mat-hint>
-							</mat-form-field>
+						<div class="ping">
+							<mat-slide-toggle formControlName="pingEnabled">Pinger à {{ data.config.pingTime }}</mat-slide-toggle>
+							@if (value().pingEnabled ?? form.controls.pingEnabled.value) {
+								<mat-form-field>
+									<mat-label>Rôle pingé</mat-label>
+									<input matInput formControlName="pingRoleId" placeholder="Identifiant du rôle" />
+									<mat-hint>Vide : le rôle du réglage.</mat-hint>
+									@if (form.controls.pingRoleId.invalid) {
+										<mat-error>Identifiant Discord invalide.</mat-error>
+									}
+								</mat-form-field>
+							}
 						</div>
-					}
 
-					<div class="pair">
-						<mat-form-field>
-							<mat-label>Couleur</mat-label>
-							<input matInput type="color" formControlName="color" />
-						</mat-form-field>
-						<mat-form-field>
-							<mat-label>Rôle pingé à {{ data.config.pingTime }}</mat-label>
-							<input matInput formControlName="pingRoleId" placeholder="Identifiant du rôle" />
-							<mat-hint>Vide : le rôle du réglage.</mat-hint>
-							@if (form.controls.pingRoleId.invalid) {
-								<mat-error>Identifiant Discord invalide.</mat-error>
-							}
-						</mat-form-field>
-					</div>
-
-					<mat-slide-toggle formControlName="pingEnabled">Pinger le rôle ce jour-là</mat-slide-toggle>
-
-					<section class="images">
-						<h3>Images ({{ current()?.images?.length ?? 0 }}/{{ maxImages }})</h3>
-						@if (!current()) {
-							<p class="hint">Enregistre le jeu pour pouvoir y ajouter des images.</p>
-						} @else {
-							<ul>
-								@for (image of current()!.images; track image.id) {
-									<li>
-										@if (imageUrls()[image.id]; as src) {
-											<img [src]="src" [alt]="image.fileName" />
-										}
-										<span class="name">{{ image.fileName }}</span>
-										@if (!data.readOnly) {
-											<button
-												matIconButton
-												type="button"
-												matTooltip="Retirer"
-												[disabled]="busy()"
-												(click)="removeImage(image)"
-											>
-												<mat-icon>delete</mat-icon>
-											</button>
-										}
-									</li>
+						<section class="images">
+							<h3>Images ({{ current()?.images?.length ?? 0 }}/{{ maxImages }})</h3>
+							@if (!current()) {
+								<p class="hint">Enregistre le jeu pour pouvoir y ajouter des images.</p>
+							} @else {
+								<ul>
+									@for (image of current()!.images; track image.id) {
+										<li>
+											@if (imageUrls()[image.id]; as src) {
+												<img [src]="src" [alt]="image.fileName" />
+											}
+											<span class="name">{{ image.fileName }}</span>
+											@if (!data.readOnly) {
+												<button
+													matIconButton
+													type="button"
+													matTooltip="Retirer"
+													[disabled]="busy()"
+													(click)="removeImage(image)"
+												>
+													<mat-icon>delete</mat-icon>
+												</button>
+											}
+										</li>
+									}
+								</ul>
+								@if (!data.readOnly && current()!.images.length < maxImages) {
+									<button matButton type="button" [disabled]="busy()" (click)="fileInput.click()">
+										<mat-icon>add_photo_alternate</mat-icon>
+										Ajouter des images
+									</button>
+									<input #fileInput hidden type="file" multiple [accept]="accept" (change)="onFiles($event)" />
+									<p class="hint">PNG, JPEG, GIF ou WebP, {{ maxImageMb }} Mo au plus. Son et vidéo se postent à la main.</p>
 								}
-							</ul>
-							@if (!data.readOnly && current()!.images.length < maxImages) {
-								<button matButton type="button" [disabled]="busy()" (click)="fileInput.click()">
-									<mat-icon>add_photo_alternate</mat-icon>
-									Ajouter des images
-								</button>
-								<input #fileInput hidden type="file" multiple [accept]="accept" (change)="onFiles($event)" />
-								<p class="hint">PNG, JPEG, GIF ou WebP, {{ maxImageMb }} Mo au plus. Son et vidéo se postent à la main.</p>
 							}
-						}
-					</section>
-				</form>
+						</section>
+					</form>
 
-				<aside class="preview">
-					<h3>Aperçu de la publication</h3>
-					<app-minigame-preview [data]="preview()" />
-					@if (answerSummary(); as answer) {
-						<p class="hint">Réponse attendue : <strong>{{ answer }}</strong></p>
-					}
-				</aside>
-			</div>
+					<aside class="preview">
+						<h3>Aperçu de la publication</h3>
+						<app-minigame-preview [data]="preview()" />
+						@if (answerSummary(); as answer) {
+							<p class="hint">Réponse attendue : <strong>{{ answer }}</strong></p>
+						}
+					</aside>
+				</div>
+			</ng-template>
 
 			@if (error(); as message) {
 				<p class="error" role="alert">{{ message }}</p>
@@ -349,6 +392,55 @@ const jourAffiche = (key: string) =>
 			display: grid;
 			grid-template-columns: 1fr 1fr;
 			gap: var(--space-4);
+		}
+
+		.tabs {
+			margin-top: calc(-1 * var(--space-2));
+		}
+
+		.tabs .layout {
+			padding-top: var(--space-4);
+		}
+
+		/* La couleur ne code que la barre de l'embed : une pastille au bout du
+		   titre suffit, un champ entier lui donnait autant de place qu'au texte. */
+		.title-row {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto;
+			gap: var(--space-3);
+			align-items: start;
+		}
+
+		.swatch {
+			display: block;
+			margin-top: 6px;
+			cursor: pointer;
+
+			input {
+				display: block;
+				width: 44px;
+				height: 44px;
+				padding: 3px;
+				border: 1px solid var(--mat-sys-outline-variant);
+				border-radius: 8px;
+				background: none;
+				cursor: pointer;
+			}
+
+			input:disabled {
+				cursor: default;
+			}
+		}
+
+		.ping {
+			display: grid;
+			grid-template-columns: auto minmax(0, 1fr);
+			gap: var(--space-4);
+			align-items: start;
+
+			mat-slide-toggle {
+				margin-top: 14px;
+			}
 		}
 
 		h3 {
@@ -470,8 +562,13 @@ const jourAffiche = (key: string) =>
 		}
 
 		@media (max-width: 640px) {
-			.pair {
+			.pair,
+			.ping {
 				grid-template-columns: 1fr;
+			}
+
+			.ping mat-slide-toggle {
+				margin-top: 0;
 			}
 		}
 	`,
@@ -508,23 +605,26 @@ export class MinigameEventDialog {
 	});
 
 	private readonly event = this.data.event;
+	/** Ce qui remplit le formulaire hors reponses : le jeu lui-meme, ou celui de la semaine derniere. */
+	private readonly base = this.event ?? this.data.template;
+	readonly templateLabel = !this.event && this.data.template ? jourAffiche(this.data.template.day) : null;
 	readonly form = inject(FormBuilder).nonNullable.group({
-		type: [this.event?.type ?? this.data.defaultType ?? MinigameType.CLIP],
+		type: [this.base?.type ?? this.data.defaultType ?? MinigameType.CLIP],
 		title: [
-			this.event?.title ?? MINIGAME_TYPE_LABELS[this.event?.type ?? this.data.defaultType ?? MinigameType.CLIP],
+			this.base?.title ?? MINIGAME_TYPE_LABELS[this.data.defaultType ?? MinigameType.CLIP],
 			[Validators.required, Validators.maxLength(MINIGAME_LIMITS.title)],
 		],
-		description: [this.event?.description ?? ''],
-		color: [`#${(this.event?.color ?? MINIGAME_DEFAULT_COLOR).toString(16).padStart(6, '0')}`],
-		pingEnabled: [this.event?.pingEnabled ?? true],
-		pingRoleId: [this.event?.pingRoleId ?? '', [Validators.pattern(SNOWFLAKE)]],
-		maxAttempts: [this.event?.maxAttempts?.toString() ?? ''],
-		outOfAttemptsMessage: [this.event?.outOfAttemptsMessage ?? ''],
+		description: [this.base?.description ?? ''],
+		color: [`#${(this.base?.color ?? MINIGAME_DEFAULT_COLOR).toString(16).padStart(6, '0')}`],
+		pingEnabled: [this.base?.pingEnabled ?? true],
+		pingRoleId: [this.base?.pingRoleId ?? '', [Validators.pattern(SNOWFLAKE)]],
+		maxAttempts: [this.base?.maxAttempts?.toString() ?? ''],
+		outOfAttemptsMessage: [this.base?.outOfAttemptsMessage ?? ''],
 		answerHeroKey: [this.event?.answerHeroKey ?? ''],
 		answerMapKey: [this.event?.answerMapKey ?? ''],
 		answerSkin: [this.event?.answerSkin ?? ''],
 		answerTrue: [this.event?.answerTrue === null || this.event?.answerTrue === undefined ? '' : String(this.event.answerTrue)],
-		pollQuestion: [this.event?.pollQuestion ?? ''],
+		pollQuestion: [this.base?.pollQuestion ?? ''],
 		pollAnswersText: [(this.event?.pollAnswers ?? []).join('\n')],
 	});
 
@@ -532,8 +632,22 @@ export class MinigameEventDialog {
 	 * Le formulaire vit hors du graphe de signaux : `toSignal(valueChanges)` est
 	 * ce qui redessine l'apercu en `OnPush`, comme la page Messages.
 	 */
-	private readonly value = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
-	readonly type = computed(() => (this.value().type ?? MinigameType.CLIP) as MinigameType);
+	readonly value = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
+	/**
+	 * Lu sur la valeur **brute** : une fois le jeu publie, le controle du type
+	 * est desactive et disparait de `valueChanges`. Lu la, le type retombait sur
+	 * « clip » et la boite masquait la reponse a deviner — impossible de corriger
+	 * la map ou le heros d'un jeu deja en ligne.
+	 */
+	readonly type = computed(() => {
+		this.value();
+		return this.form.controls.type.getRawValue() as MinigameType;
+	});
+	/** Onglet des participants : seuls les jeux a deviner et le vrai ou faux en ont. */
+	readonly showParticipants = computed(() => {
+		const ev = this.current();
+		return !!ev?.publishedAt && (isGuessMinigame(ev.type) || ev.type === MinigameType.TRUE_FALSE);
+	});
 	readonly isGuess = computed(() => isGuessMinigame(this.type()));
 	readonly isPoll = computed(() => isPollMinigame(this.type()));
 	readonly defaultPollQuestion = computed(() =>

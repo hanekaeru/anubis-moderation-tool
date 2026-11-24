@@ -24,6 +24,7 @@ import {
 	type MinigameConfigDto,
 	type MinigameEventDto,
 	type MinigameMapDto,
+	type MinigameParticipantDto,
 } from "@anubis/shared";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../common/decorators/require-permissions.decorator";
@@ -95,6 +96,12 @@ export class MinigamesController {
 		@CurrentUser() actor: AuthenticatedUser,
 	): Promise<void> {
 		return this.minigames.removeEvent(id, actor);
+	}
+
+	@Get("jeux/:id/participants")
+	@RequirePermissions(Permission.MINIGAMES_READ)
+	participants(@Param("id", ParseUUIDPipe) id: string): Promise<MinigameParticipantDto[]> {
+		return this.minigames.participants(id);
 	}
 
 	@Post("jeux/:id/images")

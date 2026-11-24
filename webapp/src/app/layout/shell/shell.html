@@ -1,102 +1,145 @@
-<mat-sidenav-container class="shell">
-	<mat-sidenav
-		class="sidenav"
-		[mode]="isHandset() ? 'over' : 'side'"
-		[opened]="isHandset() ? drawerOpened() : true"
-		(closedStart)="drawerOpened.set(false)"
-	>
-		<div class="brand">
-			<mat-icon class="brand-icon">shield</mat-icon>
-			<div>
-				<p class="brand-name">Anubis Bot</p>
-				<p class="brand-tag">Dashboard</p>
-			</div>
-		</div>
+<!-- Contenu de la barre laterale, partage entre la colonne fixe (ordinateur)
+     et le tiroir superpose (telephone). -->
+<ng-template #nav let-compact="compact">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <mat-icon>shield</mat-icon>
+    </span>
+    <div class="brand-text">
+      <p class="brand-name">Anubis</p>
+      <p class="brand-tag">Dashboard</p>
+    </div>
+  </div>
 
-		<mat-divider />
+  <nav class="nav" aria-label="Navigation principale">
+    @for (section of navigation(); track section.label) {
+    <p class="nav-section">
+      <span class="nav-section-label">{{ section.label }}</span>
+    </p>
 
-		@for (section of navigation(); track section.label) {
-			<p class="nav-section">{{ section.label }}</p>
+    @for (entry of section.entries; track entry.path) {
+    <a class="nav-link" [routerLink]="entry.path" routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: entry.path === '/' }" [matTooltip]="entry.label" matTooltipPosition="right"
+      [matTooltipDisabled]="!compact" (click)="onNavigate()">
+      <mat-icon aria-hidden="true">{{ entry.icon }}</mat-icon>
+      <span class="nav-label">{{ entry.label }}</span>
+    </a>
+    }
+    }
+  </nav>
+</ng-template>
 
-			<mat-nav-list>
-				@for (entry of section.entries; track entry.path) {
-					<a
-						mat-list-item
-						[routerLink]="entry.path"
-						routerLinkActive="active"
-						[routerLinkActiveOptions]="{ exact: entry.path === '/' }"
-						(click)="onNavigate()"
-					>
-						<mat-icon matListItemIcon>{{ entry.icon }}</mat-icon>
-						<span matListItemTitle>{{ entry.label }}</span>
-					</a>
-				}
-			</mat-nav-list>
-		}
-	</mat-sidenav>
+<ng-template #content>
+  <mat-toolbar class="topbar">
+    <button matIconButton
+      [matTooltip]="isHandset() ? 'Ouvrir le menu' : collapsed() ? 'Déplier la barre latérale' : 'Replier la barre latérale'"
+      [attr.aria-label]="isHandset() ? 'Ouvrir le menu' : collapsed() ? 'Déplier la barre latérale' : 'Replier la barre latérale'"
+      [attr.aria-expanded]="isHandset() ? drawerOpened() : !collapsed()"
+      (click)="isHandset() ? toggleDrawer() : toggleCollapsed()">
+      <mat-icon>{{ isHandset() || collapsed() ? 'menu' : 'menu_open' }}</mat-icon>
+    </button>
 
-	<mat-sidenav-content>
-		<mat-toolbar class="topbar">
-			@if (isHandset()) {
-				<button matIconButton aria-label="Ouvrir le menu" (click)="toggleDrawer()">
-					<mat-icon>menu</mat-icon>
-				</button>
-			}
+    <span class="spacer"></span>
 
-			<span class="spacer"></span>
+    <button matIconButton [matTooltip]="theme() === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'"
+      aria-label="Changer de theme clair/sombre" (click)="toggleTheme()">
+      <mat-icon>{{ theme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+    </button>
 
-			<button
-				matIconButton
-				[matTooltip]="theme() === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'"
-				aria-label="Changer de theme clair/sombre"
-				(click)="toggleTheme()"
-			>
-				<mat-icon>{{ theme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
-			</button>
+    @if (user(); as account) {
+    <button matButton [matMenuTriggerFor]="accountMenu" class="account">
+      <mat-icon>account_circle</mat-icon>
+      <span class="account-name">{{ account.displayName }}</span>
+    </button>
 
-			@if (user(); as account) {
-				<button matButton [matMenuTriggerFor]="accountMenu" class="account">
-					<mat-icon>account_circle</mat-icon>
-					<span class="account-name">{{ account.displayName }}</span>
-				</button>
+    <mat-menu #accountMenu="matMenu">
+      <div class="menu-header">
+        <p class="menu-name">{{ account.displayName }}</p>
+        <p class="menu-role">{{ roleLabels[account.role] }}</p>
+      </div>
+      <mat-divider />
+      <a mat-menu-item routerLink="/mon-compte/discord">
+        <mat-icon>link</mat-icon>
+        <span>Compte Discord</span>
+      </a>
+      <a mat-menu-item routerLink="/mot-de-passe">
+        <mat-icon>password</mat-icon>
+        <span>Changer le mot de passe</span>
+      </a>
+      <!-- Masquee quand le deploiement a coupe la double authentification :
+				     une entree qui ne mene qu'a « indisponible » n'apprend rien.
+				     L'etat du compte, lui, est repris dans l'entree elle-meme — un
+				     compte non protege doit le lire sans avoir a ouvrir la page. -->
+      @if (account.twoFactorAvailable) {
+      <a mat-menu-item routerLink="/mon-compte/double-authentification">
+        <mat-icon>{{ account.twoFactorEnabled ? 'verified_user' : 'gpp_maybe' }}</mat-icon>
+        <span>
+          Double authentification
+          {{ account.twoFactorEnabled ? '' : ' — inactive' }}
+        </span>
+      </a>
+      }
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Se déconnecter</span>
+      </button>
+    </mat-menu>
+    }
+  </mat-toolbar>
 
-				<mat-menu #accountMenu="matMenu">
-					<div class="menu-header">
-						<p class="menu-name">{{ account.displayName }}</p>
-						<p class="menu-role">{{ roleLabels[account.role] }}</p>
-					</div>
-					<mat-divider />
-					<a mat-menu-item routerLink="/mon-compte/discord">
-						<mat-icon>link</mat-icon>
-						<span>Compte Discord</span>
-					</a>
-					<a mat-menu-item routerLink="/mot-de-passe">
-						<mat-icon>password</mat-icon>
-						<span>Changer le mot de passe</span>
-					</a>
-					<!-- Masquee quand le deploiement a coupe la double authentification :
-					     une entree qui ne mene qu'a « indisponible » n'apprend rien.
-					     L'etat du compte, lui, est repris dans l'entree elle-meme — un
-					     compte non protege doit le lire sans avoir a ouvrir la page. -->
-					@if (account.twoFactorAvailable) {
-						<a mat-menu-item routerLink="/mon-compte/double-authentification">
-							<mat-icon>{{ account.twoFactorEnabled ? 'verified_user' : 'gpp_maybe' }}</mat-icon>
-							<span>
-								Double authentification
-								{{ account.twoFactorEnabled ? '' : ' — inactive' }}
-							</span>
-						</a>
-					}
-					<button mat-menu-item (click)="logout()">
-						<mat-icon>logout</mat-icon>
-						<span>Se déconnecter</span>
-					</button>
-				</mat-menu>
-			}
-		</mat-toolbar>
+  <main>
+    <router-outlet />
+  </main>
 
-		<main>
-			<router-outlet />
-		</main>
-	</mat-sidenav-content>
+  <!-- Pied de page, aligne a droite : le bas gauche appartient au bloc-notes. -->
+  <footer class="page-footer">
+    <span>« Le monde aura toujours besoin de héros. » · {{ year }} Anubis · Développé par <a target="_blank"
+        href="https://x.com/overtime_fra">@overtime_fra</a></span>
+    <span class="footer-sep" aria-hidden="true">·</span>
+    <button type="button" class="footer-link" (click)="scrollToTop()">
+      <mat-icon aria-hidden="true">arrow_upward</mat-icon>
+      Haut de page
+    </button>
+  </footer>
+</ng-template>
+
+@if (isHandset()) {
+<mat-sidenav-container class="handset">
+  <mat-sidenav class="drawer" mode="over" [opened]="drawerOpened()" (closedStart)="drawerOpened.set(false)">
+    <ng-container *ngTemplateOutlet="nav; context: { compact: false }" />
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <ng-container *ngTemplateOutlet="content" />
+  </mat-sidenav-content>
 </mat-sidenav-container>
+
+@if (user(); as account) {
+<app-notepad class="notepad-fab" [userId]="account.id" [compact]="true" [floating]="true" />
+}
+} @else {
+<div class="frame" [class.collapsed]="collapsed()" [class.resizing]="resizing()" [style.--nav-width.px]="navWidth()">
+  <aside class="sidebar">
+    <ng-container *ngTemplateOutlet="nav; context: { compact: collapsed() }" />
+
+    <!-- Pied de barre, colle en bas meme quand la navigation defile. -->
+    @if (user(); as account) {
+    <footer class="sidebar-footer">
+      <app-notepad [userId]="account.id" [compact]="collapsed()" />
+    </footer>
+    }
+
+    <!-- Poignee de redimensionnement : glisser, fleches du clavier, double
+			     clic pour revenir a la largeur par defaut. En dessous d'un seuil, la
+			     barre se replie plutot que d'ecraser les libelles. -->
+    <div class="resize-handle" role="separator" tabindex="0" aria-orientation="vertical"
+      aria-label="Redimensionner la barre latérale" [attr.aria-valuemin]="minWidth" [attr.aria-valuemax]="maxWidth"
+      [attr.aria-valuenow]="navWidth()" (pointerdown)="startResize($event)" (dblclick)="resetWidth()"
+      (keydown)="onHandleKey($event)"></div>
+  </aside>
+
+  <div class="content">
+    <ng-container *ngTemplateOutlet="content" />
+  </div>
+</div>
+}

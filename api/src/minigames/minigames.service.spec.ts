@@ -200,3 +200,52 @@ describe("MinigamesService — jeu publie", () => {
 		);
 	});
 });
+
+describe("MinigamesService — participants", () => {
+	const user = (id: string, username: string) => ({ id, username, globalName: null, avatarUrl: null });
+	const partie = (overrides: Record<string, unknown>) => ({
+		attempts: 1,
+		guesses: [],
+		heroFoundAt: null,
+		solvedAt: null,
+		xpAwarded: 0,
+		updatedAt: new Date("2027-01-16T10:00:00Z"),
+		...overrides,
+	});
+
+	it("range les gagnants d'abord, dans l'ordre ou ils ont trouve, et nomme les maps", async () => {
+		const { service, prisma } = makeService();
+		const findMany = jest.fn().mockResolvedValue([
+			partie({ user: user("3", "perdant"), attempts: 3, guesses: ["ilios", "nepal", "oasis"] }),
+			partie({
+				user: user("2", "second"),
+				attempts: 2,
+				guesses: ["ilios", "dorado"],
+				solvedAt: new Date("2027-01-16T09:00:00Z"),
+				xpAwarded: 40,
+			}),
+			partie({
+				user: user("1", "premier"),
+				guesses: ["dorado"],
+				solvedAt: new Date("2027-01-16T08:00:00Z"),
+				xpAwarded: 60,
+			}),
+		]);
+		Object.assign(prisma.minigameGame, { findMany });
+		Object.assign(prisma.minigameMap, {
+			findMany: jest.fn().mockResolvedValue([
+				{ key: "dorado", name: "Dorado" },
+				{ key: "ilios", name: "Ilios" },
+			]),
+		});
+
+		const liste = await service.participants(eventRow().id);
+
+		expect(liste.map((p) => p.member.username)).toEqual(["premier", "second", "perdant"]);
+		expect(liste[1]!.guesses).toEqual(["Ilios", "Dorado"]);
+		// Une cle inconnue (map supprimee depuis) reste lisible telle quelle.
+		expect(liste[2]!.guesses).toEqual(["Ilios", "nepal", "oasis"]);
+		// Les lignes sans essai ne sont pas des participations.
+		expect(findMany.mock.calls[0][0].where).toEqual({ eventId: eventRow().id, attempts: { gt: 0 } });
+	});
+});

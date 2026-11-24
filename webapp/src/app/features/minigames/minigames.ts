@@ -36,8 +36,10 @@ interface Cell {
 	isToday: boolean;
 	event: MinigameEventDto | null;
 	state: MinigameEventState | null;
-	/** Type que la semaine type propose pour ce jour, s'il est vide. */
+	/** Type propose pour ce jour s'il est vide : celui de la semaine derniere, sinon la semaine type. */
 	suggested: MinigameType | null;
+	/** Jeu du meme jour la semaine precedente, qui pre-remplit une creation. */
+	lastWeek: MinigameEventDto | null;
 	/** Un clic ouvre quelque chose : un jeu existant, ou une creation permise. */
 	clickable: boolean;
 }
@@ -112,6 +114,7 @@ export class MinigamesPage {
 		const cells: Cell[] = [];
 		for (let key = from; key <= to; key = addDaysToKey(key, 1)) {
 			const event = byDay.get(key) ?? null;
+			const lastWeek = byDay.get(addDaysToKey(key, -7)) ?? null;
 			const creatable = this.canWrite && (key > today || (key === today && this.canManage));
 			cells.push({
 				key,
@@ -120,7 +123,8 @@ export class MinigamesPage {
 				isToday: key === today,
 				event,
 				state: event ? minigameEventState(event, today) : null,
-				suggested: event ? null : (week[weekdayOfKey(key)] ?? null),
+				suggested: event ? null : (lastWeek?.type ?? week[weekdayOfKey(key)] ?? null),
+				lastWeek: event ? null : lastWeek,
 				clickable: !!event || creatable,
 			});
 		}
@@ -139,7 +143,9 @@ export class MinigamesPage {
 	load(): void {
 		const { from, to } = this.range();
 		this.loading.set(true);
-		this.api.calendar(from, to).subscribe({
+		// Une semaine de plus avant la grille : le premier lundi affiche se
+		// pre-remplit, lui aussi, avec le jeu de la semaine d'avant.
+		this.api.calendar(addDaysToKey(from, -7), to).subscribe({
 			next: (data) => {
 				this.data.set(data);
 				this.loading.set(false);
@@ -182,6 +188,7 @@ export class MinigamesPage {
 			today: data.today,
 			event,
 			defaultType: cell.suggested,
+			template: cell.lastWeek,
 			config: data.config,
 			heroes: data.heroes,
 			maps: data.maps,

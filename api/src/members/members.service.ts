@@ -594,6 +594,46 @@ export class MembersService {
 			}
 		}
 
+		if (wanted.has(TimelineKind.XP_ADJUSTMENT)) {
+			const rows = await this.prisma.xpAdjustment.findMany({
+				where: {
+					guildId,
+					userId,
+					...(hasRange ? { createdAt: range } : {}),
+				},
+				orderBy: { createdAt: "desc" },
+				take: TIMELINE_SOURCE_LIMIT,
+			});
+
+			// `xp_adjustments` n'a volontairement aucune cle etrangere (la trace
+			// survit au depart de l'administrateur) : pas d'`include`, les noms
+			// se relisent a part. Un auteur inconnu du referentiel garde son
+			// identifiant, qui reste exploitable.
+			const authorIds = [...new Set(rows.map((row) => row.authorId))];
+			const authors = authorIds.length
+				? await this.prisma.discordUser.findMany({
+						where: { id: { in: authorIds } },
+						select: { id: true, username: true, globalName: true },
+					})
+				: [];
+			const authorLabels = new Map(
+				authors.map((author) => [author.id, author.globalName ?? author.username]),
+			);
+
+			for (const row of rows) {
+				const gain = row.delta > 0;
+				entries.push({
+					id: `xp:${row.id}`,
+					kind: TimelineKind.XP_ADJUSTMENT,
+					occurredAt: row.createdAt.toISOString(),
+					title: `${gain ? "+" : "−"}${Math.abs(row.delta).toLocaleString("fr-FR")} XP ${gain ? "ajoutés" : "retirés"}`,
+					description: row.reason,
+					actorLabel: authorLabels.get(row.authorId) ?? row.authorId,
+					payload: { delta: row.delta },
+				});
+			}
+		}
+
 		entries.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
 
 		const page = entries.slice(query.skip, query.skip + query.take);

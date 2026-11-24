@@ -1061,7 +1061,10 @@ le dev avec rechargement).
     a `pingTime` (`pingedAt` — une mention ajoutee en editant ne notifie
     personne), fermeture (`closedAt`). Un jeu jamais publie de sa journee (bot
     eteint) n'est **pas** rattrape le lendemain. Un verrou `enCours` empeche deux
-    passages du cycle de 5 s de publier deux fois.
+    passages du cycle de 5 s de publier deux fois. **La fermeture de la veille
+    passe avant la publication du jour** : les deux tombent dans le meme passage
+    a minuit, et dans l'ordre inverse l'annonce « C'etait… » d'hier
+    s'intercalait entre le jeu du jour et son ping.
   - **le sondage vit dans son propre message**, sous l'embed : un sondage Discord
     ne se modifie plus du tout une fois publie, l'embed doit rester corrigeable.
     D'ou le refus de l'API de toucher au type ou au sondage d'un jeu publie. La
@@ -1090,6 +1093,12 @@ le dev avec rechargement).
   base ; son et video se postent a la main, choix du proprietaire pour ne pas
   charger le serveur. Supprimer un jeu depuis le dashboard ne retire rien de
   Discord, meme regle que les messages composes.
+  **Un jour vide se pre-remplit avec le jeu du meme jour la semaine
+  precedente** (le calendrier charge donc une semaine de plus avant sa grille),
+  et a defaut avec la semaine type. Seule la presentation est reprise : type,
+  titre, message, couleur, ping, essais, question du sondage. Jamais la
+  reponse, les reponses du duel ni les images — rejouer la map de la semaine
+  derniere n'est jamais ce qu'on veut.
   **Recette** (`docs/recette-mini-jeux.md`, `/minijeu-test`,
   `src/collectors/minigameClock.ts`) : avec `MINIGAME_TEST_MODE=true`, le bot
   lit l'heure des mini-jeux sur une horloge **decalable** ; la commande la fait
@@ -1111,6 +1120,52 @@ le dev avec rechargement).
   fait descendre les paliers** (`applyForMember(..., { demote: true })`) :
   ni une montee ni le rattrapage periodique ne retirent un role de palier, qu'un
   administrateur a pu poser a la main a un membre de niveau inferieur.
+  Les ajustements se lisent dans la **chronologie de la fiche membre**
+  (`TimelineKind.XP_ADJUSTMENT`) : c'est le seul endroit du dashboard qui les
+  montre, et l'entree du salon de logs **n'existe pas** quand aucun salon
+  `MODERATION` n'est configure. `xp_adjustments` n'a pas de cle etrangere,
+  l'auteur se relit donc a part dans `discord_users` (son identifiant s'affiche
+  s'il y est inconnu).
+- **`/whois`** (`src/collectors/whois.ts`, `src/utils/whoisEmbeds.ts`) : deux
+  embeds, ce que Discord dit du compte puis ce que la base en a retenu.
+  `ModerateMembers` declaree **et** reverifiee, reponse ephemere. Trois points :
+  - la partie base se lit **sans le membre Discord** : la commande sert autant
+    pour quelqu'un qui est parti (Discord resout l'utilisateur hors serveur, le
+    bannissement se lit par `guild.bans.fetch`).
+  - Battle.net : « verifie le … » ou rien, **jamais le BattleTag** — reserve a
+    `battlenet:read` dans le dashboard, alors que tout moderateur lance
+    `/whois`. Le `select` l'exclut de la requete elle-meme.
+  - « actif » suit les predicats de `MembersService` (avertissement non revoque
+    et non expire, sanction `ACTIVE`), et la quarantaine passe par
+    `quarantineStage` : la fiche du dashboard et `/whois` doivent dire la meme
+    chose. Chaque champ passe par `joindreDansLaLimite` — un champ de plus de
+    1024 caracteres fait refuser l'embed entier, et quarante roles suffisent.
+- **Apercu des liens de messages** (`src/collectors/messageLinks.ts`, appele par
+  `messageCreate` apres l'automod et sans etre attendu) : un lien
+  `discord.com/channels/<serveur>/<salon>/<message>` (`ptb.`, `canary.`,
+  `discordapp.com`) recoit en reponse un embed du message cite, relu a la
+  demande et jamais stocke. Trois liens au plus, aucune mention
+  (`parse: []`). Le point sensible est la **fuite de salons prives**, et
+  l'auteur du lien n'est pas le seul a lire la reponse :
+  - **deux verifications, pas une.** `auteurPeutVoir` (`ViewChannel` et
+    `ReadMessageHistory`, plus l'appartenance a un fil prive) ne suffit pas :
+    un moderateur qui colle dans #general le lien d'un message staff le
+    publierait pour tout le serveur, et d'un ticket a l'autre l'ouvreur du
+    second lirait le premier. `audienceIncluse` exige donc que **tous ceux qui
+    voient la destination lisent la source** — role par role, puis membre par
+    membre pour les surcharges nominatives (c'est ainsi qu'un ticket s'ouvre a
+    son ouvreur). Un membre introuvable fait refuser.
+  - `permissionsDuRole` est ecrit a la main : `permissionsFor(role)` de
+    discord.js part des seules permissions du role, sans celles de
+    `@everyone`. La plupart des roles n'en ont aucune en propre, et un salon
+    public paraissait alors invisible au staff.
+  - un fil prive n'est cite que dans lui-meme (son public ne se lit pas dans
+    les roles) ; un salon NSFW jamais hors d'un salon NSFW. Un lien entre
+    chevrons, sous spoiler ou dans du code n'est pas cite — l'auteur l'a
+    masque expres. Un refus est **muet** : l'expliquer confirmerait que le
+    salon existe.
+  `automod.processMessage` rend desormais `true` quand il a fait supprimer le
+  message : l'apercu repondrait sinon a un message disparu.
 - **`/clear`** : `bulkDelete` refuse les messages de plus de 14 jours, la
   commande le dit plutot que de laisser remonter une erreur opaque. Avec
   l'option `membre`, elle relit 100 messages pour en trouver N de cette
@@ -1292,6 +1347,53 @@ le dev avec rechargement).
   - la densite Material est a **`-1`**, pas `-2`. Le cran le plus serre mettait
     les boutons a 32 px et les lignes de table a 44 px. C'est le seul reglage
     qui agit sur toutes les pages a la fois — le changer se voit partout.
+- **Cadre et verre** (`layout/shell/`, `styles.scss`). Sur ordinateur, la barre
+  laterale est une **colonne de grille** (`--nav-width`), pas un `mat-sidenav` :
+  le conteneur de Material fige la marge du contenu et ne suit ni le glissement
+  de la poignee ni la transition de repli. Largeur et repli sont retenus dans
+  `localStorage`, en simple confort. Le telephone garde le tiroir de Material.
+  Quatre consequences :
+  - **le document defile**, plus `mat-sidenav-content`. C'est aussi ce qui rend
+    son effet a `scrollPositionRestoration: 'top'`. Un element colle se range
+    sous l'en-tete : `top: calc(var(--topbar-height) + ...)`, sinon il glisse
+    sous la barre floutee.
+  - **les halos** (`body::before`, z-index negatif) ne se voient que si **rien
+    d'opaque ne couvre la page** : le fond est porte par `html` et `body` reste
+    transparent. Une page plein ecran ne pose pas de fond (connexion, mot de
+    passe) — c'est ainsi qu'elle masquait les halos.
+  - les surfaces passent par les jetons `--anubis-glass*` (cartes, panneaux,
+    dialogues, en-tete), jamais par une couleur opaque : une carte en
+    `--anubis-surface-1` ferait un trou net dans le verre.
+  - une seule courbe et une seule duree (`--anubis-ease`,
+    `--anubis-ease-duration`) pour tout ce qui se replie ou apparait, et
+    `prefers-reduced-motion` coupe tout.
+- **Bloc-notes** (`layout/notepad/`) : en pied de barre laterale (pastille
+  flottante sur telephone), **stocke dans le navigateur et jamais en base**,
+  sous la cle `anubis-notes:<id du compte>`. Trois choix a garder :
+  - la cle porte l'identifiant du compte : deux comptes sur le meme poste ne
+    lisent pas les notes l'un de l'autre dans l'interface. Ce n'est pas une
+    protection — rien n'est chiffre, et le panneau le dit.
+  - la deconnexion **n'efface pas** les notes : les retrouver en revenant est
+    tout l'interet. Le texte est relu par un `linkedSignal` sur l'identifiant,
+    et l'enregistrement differe retient le compte au moment de la frappe, pour
+    qu'une deconnexion pendant le delai n'ecrive pas sous la cle d'un autre.
+  - une note partagee avec l'equipe appartient au wiki, pas ici : rien ne part
+    au serveur, rien ne suit le compte sur un autre appareil.
+- **Les champs ne reservent aucune place sous eux** (`subscriptSizing:
+  'dynamic'`, reglage global de `app.config.ts`). Consequence : deux
+  `mat-form-field` empiles **se touchent** tant que leur conteneur ne pose pas
+  d'ecart. Un formulaire vertical se monte donc en `flex-direction: column;
+  gap: var(--space-4)`, jamais avec des `margin-top` poses champ par champ — la
+  connexion, le changement de mot de passe et trois dialogues collaient leurs
+  champs pour cette raison. C'est aussi ce qui permet a `.filters` de centrer
+  verticalement ses boutons sur les champs (`align-items: center`) : la hauteur
+  d'un champ est celle de sa zone de saisie.
+- **Un composant affiche comme un bloc declare `:host { display: block }`.**
+  Un element personnalise est en ligne par defaut, et un element en ligne
+  ignore les marges verticales : `.page > * + *` ne l'ecartait pas, et la carte
+  Battle.net se collait aux vignettes de la fiche membre. Dans une grille ou un
+  flex le probleme ne se voit pas (les enfants y sont convertis en blocs), d'ou
+  sa discretion.
 - **Les listes d'identifiants se saisissent par `shared/validators/snowflake-list.ts`.**
   Le dashboard n'a pas de selecteur de roles ni de salons — simplification
   assumee. Ce qui manquait, c'est de **dire ce qui ne va pas** : une faute de
@@ -1347,7 +1449,12 @@ le dev avec rechargement).
   un **fond sombre fixe dans les deux themes** du dashboard — un apercu qui
   change de couleur avec le theme mentirait sur ce que verra le serveur. Le
   formulaire vit hors du graphe de signaux : `toSignal(form.valueChanges)` est
-  ce qui redessine l'apercu en `OnPush`, sans quoi il resterait fige. Le
+  ce qui redessine l'apercu en `OnPush`, sans quoi il resterait fige. Piege
+  associe : **`valueChanges` omet les controles desactives**. La boite des
+  mini-jeux lisait son type la ; une fois le jeu publie (type desactive), il
+  retombait sur « clip » et la reponse a deviner disparaissait du formulaire.
+  Un champ qui peut etre desactive se lit par `getRawValue()`, le signal ne
+  servant qu'a s'abonner. Le
   decompte de caracteres n'est pas decoratif : la limite de 6000 de Discord
   porte sur la **somme** de tous les champs, et un embed dont chaque champ tient
   dans sa propre limite peut malgre tout etre refuse
