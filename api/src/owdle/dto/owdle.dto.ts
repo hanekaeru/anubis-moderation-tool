@@ -21,6 +21,7 @@ import {
 	MAX_OWDLE_HERO_NAME_LENGTH,
 	MAX_OWDLE_ORIGIN_LENGTH,
 	MAX_OWDLE_RELEASE_YEAR,
+	MAX_OWDLE_WEEKLY_BONUS_XP,
 	MAX_OWDLE_XP_PER_WIN,
 	MAX_OWDLE_XP_STEPS,
 	MIN_OWDLE_RELEASE_YEAR,
@@ -152,6 +153,18 @@ export class UpdateOwdleConfigDto {
 	@Min(0, { each: true })
 	@Max(MAX_OWDLE_XP_PER_WIN, { each: true })
 	xpByGuesses?: number[];
+
+	@IsOptional()
+	@IsInt()
+	@Min(1, { message: "Le bonus exige au moins un jour." })
+	@Max(7, { message: "Une semaine ne compte que sept jours." })
+	weeklyBonusDays?: number;
+
+	@IsOptional()
+	@IsInt()
+	@Min(0)
+	@Max(MAX_OWDLE_WEEKLY_BONUS_XP)
+	weeklyBonusXp?: number;
 }
 
 export class SaveOwdleAffiliationDto {

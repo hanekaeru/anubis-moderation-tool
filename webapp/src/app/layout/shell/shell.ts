@@ -20,7 +20,10 @@ interface NavEntry {
   path: string;
   label: string;
   icon: string;
-  /** Entree masquee si le compte n'a aucune de ces permissions. */
+  /**
+   * Entree masquee si le compte n'a aucune de ces permissions. Vide : ouverte a
+   * tout compte (« A traiter », dont chaque section verifie sa propre permission).
+   */
   permissions: Permission[];
 }
 
@@ -48,6 +51,7 @@ const NAV_SECTIONS: NavSection[] = [
         icon: 'dashboard',
         permissions: [Permission.STATS_READ],
       },
+      { path: '/a-traiter', label: 'À traiter', icon: 'inbox', permissions: [] },
       {
         path: '/statut',
         label: 'Statut',
@@ -339,7 +343,9 @@ export class Shell {
   readonly navigation = computed(() =>
     NAV_SECTIONS.map((section) => ({
       label: section.label,
-      entries: section.entries.filter((entry) => this.auth.hasAnyPermission(entry.permissions)),
+      entries: section.entries.filter(
+        (entry) => entry.permissions.length === 0 || this.auth.hasAnyPermission(entry.permissions),
+      ),
     })).filter((section) => section.entries.length > 0),
   );
 

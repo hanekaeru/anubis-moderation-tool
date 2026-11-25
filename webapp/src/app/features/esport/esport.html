@@ -319,6 +319,14 @@
 									</button>
 								}
 							}
+							<!-- Hors de canImport : des propositions deja posees restent
+							     validables meme si la cle Liquipedia a ete retiree depuis. -->
+							@if (suggestionCount() > 0) {
+								<button matButton="tonal" [disabled]="busy()" (click)="openSuggestions()">
+									<mat-icon>done_all</mat-icon>
+									Valider les scores proposés ({{ suggestionCount() }})
+								</button>
+							}
 						</div>
 					</mat-card-content>
 				</mat-card>

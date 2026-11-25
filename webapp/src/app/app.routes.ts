@@ -35,6 +35,12 @@ export const routes: Routes = [
 				title: "Vue d'ensemble — Anubis",
 			},
 			{
+				// Ouverte a tout compte : l'API ne calcule que les sections permises.
+				path: 'a-traiter',
+				loadComponent: () => import('./features/inbox/inbox').then((m) => m.InboxPage),
+				title: 'À traiter — Anubis',
+			},
+			{
 				path: 'mon-compte/discord',
 				loadComponent: () =>
 					import('./features/account/discord-link/discord-link').then((m) => m.DiscordLinkPage),

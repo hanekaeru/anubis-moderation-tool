@@ -278,3 +278,96 @@ describe("EsportImportService.fetchScores", () => {
 		fetchSpy.mockRestore();
 	});
 });
+
+describe("EsportImportService.validateSuggestions", () => {
+	const PROPOSE = { suggestedScoreA: 3, suggestedScoreB: 1, suggestedAt: new Date("2026-10-18T20:00:00Z") };
+	const ID_1 = "11111111-1111-4111-8111-111111111111";
+	const ID_2 = "22222222-2222-4222-8222-222222222222";
+
+	function row(id: string, overrides: Record<string, unknown> = {}) {
+		return { id, finishedAt: null, scoreA: null, scoreB: null, announceResult: false, ...PROPOSE, ...overrides };
+	}
+
+	it("termine chaque match coche avec son score propose, en une seule resynchronisation", async () => {
+		const { service, prisma, esport } = makeService([]);
+		prisma.esportMatch.findMany.mockResolvedValue([row(ID_1), row(ID_2, { suggestedScoreA: 0, suggestedScoreB: 3 })]);
+
+		await service.validateSuggestions(
+			"week-1",
+			{ matches: [{ id: ID_1, scoreA: 3, scoreB: 1 }, { id: ID_2, scoreA: 0, scoreB: 3 }], announce: false },
+			ACTOR,
+		);
+
+		expect(prisma.esportMatch.findMany.mock.calls[0][0].where).toEqual({ weekId: "week-1", id: { in: [ID_1, ID_2] } });
+		expect(prisma.esportMatch.update).toHaveBeenCalledTimes(2);
+		const data = prisma.esportMatch.update.mock.calls[0][0].data;
+		expect(data).toMatchObject({
+			scoreA: 3,
+			scoreB: 1,
+			announceResult: false,
+			suggestedScoreA: null,
+			suggestedAt: null,
+			resultSyncedAt: null,
+		});
+		expect(data.finishedAt).toBeInstanceOf(Date);
+		// Pas de case par match : le spoiler reste celui du match.
+		expect(data).not.toHaveProperty("spoiler");
+		expect(esport.resynchroniser).toHaveBeenCalledTimes(1);
+		expect(esport.verifierTaille).toHaveBeenCalledTimes(1);
+	});
+
+	it("garde une annonce deja demandee, meme sans annonce pour le lot", async () => {
+		const { service, prisma } = makeService([]);
+		const termine = new Date("2026-10-17T21:00:00Z");
+		prisma.esportMatch.findMany.mockResolvedValue([
+			row(ID_1, { announceResult: true, finishedAt: termine, scoreA: 2, scoreB: 3 }),
+		]);
+
+		await service.validateSuggestions("week-1", { matches: [{ id: ID_1, scoreA: 3, scoreB: 1 }], announce: false }, ACTOR);
+
+		const data = prisma.esportMatch.update.mock.calls[0][0].data;
+		expect(data.announceResult).toBe(true);
+		// Une correction ne deplace pas la date de fin.
+		expect(data.finishedAt).toBe(termine);
+	});
+
+	it("refuse tout le lot si une proposition a change depuis l'affichage", async () => {
+		const { service, prisma, esport } = makeService([]);
+		prisma.esportMatch.findMany.mockResolvedValue([row(ID_1), row(ID_2, { suggestedScoreA: 3, suggestedScoreB: 2 })]);
+
+		await expect(
+			service.validateSuggestions(
+				"week-1",
+				{ matches: [{ id: ID_1, scoreA: 3, scoreB: 1 }, { id: ID_2, scoreA: 3, scoreB: 1 }], announce: true },
+				ACTOR,
+			),
+		).rejects.toThrow(/ont changé/);
+		expect(prisma.esportMatch.update).not.toHaveBeenCalled();
+		expect(esport.resynchroniser).not.toHaveBeenCalled();
+	});
+
+	it("refuse un match sans proposition, ou d'une autre semaine", async () => {
+		const { service, prisma } = makeService([]);
+		prisma.esportMatch.findMany.mockResolvedValue([row(ID_1, { suggestedAt: null })]);
+		await expect(
+			service.validateSuggestions("week-1", { matches: [{ id: ID_1, scoreA: 3, scoreB: 1 }], announce: false }, ACTOR),
+		).rejects.toThrow(/ont changé/);
+
+		prisma.esportMatch.findMany.mockResolvedValue([]);
+		await expect(
+			service.validateSuggestions("week-1", { matches: [{ id: ID_1, scoreA: 3, scoreB: 1 }], announce: false }, ACTOR),
+		).rejects.toBeInstanceOf(BadRequestException);
+		expect(prisma.esportMatch.update).not.toHaveBeenCalled();
+	});
+
+	it("refuse un match present deux fois", async () => {
+		const { service } = makeService([]);
+		await expect(
+			service.validateSuggestions(
+				"week-1",
+				{ matches: [{ id: ID_1, scoreA: 3, scoreB: 1 }, { id: ID_1, scoreA: 3, scoreB: 1 }], announce: false },
+				ACTOR,
+			),
+		).rejects.toBeInstanceOf(BadRequestException);
+	});
+});

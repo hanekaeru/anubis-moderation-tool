@@ -10,6 +10,7 @@ import { IsoDateString } from "./common";
  */
 export const PERMISSION_LABELS: Record<Permission, string> = {
 	"members:read": "Consulter les membres et leurs fiches",
+	"member-data:manage": "Exporter ou effacer les données d'un membre (RGPD)",
 	"member-roles:write": "Ajouter des rôles séparateurs à un membre",
 	"notes:read": "Lire les notes internes",
 	"notes:write": "Écrire des notes internes",
@@ -74,6 +75,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
 		permissions: [
 			Permission.MEMBERS_READ,
 			Permission.MEMBER_ROLES_WRITE,
+			Permission.MEMBER_DATA_MANAGE,
 			Permission.STATS_READ,
 			Permission.NOTES_READ,
 			Permission.NOTES_WRITE,

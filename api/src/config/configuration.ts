@@ -87,6 +87,12 @@ export interface AppConfig {
 		apiKey: string;
 		available: boolean;
 	};
+	/**
+	 * Adresse du signal de vie vers une supervision exterieure
+	 * (Healthchecks.io…). Vide : aucun signal. C'est l'absence de signal qui
+	 * alerte, le delai se regle cote supervision.
+	 */
+	healthcheckUrl: string;
 }
 
 class MissingConfigError extends Error {
@@ -219,5 +225,6 @@ export function loadConfiguration(): AppConfig {
 			apiKey: liquipediaApiKey,
 			available: liquipediaApiKey.length > 0,
 		},
+		healthcheckUrl: env.HEALTHCHECK_URL?.trim() ?? "",
 	};
 }

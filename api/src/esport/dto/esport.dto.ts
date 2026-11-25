@@ -18,6 +18,7 @@ import {
 	Min,
 	MinLength,
 	ValidateIf,
+	ValidateNested,
 } from "class-validator";
 import {
 	ESPORT_REGION_CODES,
@@ -102,6 +103,33 @@ export class UpdateEsportConfigDto {
 	@IsOptional()
 	@IsObject()
 	regionColors?: Record<string, number>;
+}
+
+export class EsportSuggestionItemDtoIn {
+	@IsUUID()
+	id!: string;
+
+	@IsInt()
+	@Min(0)
+	@Max(MAX_ESPORT_SCORE)
+	scoreA!: number;
+
+	@IsInt()
+	@Min(0)
+	@Max(MAX_ESPORT_SCORE)
+	scoreB!: number;
+}
+
+export class EsportValidateSuggestionsDtoIn {
+	@IsArray()
+	@ArrayMinSize(1, { message: "Choisissez au moins un score à valider." })
+	@ArrayMaxSize(MAX_ESPORT_MATCHES_PER_WEEK)
+	@ValidateNested({ each: true })
+	@Type(() => EsportSuggestionItemDtoIn)
+	matches!: EsportSuggestionItemDtoIn[];
+
+	@IsBoolean()
+	announce!: boolean;
 }
 
 export class EsportImportDtoIn {

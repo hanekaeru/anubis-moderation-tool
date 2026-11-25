@@ -43,6 +43,10 @@ import {
 	handleEvidenceModal,
 } from "../handlers/evidenceInteractions";
 import { handleLeaderboardButton } from "../handlers/leaderboardInteractions";
+import { handleReportModal, handleReportWhoisButton } from "../handlers/reportInteractions";
+import { handleLfgClose } from "../handlers/lfgInteractions";
+import { LFG_CLOSE_PREFIX } from "../collectors/lfg";
+import { REPORT_MODAL_PREFIX, REPORT_WHOIS_PREFIX } from "../collectors/reports";
 import {
 	QUARANTINE_ACCEPT_ID,
 	QUARANTINE_BATTLENET_ID,
@@ -61,7 +65,7 @@ import {
 	handleVoiceModal,
 	handleVoicePanelButton,
 } from "../handlers/voiceInteractions";
-import type { BotEvent } from "../types";
+import { estMenuContextuel, type BotEvent } from "../types";
 import {
 	VOICE_KICK_SELECT,
 	VOICE_PANEL_PREFIX,
@@ -125,6 +129,21 @@ const ROUTES: readonly Route[] = [
 		(i) => i.isModalSubmit() && i.customId.startsWith(EVIDENCE_MODAL_PREFIX),
 		handleEvidenceModal,
 		"[Preuves] Dépôt depuis la modale échoué :",
+	),
+	route(
+		(i) => i.isModalSubmit() && i.customId.startsWith(REPORT_MODAL_PREFIX),
+		handleReportModal,
+		"[Signalements] Envoi du signalement échoué :",
+	),
+	route(
+		(i) => i.isButton() && i.customId.startsWith(REPORT_WHOIS_PREFIX),
+		handleReportWhoisButton,
+		"[Signalements] Ouverture d'une fiche échouée :",
+	),
+	route(
+		(i) => i.isButton() && i.customId.startsWith(LFG_CLOSE_PREFIX),
+		handleLfgClose,
+		"[LFG] Fermeture de l'annonce échouée :",
 	),
 	route(
 		(i) => i.isStringSelectMenu() && i.customId === VOICE_KICK_SELECT,
@@ -207,10 +226,29 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 		if (interaction.isAutocomplete()) {
 			// Pas de cooldown ici : Discord envoie une requete a chaque frappe.
 			const command = interaction.client.commands.get(interaction.commandName);
+			if (!command || estMenuContextuel(command)) return;
 			try {
-				await command?.autocomplete?.(interaction);
+				await command.autocomplete?.(interaction);
 			} catch (err) {
 				console.error(`[Interaction] Autocomplétion de '${interaction.commandName}' échouée :`, err);
+			}
+			return;
+		}
+
+		if (interaction.isMessageContextMenuCommand()) {
+			const command = interaction.client.commands.get(interaction.commandName);
+			if (!command || !estMenuContextuel(command)) {
+				console.error(`[Interaction] Aucun menu contextuel ne correspond à '${interaction.commandName}'.`);
+				return;
+			}
+			try {
+				await command.execute(interaction);
+			} catch (error) {
+				if (interactionPerdue(error)) {
+					signalerInteractionPerdue(interaction, recueA, error as DiscordAPIError);
+					return;
+				}
+				console.error(`[Interaction] Menu contextuel '${interaction.commandName}' échoué :`, error);
 			}
 			return;
 		}
@@ -218,7 +256,9 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 		if (!interaction.isChatInputCommand()) return;
 		if (interaction.replied || interaction.deferred) return;
 
-		const command = interaction.client.commands.get(interaction.commandName);
+		const found = interaction.client.commands.get(interaction.commandName);
+		// Un menu contextuel ne partage que son nom avec les commandes slash.
+		const command = found && !estMenuContextuel(found) ? found : undefined;
 		console.log(
 			`[Interaction] <${interaction.user.id}> a lancé '${interaction.commandName}' sur le serveur ${interaction.guildId}.`,
 		);

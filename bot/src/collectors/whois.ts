@@ -1,7 +1,25 @@
+import type { EmbedBuilder, Guild, User } from "discord.js";
 import { QuarantineStage, quarantineStage } from "@anubis/shared";
 import type { AccountFlagType, IdentityEventType, MemberStatus, SanctionType } from "@anubis/shared/prisma";
 import prisma from "../prisma";
+import { embedBase, embedDiscord } from "../utils/whoisEmbeds";
 import xpManager from "./xp";
+
+/**
+ * Fiche complete d'un compte : ce que Discord en dit, puis ce que la base en a
+ * retenu. Partagee par `/whois` et par les boutons des signalements, qui
+ * doivent montrer exactement la meme chose.
+ */
+export async function ficheWhois(guild: Guild, user: User): Promise<EmbedBuilder[]> {
+	const [member, ban, dossier] = await Promise.all([
+		guild.members.fetch(user.id).catch(() => null),
+		// Exige « Bannir des membres » cote bot : sans elle, on ne dit rien
+		// plutot que d'echouer — le statut en base le dira de toute facon.
+		guild.bans.fetch(user.id).catch(() => null),
+		lireDossier(guild.id, user.id),
+	]);
+	return [embedDiscord(user, member, ban), embedBase(dossier)];
+}
 
 /**
  * Tout ce que la base sait d'un compte, pour `/whois`.

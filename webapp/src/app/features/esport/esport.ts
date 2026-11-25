@@ -53,6 +53,7 @@ import { EsportEmbedPreview } from './embed-preview';
 import { EsportImportDialog, type ImportDialogData } from './import-dialog';
 import { EsportMatchDialog, type MatchDialogData } from './match-dialog';
 import { EsportResultDialog, type ResultDialogData } from './result-dialog';
+import { EsportSuggestionsDialog, type SuggestionsDialogData } from './suggestions-dialog';
 import { EsportTeamDialog, type TeamDialogData } from './team-dialog';
 
 /** Delai entre deux relectures tant que le bot n'a pas traite un envoi. */
@@ -173,6 +174,10 @@ export class EsportPage {
 
 	/** Des matchs viennent de Liquipedia : leurs scores peuvent y etre releves. */
 	readonly hasImported = computed(() => !!this.week()?.matches.some((match) => match.liquipediaId));
+	/** Scores releves sur Liquipedia en attente de validation. */
+	readonly suggestionCount = computed(
+		() => this.week()?.matches.filter((match) => match.suggestion).length ?? 0,
+	);
 
 	constructor() {
 		this.destroyRef.onDestroy(() => this.poll?.unsubscribe());
@@ -369,6 +374,29 @@ export class EsportPage {
 			},
 			error: () => this.busy.set(false),
 		});
+	}
+
+	/** Valide d'un coup les scores proposes, apres relecture dans le dialogue. */
+	openSuggestions(): void {
+		const week = this.week();
+		if (!week || !this.suggestionCount()) return;
+
+		this.dialog
+			.open<EsportSuggestionsDialog, SuggestionsDialogData, EsportWeekDto>(EsportSuggestionsDialog, {
+				data: { week },
+				width: '640px',
+				maxWidth: '95vw',
+			})
+			.afterClosed()
+			.subscribe((updated) => {
+				if (!updated) return;
+				const avant = this.suggestionCount();
+				this.applyWeek(updated);
+				const valides = avant - this.suggestionCount();
+				this.notifications.success(
+					`${valides} score${valides > 1 ? 's' : ''} validé${valides > 1 ? 's' : ''} : le récapitulatif va être corrigé.`,
+				);
+			});
 	}
 
 	dismissSuggestion(match: EsportMatchDto): void {

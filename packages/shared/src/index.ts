@@ -43,3 +43,4 @@ export * from "./dto/welcome";
 export * from "./dto/esport";
 export * from "./dto/owdle";
 export * from "./dto/minigames";
+export * from "./dto/inbox";

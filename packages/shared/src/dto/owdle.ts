@@ -34,6 +34,10 @@ export interface OwdleConfigDto {
 	 * la derniere valeur pour tout essai au-dela de la liste.
 	 */
 	xpByGuesses: number[];
+	/** Jours a trouver dans une meme semaine (lundi -> dimanche) pour le bonus. */
+	weeklyBonusDays: number;
+	/** XP du bonus de la semaine ; 0 le desactive. */
+	weeklyBonusXp: number;
 	updatedAt: IsoDateString;
 }
 
@@ -61,4 +65,6 @@ export interface UpdateOwdleConfigRequest {
 	channelId?: Snowflake | null;
 	/** Remplace en bloc, comme toutes les listes reglees depuis le dashboard. */
 	xpByGuesses?: number[];
+	weeklyBonusDays?: number;
+	weeklyBonusXp?: number;
 }

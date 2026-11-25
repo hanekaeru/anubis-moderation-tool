@@ -24,7 +24,7 @@ import {
 	OwdleSpecies,
 	OwdleSubRole,
 } from "./enums";
-import { zonedDateKey } from "./timezone";
+import { addDaysToKey, mondayOfKey, zonedDateKey } from "./timezone";
 
 /** Le jour de l'OWdle commence a minuit, heure de Paris, pour tout le monde. */
 export const OWDLE_TIME_ZONE = "Europe/Paris";
@@ -376,6 +376,44 @@ export const OWDLE_DEFAULT_XP_BY_GUESSES: readonly number[] = [100, 80, 60, 50, 
 /** Nombre de paliers du bareme : au-dela, la derniere valeur s'applique. */
 export const MAX_OWDLE_XP_STEPS = 15;
 export const MAX_OWDLE_XP_PER_WIN = 1000;
+
+/**
+ * Bonus de la semaine : desactive par defaut (0 XP), sept jours exiges quand on
+ * l'active. Memes valeurs que les defauts des colonnes `owdle_config`.
+ */
+export const OWDLE_DEFAULT_WEEKLY_BONUS_DAYS = 7;
+export const OWDLE_DEFAULT_WEEKLY_BONUS_XP = 0;
+export const MAX_OWDLE_WEEKLY_BONUS_XP = 5000;
+
+/** Lundi de la semaine OWdle (heure de Paris) qui contient ce jour. */
+export function owdleWeekStart(dayKey: string): string {
+	return mondayOfKey(dayKey);
+}
+
+/**
+ * Jours trouves dans la semaine qui contient `dayKey` (lundi -> dimanche).
+ * Les jours hors de la semaine sont ignores, les doublons comptes une fois.
+ */
+export function owdleWeekSolvedDays(solvedDayKeys: readonly string[], dayKey: string): number {
+	const debut = owdleWeekStart(dayKey);
+	const fin = addDaysToKey(debut, 6);
+	return new Set(solvedDayKeys.filter((key) => key >= debut && key <= fin)).size;
+}
+
+/**
+ * Le bonus est-il gagne ? Jamais quand il vaut 0 XP (reglage desactive), et un
+ * seuil hors de 1..7 se ramene a la semaine entiere plutot que d'etre gagne
+ * d'office.
+ */
+export function owdleWeeklyBonusEarned(
+	solvedDayKeys: readonly string[],
+	dayKey: string,
+	config: { weeklyBonusDays: number; weeklyBonusXp: number },
+): boolean {
+	if (config.weeklyBonusXp <= 0) return false;
+	const seuil = config.weeklyBonusDays >= 1 && config.weeklyBonusDays <= 7 ? config.weeklyBonusDays : 7;
+	return owdleWeekSolvedDays(solvedDayKeys, dayKey) >= seuil;
+}
 
 /**
  * Experience gagnee pour une victoire en `guesses` essais.

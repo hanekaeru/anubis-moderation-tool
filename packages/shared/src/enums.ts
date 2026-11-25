@@ -432,6 +432,8 @@ export const LogChannelKey = {
 	MESSAGES: "LOG_CHANNEL_MESSAGES",
 	SERVER: "LOG_CHANNEL_SERVER",
 	VOICE: "LOG_CHANNEL_VOICE",
+	/** Messages signales par les membres (clic droit > « Signaler au staff »). */
+	REPORTS: "LOG_CHANNEL_REPORTS",
 } as const;
 export type LogChannelKey = (typeof LogChannelKey)[keyof typeof LogChannelKey];
 
@@ -441,6 +443,7 @@ export const LOG_CHANNEL_LABELS: Record<LogChannelKey, string> = {
 	LOG_CHANNEL_MESSAGES: "Journal des messages",
 	LOG_CHANNEL_SERVER: "Journal du serveur",
 	LOG_CHANNEL_VOICE: "Journal des vocaux",
+	LOG_CHANNEL_REPORTS: "Signalements",
 };
 
 export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
@@ -451,6 +454,8 @@ export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
 	LOG_CHANNEL_SERVER: "Salons et rôles créés, modifiés ou supprimés.",
 	LOG_CHANNEL_VOICE:
 		"Salons vocaux temporaires : créations, arrivées, départs, propriété et signalements.",
+	LOG_CHANNEL_REPORTS:
+		"Messages signalés par les membres, avec l'auteur et la personne qui signale.",
 };
 
 /**

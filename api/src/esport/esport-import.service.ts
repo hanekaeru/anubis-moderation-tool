@@ -1,5 +1,6 @@
 import {
 	BadRequestException,
+	ConflictException,
 	Injectable,
 	Logger,
 	ServiceUnavailableException,
@@ -20,6 +21,7 @@ import {
 	MAX_ESPORT_MATCHES_PER_WEEK,
 	zonedTimeOfDay,
 	zonedWallTimeToUtc,
+	type EsportValidateSuggestionsRequest,
 	type EsportWeekDto,
 	type LiquipediaMatchDto,
 	type LiquipediaScoresDto,
@@ -622,6 +624,108 @@ export class EsportImportService {
 	}
 
 	/** « Ignorer » : retire la proposition sans toucher au match. */
+	/**
+	 * Valide d'un coup les scores proposes que le staff a coches.
+	 *
+	 * Chaque match recoit exactement ce que « Terminer » lui aurait donne, avec
+	 * deux differences assumees : son spoiler n'est pas touche (il n'y a pas de
+	 * case par match dans la validation groupee), et une annonce deja demandee
+	 * le reste meme si `announce` est faux — la retirer est une decision
+	 * d'administrateur, pas l'effet de bord d'un clic groupe.
+	 *
+	 * **Tout ou rien.** Le lot est refuse entier si un match n'est pas de la
+	 * semaine, n'a plus de proposition, ou si elle differe du score affiche au
+	 * staff : il a pu relancer « Recuperer les scores » dans un autre onglet, et
+	 * valider une valeur que personne n'a lue reviendrait a une publication
+	 * automatique — ce que le proprietaire a exclu. Meme chose si le
+	 * recapitulatif deborde des 6000 caracteres de Discord
+	 * (`verifierTaille`, une seule fois pour tout le lot).
+	 */
+	async validateSuggestions(
+		weekId: string,
+		request: EsportValidateSuggestionsRequest,
+		actor: AuthenticatedUser,
+	): Promise<EsportWeekDto> {
+		await this.esport.loadWeek(weekId);
+
+		const ids = [...new Set(request.matches.map((item) => item.id))];
+		if (ids.length !== request.matches.length) {
+			throw new BadRequestException("Un même match figure deux fois dans la validation.");
+		}
+
+		const rows = await this.prisma.esportMatch.findMany({
+			where: { weekId, id: { in: ids } },
+			select: {
+				id: true,
+				finishedAt: true,
+				scoreA: true,
+				scoreB: true,
+				announceResult: true,
+				suggestedScoreA: true,
+				suggestedScoreB: true,
+				suggestedAt: true,
+			},
+		});
+		const parId = new Map(rows.map((row) => [row.id, row]));
+
+		for (const item of request.matches) {
+			const row = parId.get(item.id);
+			if (!row) throw new BadRequestException("Un des matchs n'appartient pas à cette semaine.");
+			if (
+				!row.suggestedAt ||
+				row.suggestedScoreA !== item.scoreA ||
+				row.suggestedScoreB !== item.scoreB
+			) {
+				throw new ConflictException(
+					"Les scores proposés ont changé depuis l'affichage. Rechargez la semaine et vérifiez-les avant de valider.",
+				);
+			}
+		}
+
+		const maintenant = new Date();
+		await this.prisma.$transaction(async (tx) => {
+			for (const item of request.matches) {
+				const row = parId.get(item.id)!;
+				await tx.esportMatch.update({
+					where: { id: item.id },
+					data: {
+						scoreA: item.scoreA,
+						scoreB: item.scoreB,
+						announceResult: row.announceResult || request.announce,
+						finishedAt: row.finishedAt ?? maintenant,
+						resultSyncedAt: null,
+						resultError: null,
+						resultRemovalRequestedAt: null,
+						...SANS_PROPOSITION,
+					},
+				});
+			}
+			await this.esport.resynchroniser(tx, weekId);
+			await this.esport.verifierTaille(tx, weekId);
+		});
+
+		// Une entree par match, comme « Terminer » : le journal doit pouvoir dire
+		// qui a pose quel score, pas seulement qu'un lot a ete valide.
+		for (const item of request.matches) {
+			const row = parId.get(item.id)!;
+			await this.audit.record({
+				appUserId: actor.id,
+				action: row.finishedAt ? "esport.match.result.update" : "esport.match.result",
+				entityType: "esport_match",
+				entityId: item.id,
+				before: row.finishedAt ? { scoreA: row.scoreA, scoreB: row.scoreB } : undefined,
+				after: {
+					scoreA: item.scoreA,
+					scoreB: item.scoreB,
+					announce: row.announceResult || request.announce,
+					source: "liquipedia-batch",
+				},
+			});
+		}
+
+		return this.esport.findWeek(weekId);
+	}
+
 	async dismissSuggestion(matchId: string, actor: AuthenticatedUser): Promise<EsportWeekDto> {
 		const match = await this.esport.loadMatch(matchId);
 		if (match.suggestedAt) {

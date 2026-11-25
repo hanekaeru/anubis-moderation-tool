@@ -4,8 +4,7 @@ import {
 	SlashCommandBuilder,
 } from "discord.js";
 import type { Command } from "../../types";
-import { lireDossier } from "../../collectors/whois";
-import { embedBase, embedDiscord } from "../../utils/whoisEmbeds";
+import { ficheWhois } from "../../collectors/whois";
 
 /**
  * Tout ce qu'on sait d'un compte : ce que Discord en dit, puis ce que la base
@@ -46,16 +45,8 @@ const command: Command = {
 
 		const cible = interaction.options.getUser("membre", true);
 
-		const [member, ban, dossier] = await Promise.all([
-			interaction.guild.members.fetch(cible.id).catch(() => null),
-			// Exige « Bannir des membres » cote bot : sans elle, on ne dit rien
-			// plutot que d'echouer — le statut en base le dira de toute facon.
-			interaction.guild.bans.fetch(cible.id).catch(() => null),
-			lireDossier(interaction.guildId, cible.id),
-		]);
-
 		await interaction.editReply({
-			embeds: [embedDiscord(cible, member, ban), embedBase(dossier)],
+			embeds: await ficheWhois(interaction.guild, cible),
 			allowedMentions: { parse: [] },
 		});
 	},

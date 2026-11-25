@@ -156,3 +156,25 @@ export interface TimelineQuery extends PaginationQuery {
 	from?: IsoDateString;
 	to?: IsoDateString;
 }
+
+/**
+ * Effacement des donnees d'un membre, a sa demande (RGPD).
+ *
+ * Deux choses restent, par decision du proprietaire et parce que la politique
+ * de confidentialite les annonce : les **bannissements** (eviter qu'un banni
+ * revienne sans antecedent) et l'**empreinte Battle.net** (anti-multicompte,
+ * 12 mois), BattleTag efface. Le compte Discord n'est alors garde qu'anonymise,
+ * pour que ces lignes restent rattachees a son identifiant.
+ */
+export interface MemberErasureRequest {
+	/** L'identifiant du membre, retape : un effacement ne part pas sur un clic. */
+	confirmation: string;
+}
+
+export interface MemberErasureResult {
+	/** Lignes supprimees, par categorie lisible. */
+	deleted: Record<string, number>;
+	kept: { bans: number; battlenetLinks: number };
+	/** Vrai quand plus rien ne justifiait de garder le compte, meme anonymise. */
+	userRemoved: boolean;
+}

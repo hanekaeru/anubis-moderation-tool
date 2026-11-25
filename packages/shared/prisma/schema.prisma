@@ -228,6 +228,7 @@ model Guild {
   owdleConfig            OwdleConfig?
   owdleDays              OwdleDay[]
   owdleGames             OwdleGame[]
+  owdleWeeklyBonuses     OwdleWeeklyBonus[]
   minigameConfig         MinigameConfig?
   minigameEvents         MinigameEvent[]
 
@@ -281,6 +282,7 @@ model DiscordUser {
   giveawayEntries         GiveawayEntry[]
   staffReminders          StaffReminder[]
   owdleGames              OwdleGame[]
+  owdleWeeklyBonuses      OwdleWeeklyBonus[]
   minigameGames           MinigameGame[]
 
   @@index([username])
@@ -2138,6 +2140,12 @@ model OwdleConfig {
   /// premiere valeur pour une victoire du premier coup, la derniere pour tout
   /// essai au-dela de la liste. Memes valeurs que `OWDLE_DEFAULT_XP_BY_GUESSES`.
   xpByGuesses Int[]  @default([100, 80, 60, 50, 40, 30]) @map("xp_by_guesses")
+  /// Bonus de la semaine : `weeklyBonusXp` quand un membre trouve l'OWdle au
+  /// moins `weeklyBonusDays` jours d'une meme semaine (lundi -> dimanche, heure
+  /// de Paris). 0 XP par defaut : la migration n'active rien, comme les autres
+  /// reglages du depot. Memes valeurs que `OWDLE_DEFAULT_WEEKLY_BONUS_*`.
+  weeklyBonusDays Int @default(7) @map("weekly_bonus_days")
+  weeklyBonusXp   Int @default(0) @map("weekly_bonus_xp")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -2282,6 +2290,25 @@ model OwdleGame {
   /// Rang du jour et classement du mois.
   @@index([guildId, day])
   @@map("owdle_games")
+}
+
+/// Bonus de la semaine deja verse. La cle primaire fait tout le travail : une
+/// seule ligne par membre et par semaine, donc un seul versement, meme si deux
+/// victoires valident la condition en meme temps. `xp` garde le montant
+/// effectivement verse, le reglage pouvant changer ensuite.
+model OwdleWeeklyBonus {
+  guildId   String   @map("guild_id") @db.VarChar(20)
+  userId    String   @map("user_id") @db.VarChar(20)
+  /// Lundi de la semaine, heure de Paris.
+  weekStart DateTime @map("week_start") @db.Date
+  xp        Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  guild Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user  DiscordUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId, weekStart])
+  @@map("owdle_weekly_bonuses")
 }
 
 // ---------------------------------------------------------------------------

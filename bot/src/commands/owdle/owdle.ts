@@ -85,6 +85,7 @@ async function annoncerVictoire(
 	target: OwdleHero,
 	rank: number | null,
 	xp: owdle.XpGain | null,
+	weeklyBonus: number | null,
 ): Promise<void> {
 	const salonId = await owdle.salonAnnonce(interaction.guildId);
 	const salon: GuildTextBasedChannel | null = salonId
@@ -98,7 +99,8 @@ async function annoncerVictoire(
 
 	const n = guesses.length;
 	const rang = rank === 1 ? " — **premier du serveur** aujourd'hui !" : rank ? ` — ${rank}ᵉ du serveur aujourd'hui.` : "";
-	const gain = xp ? `\n-# +${xp.amount} XP` : "";
+	const bonus = weeklyBonus ? " · 🔥 bonus de la semaine" : "";
+	const gain = xp ? `\n-# +${xp.amount} XP${bonus}` : "";
 
 	await salon.send({
 		content: `🎉 ${interaction.user} a trouvé l'OWdle du jour en **${n}** essai${n > 1 ? "s" : ""}${rang}${gain}\n${grillePartagee(guesses, target)}`,
@@ -145,12 +147,16 @@ async function essai(interaction: ChatInputCommandInteraction<"cached">): Promis
 				.setTitle(`Trouvé ! C'était ${issue.target.name}, en ${n} essai${n > 1 ? "s" : ""}.`);
 			const xp = issue.xp;
 			await interaction.editReply({
-				content: xp ? `Tu gagnes **${xp.amount} XP**.` : undefined,
+				content: xp
+					? `Tu gagnes **${xp.amount} XP**${
+							issue.weeklyBonus ? `, dont **${issue.weeklyBonus}** de bonus pour ta semaine 🔥` : ""
+						}.`
+					: undefined,
 				embeds: [embed],
 			});
 
 			// L'annonce ne doit jamais faire echouer une victoire deja enregistree.
-			await annoncerVictoire(interaction, issue.guesses, issue.target, issue.rank, xp).catch((err) =>
+			await annoncerVictoire(interaction, issue.guesses, issue.target, issue.rank, xp, issue.weeklyBonus).catch((err) =>
 				console.error("[OWdle] Annonce de victoire échouée :", err),
 			);
 
@@ -184,6 +190,18 @@ async function stats(interaction: ChatInputCommandInteraction<"cached">): Promis
 			{ name: "Meilleure série", value: `${s.bestStreak} jour(s)`, inline: true },
 			{ name: "Meilleure partie", value: s.bestGame === null ? "—" : `${s.bestGame} essai(s)`, inline: true },
 		);
+
+	// Sans bonus actif, le compte de la semaine n'apprend rien : il n'est montre
+	// que lorsqu'il mene quelque part.
+	if (s.weeklyBonus) {
+		const atteint = s.weekSolved >= s.weeklyBonus.days;
+		embed.addFields({
+			name: "Cette semaine",
+			value: atteint
+				? `${s.weekSolved}/7 jours — bonus de ${s.weeklyBonus.xp} XP obtenu 🔥`
+				: `${s.weekSolved}/7 jours — bonus de ${s.weeklyBonus.xp} XP à ${s.weeklyBonus.days} jours`,
+		});
+	}
 
 	await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }

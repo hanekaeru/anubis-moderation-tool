@@ -15,6 +15,12 @@ export const Permission = {
 	 * rangent le profil. Choisir lesquels le sont releve de `roles:manage`.
 	 */
 	MEMBER_ROLES_WRITE: "member-roles:write",
+	/**
+	 * Exporter ou effacer toutes les donnees d'un membre, a sa demande (RGPD).
+	 * L'effacement est irreversible et touche a la moderation (avertissements,
+	 * sanctions hors bannissements) : administrateurs seulement.
+	 */
+	MEMBER_DATA_MANAGE: "member-data:manage",
 	NOTES_READ: "notes:read",
 	NOTES_WRITE: "notes:write",
 	NOTES_DELETE: "notes:delete",
@@ -187,6 +193,9 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	// membre est verifie, ce qui suffit a son travail.
 	Permission.BATTLENET_READ,
 	Permission.BATTLENET_WRITE,
+	// Effacer un membre fait disparaitre son historique de moderation : une
+	// decision d'administrateur, prise sur demande ecrite de la personne.
+	Permission.MEMBER_DATA_MANAGE,
 	// Le bareme de points decide de ce qui fait passer un membre pour
 	// problematique : le deplacer requalifie tout le serveur d'un seul reglage.
 	// C'est de la doctrine, pas de la moderation courante.

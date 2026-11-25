@@ -23,7 +23,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { forkJoin, map, of, timer } from 'rxjs';
 import {
 	ACCOUNT_FLAG_TYPE_LABELS,
@@ -70,6 +70,7 @@ import { HasPermissionDirective } from '../../../shared/directives/has-permissio
 import { DurationPipe, FrDatePipe, RelativeTimePipe } from '../../../shared/pipes/format.pipes';
 import { SanctionDialog } from '../../moderation/dialogs/sanction-dialog';
 import { WarningDialog } from '../../moderation/dialogs/warning-dialog';
+import { MemberEraseDialog, type MemberEraseDialogData } from './member-erase-dialog';
 import { BattlenetCard } from './battlenet-card';
 
 /**
@@ -137,6 +138,8 @@ export class MemberDetailPage {
 	private readonly auth = inject(AuthService);
 	private readonly dialog = inject(MatDialog);
 	private readonly notifications = inject(NotificationService);
+	private readonly router = inject(Router);
+	readonly exporting = signal(false);
 	private readonly palette = inject(ChartPalette);
 	private readonly formBuilder = inject(FormBuilder);
 	private readonly destroyRef = inject(DestroyRef);
@@ -294,6 +297,51 @@ export class MemberDetailPage {
 	changeActivityPeriod(period: StatsPeriod): void {
 		this.activityPeriod.set(period);
 		this.loadActivity(this.userId());
+	}
+
+	/**
+	 * Export RGPD, telecharge en JSON. Le fichier se transmet tel quel a la
+	 * personne qui l'a demande.
+	 */
+	exportData(): void {
+		const member = this.member();
+		if (!member) return;
+		this.exporting.set(true);
+		this.membersApi.exportData(member.userId).subscribe({
+			next: (data) => {
+				this.exporting.set(false);
+				const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+				const url = URL.createObjectURL(blob);
+				const lien = document.createElement('a');
+				lien.href = url;
+				lien.download = `donnees-${member.userId}.json`;
+				lien.click();
+				URL.revokeObjectURL(url);
+			},
+			error: () => this.exporting.set(false),
+		});
+	}
+
+	openEraseDialog(): void {
+		const member = this.member();
+		if (!member) return;
+		this.dialog
+			.open<MemberEraseDialog, MemberEraseDialogData>(MemberEraseDialog, {
+				data: { userId: member.userId, memberLabel: this.displayName() },
+				width: '620px',
+				maxWidth: '95vw',
+			})
+			.afterClosed()
+			.subscribe((result) => {
+				if (!result) return;
+				const gardes = result.kept.bans + result.kept.battlenetLinks;
+				this.notifications.success(
+					gardes
+						? 'Données effacées. Bannissements et empreinte Battle.net conservés, compte anonymisé.'
+						: 'Données effacées.',
+				);
+				void this.router.navigate(['/membres']);
+			});
 	}
 
 	openWarningDialog(): void {

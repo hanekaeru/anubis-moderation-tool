@@ -176,6 +176,29 @@ EXISTS` dans la migration initiale, pour ne pas ecraser les donnees d'XP
   appelante : le cookie de refresh est limite au chemin `/api/auth` et
   n'atteint aucune autre route. Une session **est** une famille, pas un jeton —
   la rotation en cree un nouveau a chaque rafraichissement.
+- **Export et effacement RGPD** (`members/member-data.service.ts`,
+  `member-data:manage`, administrateurs) : depuis la fiche membre, « Donnees
+  (RGPD) ». **La liste des tables a couvrir est celle des relations de
+  `DiscordUser`** dans le schema, plus `user_levels` et `xp_adjustments` qui
+  n'ont pas de cle etrangere : une table ajoutee sans etre reportee dans ce
+  service echapperait a l'export et survivrait a l'effacement. Trois decisions
+  du proprietaire :
+  - **restent** les sanctions `BAN` (avec l'incident automod qui les a
+    motivees) et l'**empreinte Battle.net**, BattleTag efface — la politique de
+    confidentialite annonce les deux. Le compte n'est alors garde
+    qu'**anonymise** (`compte-efface`), parce que ces lignes portent son
+    identifiant ; un banni garde aussi sa ligne `members` (statut `BANNED`, lu
+    par le bot). Sans rien a garder, le compte est supprime.
+  - l'identifiant se **retape**, cote dashboard et cote API : c'est la seule
+    action irreversible du dashboard.
+  - le journal d'audit ne retient que l'identifiant et des compteurs, jamais ce
+    qui a ete efface.
+  - les **notes du staff ne sont pas exportees** (aide-memoire internes, au meme
+    titre qu'un identifiant note dans un bloc-notes), mais elles sont bien
+    **effacees** avec le reste.
+  Un membre encore present recommence a etre compte des l'effacement ; les
+  compteurs en memoire du bot peuvent recreer une ligne d'activite des quinze
+  secondes precedentes.
 - `OWNER_ONLY_PERMISSIONS` (`packages/shared/src/permissions.ts`) recense les
   droits volontairement absents de la matrice : le proprietaire les recoit par
   `Object.values(Permission)`. `permissions.spec.ts` verifie qu'aucun n'a glisse
@@ -513,6 +536,25 @@ le dev avec rechargement).
   La liste blanche des types acceptes vit dans `@anubis/shared`
   (`MODERATION_ATTACHMENT_CONTENT_TYPES`) parce que trois chemins la
   verifient — API (seule a faire foi), dashboard et bot.
+- **Supervision exterieure** (`src/collectors/healthcheck.ts` cote bot,
+  `api/src/health/healthcheck-ping.service.ts` cote API, variable
+  `HEALTHCHECK_URL` dans chaque environnement) : un signal de vie toutes les
+  5 minutes vers Healthchecks.io, qui previent le proprietaire (ntfy sur son
+  telephone, webhook Discord) quand ils s'arretent. Trois points a garder :
+  - **c'est le silence qui alerte**, jamais un message « en panne » : une
+    alerte emise depuis le VPS se tairait avec lui. Le delai se regle sur
+    Healthchecks.io, sans redeployer : periode 5 min et grace 10 a 15 min, soit
+    une alerte 15 a 20 minutes apres le dernier signal (bot eteint, l'automod
+    et la quarantaine ne font plus rien). Un redeploiement normal reste bien
+    en dessous. Pour la meme raison, aucun signal d'echec (`/fail`) n'est
+    envoye : il declencherait l'alerte sans attendre le delai choisi.
+  - le signal **atteste la base** : le bot ne l'envoie qu'apres un battement
+    ecrit et connecte a Discord, l'API qu'apres un `SELECT 1`. Un process
+    vivant qui ne peut plus rien ecrire compte comme en panne.
+  - **une adresse par conteneur** : l'alerte dit lequel est tombe. Aucune
+    donnee ne part avec le signal, et un echec ne se journalise qu'au
+    changement d'etat (sinon une ligne toutes les 5 minutes pendant toute une
+    panne reseau).
 - **Synchronisation Discord** (`src/events/ready.ts`) : un seul `setInterval` a
   5s (`DISCORD_SYNC_INTERVAL_MS`, reduit de 30s) enchaine les rattrapages
   sanctions, tickets et anti-raid. Meme patron partout : une ecriture web
@@ -902,6 +944,16 @@ le dev avec rechargement).
     si elle apporte quelque chose (match non termine, ou score saisi
     different). Le bouton rappelle Liquipedia si le cache a plus de deux
     minutes et se contente du cache sinon : il ne repond jamais par un refus.
+    **« Valider les scores proposes »** fait la meme chose que « Terminer » sur
+    plusieurs matchs a la fois (`validateSuggestions`, une seule
+    resynchronisation et un seul `verifierTaille`, une entree d'audit par
+    match). Ce n'est pas une validation automatique : le dialogue liste chaque
+    score a cocher, **forfaits decoches par defaut** (le score propose n'y est
+    que le minimum pour gagner), et le client renvoie les scores **tels
+    qu'affiches** — l'API refuse le lot entier (409) si une proposition a
+    change entre-temps, parce que valider un score que personne n'a lu
+    reviendrait a publier automatiquement. Le spoiler du match n'est pas
+    touche, et une annonce deja demandee reste demandee.
   - les equipes se reconnaissent par **`liquipediaName`** (le nom de
     l'adversaire, c'est-a-dire sa page), puis par nom affiche pour relier une
     equipe saisie a la main (elle garde son emoji et son logo). **Aucun logo
@@ -1040,6 +1092,16 @@ le dev avec rechargement).
   est route par `interactionCreate.ts`, sans cooldown (une requete par frappe).
   Une suggestion n'engage rien cote client, d'ou `resolveOwdleHero` a la
   reception.
+  **Bonus de la semaine** (`owdle_config.weekly_bonus_days` / `_xp`,
+  `owdle_weekly_bonuses`) : un membre qui trouve au moins N jours d'une meme
+  semaine (lundi -> dimanche, heure de Paris) gagne X XP, verse a la victoire
+  qui atteint le seuil. **Desactive par defaut (0 XP)** : la migration ne
+  change rien a un serveur qui n'ouvre pas la page. Une seule fois par semaine,
+  et c'est la **cle primaire** de `owdle_weekly_bonuses` qui le garantit — la
+  ligne est creee avant le versement, un conflit dit qu'un autre passage l'a
+  deja fait. Le bonus est additionne au gain de la victoire (`cumuler`) : c'est
+  le total qui decide d'une montee de niveau. La regle (`owdleWeeklyBonusEarned`)
+  vit dans `@anubis/shared`.
 - **Calendrier des mini-jeux** (`minigame_*`, `packages/shared/src/minigames.ts`,
   `api/src/minigames/`, `src/tasks/minigameSync.ts`,
   `src/collectors/minigames.ts`, `/devine`, `features/minigames/`) : un jeu par
@@ -1166,6 +1228,38 @@ le dev avec rechargement).
     salon existe.
   `automod.processMessage` rend desormais `true` quand il a fait supprimer le
   message : l'apercu repondrait sinon a un message disparu.
+- **Menus contextuels** (clic droit > Applications) : `MessageContextMenuCommand`
+  (`types.ts`, marqueur `contextMenu: true`) se depose dans `commands/` comme une
+  commande slash, et `loadCommands`/`refresh.ts` les publient ensemble — Discord
+  les range dans le meme espace de noms. `interactionCreate` les route a part
+  (`estMenuContextuel`) : une commande slash et un menu ne recoivent pas la meme
+  interaction.
+- **Signaler un message** (« Signaler au staff », `src/collectors/reports.ts`,
+  `src/handlers/reportInteractions.ts`, salon `LOG_CHANNEL_REPORTS` cree par
+  `/create_logs`) : le message, l'auteur et la personne qui signale partent
+  dans le salon des signalements, avec deux boutons qui ouvrent la fiche
+  `/whois` de chacun. Quatre points a garder :
+  - le message est **capture au clic**, avant la modale du motif : l'auteur
+    peut le supprimer pendant qu'on ecrit, le signalement doit quand meme dire
+    ce qui etait ecrit. La capture vit en memoire 15 minutes, jamais en base —
+    le contenu ne fait que passer d'un salon a l'autre, comme l'apercu des liens.
+  - les boutons « Fiche » **reverifient `ModerateMembers`** : un bouton se
+    clique de partout ou le message aurait ete transfere. La fiche est
+    `ficheWhois`, la meme fonction que `/whois`.
+  - un signalement par message et par personne (24 h), 30 s entre deux, ni son
+    propre message ni ceux du bot. La mention du role d'alerte suit la meme
+    regle que les tickets (dans `content`, seul role autorise a sonner).
+  - sans salon configure, le membre **est prevenu** que rien n'est parti : lui
+    laisser croire que le staff a ete averti serait pire que l'echec.
+  Les pieces jointes sont citees par leur lien CDN, qui expire : le staff doit
+  ouvrir un signalement le jour meme pour voir une image.
+- **`/lfg`** (`src/collectors/lfg.ts`) : annonce de recherche de groupe dans le
+  salon courant, roles recherches avec les emojis du sujet des vocaux, lien
+  « Rejoindre le vocal » si l'auteur y est deja. **Rien n'est stocke** : l'etat
+  est l'embed, et « Groupe complet » le corrige (auteur ou `ModerateMembers`,
+  l'auteur lu dans l'identifiant du bouton — donc survit a un redemarrage). Les
+  salons ou elle est permise se reglent dans les parametres d'integration de
+  Discord, pas dans le code.
 - **`/clear`** : `bulkDelete` refuse les messages de plus de 14 jours, la
   commande le dit plutot que de laisser remonter une erreur opaque. Avec
   l'option `membre`, elle relit 100 messages pour en trouver N de cette
@@ -1394,6 +1488,18 @@ le dev avec rechargement).
   Battle.net se collait aux vignettes de la fiche membre. Dans une grille ou un
   flex le probleme ne se voit pas (les enfants y sont convertis en blocs), d'ou
   sa discretion.
+- **« A traiter »** (`features/inbox/`, `api/src/inbox/`) : ce qui attend
+  quelqu'un du staff, toutes pages confondues — sanctions web pas appliquees
+  apres 5 min (le bot ne tourne pas), tickets sans premiere reponse, comptes
+  signales non examines, quarantaines bloquees depuis plus d'un jour, scores
+  esport proposes, publications refusees par Discord, jours sans mini-jeu dans
+  la semaine. **La route n'a pas de permission** : chaque section verifie
+  celle de la page qu'elle resume, et n'est meme pas lue sinon — un compte
+  d'animation n'y voit que les mini-jeux et l'esport. **Rien n'est stocke** :
+  tout se relit dans les tables qui portent deja l'etat, une ligne traitee
+  ailleurs disparait d'ici sans synchronisation. C'est aussi la seule entree de
+  barre laterale a `permissions: []`, que le filtre du `Shell` traite comme
+  « ouverte a tous ».
 - **Les listes d'identifiants se saisissent par `shared/validators/snowflake-list.ts`.**
   Le dashboard n'a pas de selecteur de roles ni de salons — simplification
   assumee. Ce qui manquait, c'est de **dire ce qui ne va pas** : une faute de

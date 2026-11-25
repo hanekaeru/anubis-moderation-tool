@@ -1,5 +1,7 @@
 import type { User } from "discord.js";
 import {
+	OWDLE_DEFAULT_WEEKLY_BONUS_DAYS,
+	OWDLE_DEFAULT_WEEKLY_BONUS_XP,
 	OWDLE_DEFAULT_XP_BY_GUESSES,
 	OWDLE_RECENT_EXCLUSION_DAYS,
 	type OwdleHero,
@@ -7,6 +9,9 @@ import {
 	addDaysToKey,
 	owdleDayKey,
 	owdleStreaks,
+	owdleWeekSolvedDays,
+	owdleWeekStart,
+	owdleWeeklyBonusEarned,
 	owdleXpForGuesses,
 	pickOwdleHero,
 	resolveOwdleHero,
@@ -116,8 +121,14 @@ export type GuessOutcome =
 			solved: boolean;
 			/** Rang parmi les gagnants du jour, seulement a la victoire. */
 			rank: number | null;
-			/** Experience gagnee, seulement a la victoire et si le bareme en donne. */
+			/**
+			 * Experience gagnee, seulement a la victoire et si le bareme en donne.
+			 * Bonus de la semaine compris : c'est le total qui decide d'une montee de
+			 * niveau.
+			 */
 			xp: XpGain | null;
+			/** Part du bonus de la semaine dans `xp`, `null` s'il n'est pas tombe. */
+			weeklyBonus: number | null;
 		};
 
 export interface XpGain {
@@ -159,6 +170,64 @@ async function crediter(guildId: string, userId: string, essais: number): Promis
 		console.error("[OWdle] Gain d'expérience échoué :", err);
 		return null;
 	}
+}
+
+/**
+ * Bonus de la semaine : verse a la victoire qui atteint le seuil de jours
+ * trouves dans la semaine (lundi -> dimanche, heure de Paris).
+ *
+ * Une seule fois par semaine, et c'est la cle primaire de
+ * `owdle_weekly_bonuses` qui le garantit : la ligne est creee **avant** le
+ * versement, et un conflit dit qu'un autre passage l'a deja verse. Comme pour
+ * la victoire, une erreur ici ne fait jamais perdre la partie.
+ */
+async function bonusDeLaSemaine(guildId: string, userId: string, now: Date): Promise<XpGain | null> {
+	try {
+		const config = await prisma.owdleConfig.findUnique({
+			where: { guildId },
+			select: { weeklyBonusDays: true, weeklyBonusXp: true },
+		});
+		const reglage = {
+			weeklyBonusDays: config?.weeklyBonusDays ?? OWDLE_DEFAULT_WEEKLY_BONUS_DAYS,
+			weeklyBonusXp: config?.weeklyBonusXp ?? OWDLE_DEFAULT_WEEKLY_BONUS_XP,
+		};
+		if (reglage.weeklyBonusXp <= 0) return null;
+
+		const jour = owdleDayKey(now);
+		const debut = owdleWeekStart(jour);
+		const trouvees = await prisma.owdleGame.findMany({
+			where: {
+				guildId,
+				userId,
+				solvedAt: { not: null },
+				day: { gte: versDate(debut), lte: versDate(addDaysToKey(debut, 6)) },
+			},
+			select: { day: true },
+		});
+		if (!owdleWeeklyBonusEarned(trouvees.map((p) => versCle(p.day)), jour, reglage)) return null;
+
+		try {
+			await prisma.owdleWeeklyBonus.create({
+				data: { guildId, userId, weekStart: versDate(debut), xp: reglage.weeklyBonusXp },
+			});
+		} catch (err) {
+			if (estConflitUnique(err)) return null;
+			throw err;
+		}
+
+		const { before, after } = await xpManager.addXp(userId, guildId, reglage.weeklyBonusXp);
+		return { amount: reglage.weeklyBonusXp, before, after };
+	} catch (err) {
+		console.error("[OWdle] Bonus de la semaine échoué :", err);
+		return null;
+	}
+}
+
+/** Additionne deux gains successifs : avant du premier, apres du second. */
+function cumuler(a: XpGain | null, b: XpGain | null): XpGain | null {
+	if (!a) return b;
+	if (!b) return a;
+	return { amount: a.amount + b.amount, before: a.before, after: b.after };
 }
 
 /** Enregistre un essai du joueur pour la partie du jour. */
@@ -218,8 +287,18 @@ export async function proposer(
 	// Credite apres le `count` : seule la validation qui a pose la victoire
 	// rapporte, deux clics simultanes ne paient pas deux fois.
 	const xp = solved ? await crediter(guildId, user.id, apres.guesses.length) : null;
+	// Apres la victoire du jour : c'est elle qui peut faire atteindre le seuil.
+	const bonus = solved ? await bonusDeLaSemaine(guildId, user.id, now) : null;
 
-	return { kind: "PLAYED", target, guesses: await versHeros(apres.guesses), solved, rank, xp };
+	return {
+		kind: "PLAYED",
+		target,
+		guesses: await versHeros(apres.guesses),
+		solved,
+		rank,
+		xp: cumuler(xp, bonus),
+		weeklyBonus: bonus?.amount ?? null,
+	};
 }
 
 export interface OwdleStats {
@@ -230,6 +309,10 @@ export interface OwdleStats {
 	bestGame: number | null;
 	currentStreak: number;
 	bestStreak: number;
+	/** Jours trouves dans la semaine en cours (lundi -> dimanche). */
+	weekSolved: number;
+	/** Seuil du bonus de la semaine, `null` s'il est desactive. */
+	weeklyBonus: { days: number; xp: number } | null;
 }
 
 export async function statistiques(guildId: string, userId: string, now = new Date()): Promise<OwdleStats> {
@@ -243,7 +326,13 @@ export async function statistiques(guildId: string, userId: string, now = new Da
 	const jouees = parties.filter((p) => p.guesses.length > 0);
 	const gagnees = jouees.filter((p) => p.solvedAt !== null);
 	const essais = gagnees.map((p) => p.guesses.length);
-	const series = owdleStreaks(gagnees.map((p) => versCle(p.day)), owdleDayKey(now));
+	const jours = gagnees.map((p) => versCle(p.day));
+	const series = owdleStreaks(jours, owdleDayKey(now));
+	const config = await prisma.owdleConfig.findUnique({
+		where: { guildId },
+		select: { weeklyBonusDays: true, weeklyBonusXp: true },
+	});
+	const bonusXp = config?.weeklyBonusXp ?? OWDLE_DEFAULT_WEEKLY_BONUS_XP;
 
 	return {
 		played: jouees.length,
@@ -252,6 +341,11 @@ export async function statistiques(guildId: string, userId: string, now = new Da
 		bestGame: essais.length ? Math.min(...essais) : null,
 		currentStreak: series.current,
 		bestStreak: series.best,
+		weekSolved: owdleWeekSolvedDays(jours, owdleDayKey(now)),
+		weeklyBonus:
+			bonusXp > 0
+				? { days: config?.weeklyBonusDays ?? OWDLE_DEFAULT_WEEKLY_BONUS_DAYS, xp: bonusXp }
+				: null,
 	};
 }
 

@@ -18,6 +18,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
+	MAX_OWDLE_WEEKLY_BONUS_XP,
 	MAX_OWDLE_XP_PER_WIN,
 	MAX_OWDLE_XP_STEPS,
 	OWDLE_REGION_LABELS,
@@ -120,7 +121,10 @@ export class OwdlePage {
 	readonly configForm = this.formBuilder.nonNullable.group({
 		channelId: ['', [Validators.pattern(SNOWFLAKE)]],
 		xpByGuesses: this.xpSteps,
+		weeklyBonusDays: [7, [Validators.required, Validators.min(1), Validators.max(7)]],
+		weeklyBonusXp: [0, [Validators.required, Validators.min(0), Validators.max(MAX_OWDLE_WEEKLY_BONUS_XP)]],
 	});
+	readonly maxWeeklyBonus = MAX_OWDLE_WEEKLY_BONUS_XP;
 
 	constructor() {
 		this.load(true);
@@ -160,6 +164,8 @@ export class OwdlePage {
 			.updateConfig({
 				channelId: raw.channelId.trim() || null,
 				xpByGuesses: raw.xpByGuesses.map((value) => Math.round(value)),
+				weeklyBonusDays: Math.round(raw.weeklyBonusDays),
+				weeklyBonusXp: Math.round(raw.weeklyBonusXp),
 			})
 			.subscribe({
 				next: (config) => {
@@ -258,6 +264,8 @@ export class OwdlePage {
 		this.xpSteps.clear();
 		for (const value of config.xpByGuesses) this.xpSteps.push(this.stepControl(value));
 		this.configForm.controls.channelId.setValue(config.channelId ?? '');
+		this.configForm.controls.weeklyBonusDays.setValue(config.weeklyBonusDays);
+		this.configForm.controls.weeklyBonusXp.setValue(config.weeklyBonusXp);
 		this.configForm.markAsPristine();
 	}
 

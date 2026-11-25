@@ -18,6 +18,7 @@ import { loadConfiguration } from "./config/configuration";
 import { GiveawayModule } from "./giveaway/giveaway.module";
 import { GuildConfigModule } from "./guild-config/guild-config.module";
 import { HealthModule } from "./health/health.module";
+import { InboxModule } from "./inbox/inbox.module";
 import { MembersModule } from "./members/members.module";
 import { ModerationModule } from "./moderation/moderation.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -66,6 +67,7 @@ import { XpModule } from "./xp/xp.module";
 		RaidModule,
 		QuarantineModule,
 		AccountFlagsModule,
+		InboxModule,
 		AccountModule,
 		StatusModule,
 		VerificationModule,

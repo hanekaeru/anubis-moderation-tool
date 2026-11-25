@@ -4,6 +4,7 @@ import {
 	lastKnownHeartbeat,
 	recordHeartbeat,
 } from "../collectors/heartbeat";
+import { adresseDuSignal, signalerVie } from "../collectors/healthcheck";
 import * as giveaway from "../collectors/giveaway";
 import * as quarantine from "../collectors/quarantine";import { appliquerDemandesDeRoles } from "../tasks/memberRoleRequests";
 import { checkPendingAccountFlagAlerts } from "../tasks/accountFlagAlerts";
@@ -123,14 +124,23 @@ const event: BotEvent<typeof Events.ClientReady> = {
 
 		// Premier battement immediat : sans lui, la page de statut affiche le bot
 		// hors ligne pendant les premieres secondes suivant un redemarrage.
-		await recordHeartbeat(client).catch((err) => {
-			console.error("[Statut] Battement initial non enregistré :", err);
-		});
+		// Le signal exterieur ne part qu'apres un battement ecrit : il atteste
+		// que la base repond, pas seulement que le process tourne.
+		await recordHeartbeat(client)
+			.then(() => signalerVie(client))
+			.catch((err) => {
+				console.error("[Statut] Battement initial non enregistré :", err);
+			});
+		if (process.env.HEALTHCHECK_URL?.trim() && !adresseDuSignal(process.env.HEALTHCHECK_URL)) {
+			console.error("[Supervision] HEALTHCHECK_URL n'est pas une adresse http(s) : aucun signal ne partira.");
+		}
 
 		setInterval(() => {
-			recordHeartbeat(client).catch((err) => {
-				console.error("[Statut] Battement non enregistré :", err);
-			});
+			recordHeartbeat(client)
+				.then(() => signalerVie(client))
+				.catch((err) => {
+					console.error("[Statut] Battement non enregistré :", err);
+				});
 			checkExpiredShadowbans(client).catch((err) => {
 				console.error(
 					"[Shadowban] Vérification des expirations échouée :",

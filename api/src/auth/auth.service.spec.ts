@@ -48,7 +48,7 @@ function baseConfig(): AppConfig {
 			idSecret: "",
 			available: false,
 		},
-		liquipedia: { apiKey: "", available: false },
+		liquipedia: { apiKey: "", available: false }, healthcheckUrl: "",
 	};
 }
 
