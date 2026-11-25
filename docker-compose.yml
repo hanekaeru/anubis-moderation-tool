@@ -49,6 +49,11 @@ services:
             # Import des matchs esport (facultatif). Vide : l'import est
             # annonce indisponible, la saisie manuelle reste entiere.
             LIQUIPEDIA_API_KEY: ${LIQUIPEDIA_API_KEY:-}
+            # Signal de vie vers la supervision exterieure (Healthchecks.io).
+            # Les variables Coolify valent pour toute la stack : chaque conteneur
+            # lit donc la sienne sous un nom distinct, ramenee ici au nom que le
+            # code attend. Vide : aucun signal.
+            HEALTHCHECK_URL: ${HEALTHCHECK_URL_API:-}
 
     webapp:
         build:
@@ -74,3 +79,5 @@ services:
             # Politique de confidentialite, liee depuis les messages de
             # verification Battle.net. Vide : le lien est simplement omis.
             PRIVACY_POLICY_URL: ${PRIVACY_POLICY_URL:-}
+            # Signal de vie du bot, avec sa propre adresse (voir le service api).
+            HEALTHCHECK_URL: ${HEALTHCHECK_URL_BOT:-}

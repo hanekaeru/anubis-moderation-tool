@@ -552,6 +552,12 @@ docker build -f bot/Dockerfile -t anubis-bot .
       reporter aussi dans le champ _Privacy Policy URL_ des portails
       développeurs Discord et Blizzard, que leurs conditions rendent
       obligatoire.
+    - `HEALTHCHECK_URL_API` et `HEALTHCHECK_URL_BOT` (**facultatives**) :
+      les « Ping URL » de deux checks Healthchecks.io, un par conteneur. Les
+      variables Coolify valent pour toute la stack ; c'est `docker-compose.yml`
+      qui donne à chaque conteneur la sienne, sous le nom `HEALTHCHECK_URL` que
+      le code attend. Vides : aucun signal. Réglages côté Healthchecks.io :
+      période 5 min, grâce 10 à 15 min.
 5. **Webhook** : Coolify l'a déjà enregistré côté GitHub via la GitHub App de
    l'étape 6 — chaque push sur `master` redéploiera automatiquement.
 6. **Migrations** : rien à configurer. Le conteneur `api` applique les
