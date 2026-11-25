@@ -551,7 +551,12 @@ le dev avec rechargement).
   - le signal **atteste la base** : le bot ne l'envoie qu'apres un battement
     ecrit et connecte a Discord, l'API qu'apres un `SELECT 1`. Un process
     vivant qui ne peut plus rien ecrire compte comme en panne.
-  - **une adresse par conteneur** : l'alerte dit lequel est tombe. Aucune
+  - **une adresse par conteneur** : l'alerte dit lequel est tombe. Coolify
+    deploie une seule ressource Docker Compose dont les variables valent pour
+    toute la stack : on y pose `HEALTHCHECK_URL_API` et `HEALTHCHECK_URL_BOT`,
+    et `docker-compose.yml` les ramene chacune a `HEALTHCHECK_URL` dans son
+    conteneur. **Une variable ajoutee au code sans etre reportee dans
+    l'`environment:` du compose n'atteint jamais le conteneur.** Aucune
     donnee ne part avec le signal, et un echec ne se journalise qu'au
     changement d'etat (sinon une ligne toutes les 5 minutes pendant toute une
     panne reseau).
