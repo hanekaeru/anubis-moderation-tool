@@ -105,6 +105,7 @@ import { readApiError } from '../../../core/error.interceptor';
 		.form {
 			display: flex;
 			flex-direction: column;
+			gap: var(--space-4);
 			min-width: 400px;
 		}
 

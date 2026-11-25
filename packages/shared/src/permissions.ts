@@ -15,6 +15,12 @@ export const Permission = {
 	 * rangent le profil. Choisir lesquels le sont releve de `roles:manage`.
 	 */
 	MEMBER_ROLES_WRITE: "member-roles:write",
+	/**
+	 * Exporter ou effacer toutes les donnees d'un membre, a sa demande (RGPD).
+	 * L'effacement est irreversible et touche a la moderation (avertissements,
+	 * sanctions hors bannissements) : administrateurs seulement.
+	 */
+	MEMBER_DATA_MANAGE: "member-data:manage",
 	NOTES_READ: "notes:read",
 	NOTES_WRITE: "notes:write",
 	NOTES_DELETE: "notes:delete",
@@ -92,6 +98,19 @@ export const Permission = {
 	 * moderateur.
 	 */
 	ESPORT_MANAGE: "esport:manage",
+	/**
+	 * Voir le calendrier des mini-jeux. La page montre les reponses : elle
+	 * n'est pas ouverte aux comptes en lecture seule, qui jouent aussi.
+	 */
+	MINIGAMES_READ: "minigames:read",
+	/** Preparer les jeux, jusqu'a la veille 23:59 (heure de Paris). */
+	MINIGAMES_WRITE: "minigames:write",
+	/**
+	 * Corriger un jeu deja verrouille, regler salons, baremes et semaine type,
+	 * gerer les maps. Le bareme pese sur les niveaux de tout le serveur : meme
+	 * rang que `XP_MANAGE`.
+	 */
+	MINIGAMES_MANAGE: "minigames:manage",
 	SESSIONS_READ: "sessions:read",
 	SESSIONS_REVOKE: "sessions:revoke",
 } as const;
@@ -146,6 +165,8 @@ const MODERATOR_PERMISSIONS: Permission[] = [
 	// Meme raison que les concours : tenir le calendrier des matchs fait partie
 	// de l'animation, pas de la configuration.
 	Permission.ESPORT_WRITE,
+	Permission.MINIGAMES_READ,
+	Permission.MINIGAMES_WRITE,
 	// Lire les messages composes par l'equipe : savoir ce qui a ete annonce
 	// fait partie du contexte d'une moderation.
 	Permission.EMBEDS_READ,
@@ -172,6 +193,9 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	// membre est verifie, ce qui suffit a son travail.
 	Permission.BATTLENET_READ,
 	Permission.BATTLENET_WRITE,
+	// Effacer un membre fait disparaitre son historique de moderation : une
+	// decision d'administrateur, prise sur demande ecrite de la personne.
+	Permission.MEMBER_DATA_MANAGE,
 	// Le bareme de points decide de ce qui fait passer un membre pour
 	// problematique : le deplacer requalifie tout le serveur d'un seul reglage.
 	// C'est de la doctrine, pas de la moderation courante.
@@ -193,6 +217,26 @@ const ADMIN_PERMISSIONS: Permission[] = [
 	Permission.XP_MANAGE,
 	Permission.OWDLE_MANAGE,
 	Permission.ESPORT_MANAGE,
+	Permission.MINIGAMES_MANAGE,
+];
+
+/**
+ * Animation du serveur : mini-jeux, esport, concours, et la page de statut
+ * pour dire si quelque chose est tombe quand aucun moderateur n'est la.
+ *
+ * **N'herite pas de `VIEWER_PERMISSIONS`**, qui lit deja des fiches membres,
+ * des sanctions et des tickets. Ni wiki (il porte la doctrine de moderation),
+ * ni messages composes : parler au nom du serveur reste aux administrateurs.
+ * `permissions.spec.ts` verifie qu'aucun droit de moderation n'y glisse.
+ */
+export const STAFF_PERMISSIONS: readonly Permission[] = [
+	Permission.MINIGAMES_READ,
+	Permission.MINIGAMES_WRITE,
+	Permission.ESPORT_READ,
+	Permission.ESPORT_WRITE,
+	Permission.GIVEAWAY_READ,
+	Permission.GIVEAWAY_WRITE,
+	Permission.STATUS_READ,
 ];
 
 /**
@@ -220,6 +264,7 @@ export const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
 	MODERATOR: MODERATOR_PERMISSIONS,
 	ADMIN: ADMIN_PERMISSIONS,
 	OWNER: Object.values(Permission),
+	STAFF: STAFF_PERMISSIONS,
 };
 
 export function permissionsForRole(role: AppUserRole): readonly Permission[] {
@@ -282,4 +327,7 @@ export const ROLE_RANK: Record<AppUserRole, number> = {
 	MODERATOR: 1,
 	ADMIN: 2,
 	OWNER: 3,
+	// Au rang de la lecture seule : seuls les administrateurs creent et gerent
+	// ces comptes.
+	STAFF: 0,
 };

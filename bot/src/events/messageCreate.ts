@@ -3,6 +3,7 @@ import type { BotEvent } from "../types";
 import xpManager from "../collectors/xp";
 import activite from "../collectors/activite";
 import * as automod from "../collectors/automod";
+import * as apercuLiens from "../collectors/messageLinks";
 import * as referentiel from "../collectors/referentiel";
 import * as tickets from "../collectors/tickets";
 import * as xpAnnounce from "../collectors/xpAnnounce";
@@ -35,9 +36,19 @@ const event: BotEvent<typeof Events.MessageCreate> = {
 			activite.enregistrerMessage(message);
 		}
 
-		await automod.processMessage(message).catch((err) => {
+		const supprime = await automod.processMessage(message).catch((err) => {
 			console.error("[Automod] Traitement du message échoué :", err);
+			return false;
 		});
+
+		// Apres l'automod : un message supprime par une regle n'a plus rien a
+		// citer, et la reponse viserait un message disparu. Non attendu — relire
+		// jusqu'a trois messages ne doit pas retarder l'XP ni les tickets.
+		if (!supprime) {
+			void apercuLiens.repondreAvecApercus(message).catch((err) => {
+				console.error("[Apercu] Traitement des liens échoué :", err);
+			});
+		}
 
 		const ticketId = tickets.ticketIdForChannel(message.channel.id);
 		if (ticketId) {

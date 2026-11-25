@@ -4,6 +4,7 @@ import {
 	lastKnownHeartbeat,
 	recordHeartbeat,
 } from "../collectors/heartbeat";
+import { adresseDuSignal, signalerVie } from "../collectors/healthcheck";
 import * as giveaway from "../collectors/giveaway";
 import * as quarantine from "../collectors/quarantine";import { appliquerDemandesDeRoles } from "../tasks/memberRoleRequests";
 import { checkPendingAccountFlagAlerts } from "../tasks/accountFlagAlerts";
@@ -19,6 +20,8 @@ import * as voiceHubs from "../collectors/voiceHubs";
 import * as xpRewards from "../collectors/xpRewards";
 import { checkPendingEmbeds } from "../tasks/embedSync";
 import { synchroniserEsport } from "../tasks/esportSync";
+import { synchroniserMiniJeux } from "../tasks/minigameSync";
+import { modeTestActif } from "../collectors/minigameClock";
 import {
 	checkAppliedSanctions,
 	checkExpiredShadowbans,
@@ -61,6 +64,14 @@ const event: BotEvent<typeof Events.ClientReady> = {
 	async execute(client) {
 		console.log(`Ready! Logged in as ${client.user.tag}`);
 		console.log(`Deployed on ${process.env.NODE_ENV} env...`);
+
+		// Reaffiche a chaque demarrage, comme `TWO_FACTOR_ENABLED` cote API : un
+		// mode recette oublie survivrait sinon a la mise en production.
+		if (modeTestActif()) {
+			console.warn(
+				"[Mini-jeux] MODE TEST ACTIF (MINIGAME_TEST_MODE=true) : /minijeu-test est disponible et peut déplacer l'horloge des mini-jeux. À ne jamais activer en production.",
+			);
+		}
 
 		// Une base publique absente ou absurde ne se voit autrement qu'au premier
 		// clic d'un arrivant, sous la forme d'un refus de Discord. Elle se signale
@@ -113,14 +124,23 @@ const event: BotEvent<typeof Events.ClientReady> = {
 
 		// Premier battement immediat : sans lui, la page de statut affiche le bot
 		// hors ligne pendant les premieres secondes suivant un redemarrage.
-		await recordHeartbeat(client).catch((err) => {
-			console.error("[Statut] Battement initial non enregistré :", err);
-		});
+		// Le signal exterieur ne part qu'apres un battement ecrit : il atteste
+		// que la base repond, pas seulement que le process tourne.
+		await recordHeartbeat(client)
+			.then(() => signalerVie(client))
+			.catch((err) => {
+				console.error("[Statut] Battement initial non enregistré :", err);
+			});
+		if (process.env.HEALTHCHECK_URL?.trim() && !adresseDuSignal(process.env.HEALTHCHECK_URL)) {
+			console.error("[Supervision] HEALTHCHECK_URL n'est pas une adresse http(s) : aucun signal ne partira.");
+		}
 
 		setInterval(() => {
-			recordHeartbeat(client).catch((err) => {
-				console.error("[Statut] Battement non enregistré :", err);
-			});
+			recordHeartbeat(client)
+				.then(() => signalerVie(client))
+				.catch((err) => {
+					console.error("[Statut] Battement non enregistré :", err);
+				});
 			checkExpiredShadowbans(client).catch((err) => {
 				console.error(
 					"[Shadowban] Vérification des expirations échouée :",
@@ -194,6 +214,11 @@ const event: BotEvent<typeof Events.ClientReady> = {
 			});
 			synchroniserEsport(client).catch((err) => {
 				console.error("[Esport] Synchronisation échouée :", err);
+			});
+			// Publication a minuit, ping a l'heure reglee, corrections et
+			// fermeture : une journee de jeu ne depend que de ce passage.
+			synchroniserMiniJeux(client).catch((err) => {
+				console.error("[Mini-jeux] Synchronisation échouée :", err);
 			});
 			// Un salon de creation ajoute depuis le dashboard n'existe pas encore
 			// sur Discord : sans ce rattrapage, il fallait lancer `/create_parties`

@@ -12,6 +12,9 @@ import {
 	renderOwdleShareGrid,
 	resolveOwdleHero,
 	searchOwdleHeroes,
+	owdleWeekSolvedDays,
+	owdleWeekStart,
+	owdleWeeklyBonusEarned,
 } from "./owdle";
 
 /**
@@ -217,5 +220,27 @@ describe("owdleStreaks", () => {
 
 	it("ne compte rien sans victoire", () => {
 		expect(owdleStreaks([], "2026-10-11")).toEqual({ current: 0, best: 0 });
+	});
+});
+
+describe("bonus de la semaine", () => {
+	// 2026-11-23 est un lundi.
+	const SEMAINE = ["2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26", "2026-11-27", "2026-11-28", "2026-11-29"];
+	const ACTIF = { weeklyBonusDays: 7, weeklyBonusXp: 200 };
+
+	it("compte les jours de la semaine du lundi au dimanche, sans les voisines", () => {
+		expect(owdleWeekStart("2026-11-29")).toBe("2026-11-23");
+		expect(owdleWeekSolvedDays(["2026-11-22", ...SEMAINE.slice(0, 3), "2026-11-30"], "2026-11-25")).toBe(3);
+	});
+
+	it("est gagne quand le seuil est atteint dans la semaine", () => {
+		expect(owdleWeeklyBonusEarned(SEMAINE, "2026-11-29", ACTIF)).toBe(true);
+		expect(owdleWeeklyBonusEarned(SEMAINE.slice(0, 6), "2026-11-28", ACTIF)).toBe(false);
+		expect(owdleWeeklyBonusEarned(SEMAINE.slice(0, 5), "2026-11-27", { ...ACTIF, weeklyBonusDays: 5 })).toBe(true);
+	});
+
+	it("n'est jamais gagne quand il est desactive, ni d'office avec un seuil invalide", () => {
+		expect(owdleWeeklyBonusEarned(SEMAINE, "2026-11-29", { ...ACTIF, weeklyBonusXp: 0 })).toBe(false);
+		expect(owdleWeeklyBonusEarned(SEMAINE.slice(0, 2), "2026-11-24", { ...ACTIF, weeklyBonusDays: 0 })).toBe(false);
 	});
 });

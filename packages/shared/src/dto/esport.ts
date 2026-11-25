@@ -356,6 +356,24 @@ export interface EsportResultRequest {
 	announce: boolean;
 }
 
+/**
+ * Validation groupee des scores proposes par Liquipedia
+ * (« Valider les scores proposes »).
+ *
+ * Chaque match porte le score **tel que le staff l'a vu** : l'API le compare a
+ * la proposition enregistree et refuse tout le lot si l'une a change entre
+ * l'affichage et le clic (« Recuperer les scores » relance entre-temps). Valider
+ * un score que personne n'a lu reviendrait a publier automatiquement.
+ */
+export interface EsportValidateSuggestionsRequest {
+	matches: { id: string; scoreA: number; scoreB: number }[];
+	/**
+	 * Publier une annonce de resultat pour chaque match valide. Une annonce deja
+	 * demandee ou publiee reste en place quoi qu'il arrive.
+	 */
+	announce: boolean;
+}
+
 export interface EsportWeekDto {
 	id: string;
 	/** Lundi de la semaine, `AAAA-MM-JJ`, heure de Paris. */

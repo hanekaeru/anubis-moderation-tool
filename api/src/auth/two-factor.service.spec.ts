@@ -26,7 +26,7 @@ function baseConfig(twoFactorEnabled: boolean): AppConfig {
 		cookieSecure: false,
 		security: { maxFailedLogins: 5, lockoutMinutes: 15, twoFactorEnabled },
 		battlenet: { clientId: "", clientSecret: "", redirectUri: "", idSecret: "", available: false },
-		liquipedia: { apiKey: "", available: false },
+		liquipedia: { apiKey: "", available: false }, healthcheckUrl: "",
 	};
 }
 

@@ -118,7 +118,10 @@
 }
 
 .controls {
-	margin-bottom: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+	margin-bottom: var(--space-5);
 }
 
 /* Liste de definitions plutot qu'un tableau : ce sont des paires libelle /

@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 import type {
 	AddMemberSeparatorsRequest,
 	MemberDetail,
+	MemberErasureRequest,
+	MemberErasureResult,
 	MemberListItem,
 	MemberRoleRequestDto,
 	MemberSearchQuery,
@@ -30,6 +32,15 @@ export class MembersApi {
 
 	findOne(userId: string): Observable<MemberDetail> {
 		return this.http.get<MemberDetail>(`/api/members/${userId}`);
+	}
+
+	/** Export RGPD : tout ce que la base tient sur ce compte. */
+	exportData(userId: string): Observable<Record<string, unknown>> {
+		return this.http.get<Record<string, unknown>>(`/api/members/${userId}/donnees`);
+	}
+
+	eraseData(userId: string, request: MemberErasureRequest): Observable<MemberErasureResult> {
+		return this.http.post<MemberErasureResult>(`/api/members/${userId}/donnees/effacement`, request);
 	}
 
 	timeline(userId: string, query: TimelineQuery): Observable<Paginated<TimelineEntry>> {

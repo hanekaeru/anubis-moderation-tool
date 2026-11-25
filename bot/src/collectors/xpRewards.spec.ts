@@ -73,3 +73,39 @@ describe("resolveRoles", () => {
 		});
 	});
 });
+
+// Descente apres un retrait d'experience par `/xp-admin`.
+describe("resolveRoles — descente", () => {
+	const ladder = [reward(5, "role-5"), reward(10, "role-10"), reward(20, "role-20")];
+
+	it("retire les paliers au-dessus du nouveau niveau", () => {
+		expect(resolveRoles(ladder, 12, { demote: true })).toEqual({
+			toAdd: ["role-5", "role-10"],
+			toRemove: ["role-20"],
+		});
+	});
+
+	it("retire tout sous le premier palier", () => {
+		expect(resolveRoles(ladder, 2, { demote: true })).toEqual({
+			toAdd: [],
+			toRemove: ["role-5", "role-10", "role-20"],
+		});
+	});
+
+	it("rend le palier inferieur d'une echelle exclusive", () => {
+		const exclusive = [reward(5, "role-5"), reward(10, "role-10", true), reward(20, "role-20", true)];
+		expect(resolveRoles(exclusive, 12, { demote: true })).toEqual({
+			toAdd: ["role-10"],
+			toRemove: ["role-5", "role-20"],
+		});
+	});
+
+	it("ne retire jamais un role qui sert aussi au palier atteint", () => {
+		const partage = [reward(5, "role-a"), reward(20, "role-a")];
+		expect(resolveRoles(partage, 7, { demote: true })).toEqual({ toAdd: ["role-a"], toRemove: [] });
+	});
+
+	it("ne retire rien au-dessus sans descente explicite", () => {
+		expect(resolveRoles(ladder, 12).toRemove).toEqual([]);
+	});
+});

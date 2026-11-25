@@ -27,7 +27,8 @@
 		"db:migrate": "npm run migrate --workspace @anubis/shared",
 		"db:deploy": "npm run migrate:deploy --workspace @anubis/shared",
 		"db:studio": "npm run studio --workspace @anubis/shared",
-		"db:seed": "npm run seed --workspace @anubis/shared --"
+		"db:seed": "npm run seed --workspace @anubis/shared --",
+		"db:reset-password": "npm run reset-password --workspace @anubis/shared --"
 	},
 	"devDependencies": {
 		"concurrently": "^9.1.2"

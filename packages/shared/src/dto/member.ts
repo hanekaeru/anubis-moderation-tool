@@ -142,6 +142,12 @@ export const TimelineKind = {
 	JOIN: "JOIN",
 	LEAVE: "LEAVE",
 	TICKET: "TICKET",
+	/**
+	 * Experience ajoutee ou retiree a la main (`/xp-admin`). Le seul endroit du
+	 * dashboard ou ces ajustements se lisent : sans lui, ils n'existaient que
+	 * dans `xp_adjustments` et dans un salon de logs peut-etre non configure.
+	 */
+	XP_ADJUSTMENT: "XP_ADJUSTMENT",
 } as const;
 export type TimelineKind = (typeof TimelineKind)[keyof typeof TimelineKind];
 
@@ -149,4 +155,26 @@ export interface TimelineQuery extends PaginationQuery {
 	kinds?: TimelineKind[];
 	from?: IsoDateString;
 	to?: IsoDateString;
+}
+
+/**
+ * Effacement des donnees d'un membre, a sa demande (RGPD).
+ *
+ * Deux choses restent, par decision du proprietaire et parce que la politique
+ * de confidentialite les annonce : les **bannissements** (eviter qu'un banni
+ * revienne sans antecedent) et l'**empreinte Battle.net** (anti-multicompte,
+ * 12 mois), BattleTag efface. Le compte Discord n'est alors garde qu'anonymise,
+ * pour que ces lignes restent rattachees a son identifiant.
+ */
+export interface MemberErasureRequest {
+	/** L'identifiant du membre, retape : un effacement ne part pas sur un clic. */
+	confirmation: string;
+}
+
+export interface MemberErasureResult {
+	/** Lignes supprimees, par categorie lisible. */
+	deleted: Record<string, number>;
+	kept: { bans: number; battlenetLinks: number };
+	/** Vrai quand plus rien ne justifiait de garder le compte, meme anonymise. */
+	userRemoved: boolean;
 }

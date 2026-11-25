@@ -176,11 +176,46 @@ EXISTS` dans la migration initiale, pour ne pas ecraser les donnees d'XP
   appelante : le cookie de refresh est limite au chemin `/api/auth` et
   n'atteint aucune autre route. Une session **est** une famille, pas un jeton —
   la rotation en cree un nouveau a chaque rafraichissement.
+- **Export et effacement RGPD** (`members/member-data.service.ts`,
+  `member-data:manage`, administrateurs) : depuis la fiche membre, « Donnees
+  (RGPD) ». **La liste des tables a couvrir est celle des relations de
+  `DiscordUser`** dans le schema, plus `user_levels` et `xp_adjustments` qui
+  n'ont pas de cle etrangere : une table ajoutee sans etre reportee dans ce
+  service echapperait a l'export et survivrait a l'effacement. Trois decisions
+  du proprietaire :
+  - **restent** les sanctions `BAN` (avec l'incident automod qui les a
+    motivees) et l'**empreinte Battle.net**, BattleTag efface — la politique de
+    confidentialite annonce les deux. Le compte n'est alors garde
+    qu'**anonymise** (`compte-efface`), parce que ces lignes portent son
+    identifiant ; un banni garde aussi sa ligne `members` (statut `BANNED`, lu
+    par le bot). Sans rien a garder, le compte est supprime.
+  - l'identifiant se **retape**, cote dashboard et cote API : c'est la seule
+    action irreversible du dashboard.
+  - le journal d'audit ne retient que l'identifiant et des compteurs, jamais ce
+    qui a ete efface.
+  - les **notes du staff ne sont pas exportees** (aide-memoire internes, au meme
+    titre qu'un identifiant note dans un bloc-notes), mais elles sont bien
+    **effacees** avec le reste.
+  Un membre encore present recommence a etre compte des l'effacement ; les
+  compteurs en memoire du bot peuvent recreer une ligne d'activite des quinze
+  secondes precedentes.
 - `OWNER_ONLY_PERMISSIONS` (`packages/shared/src/permissions.ts`) recense les
   droits volontairement absents de la matrice : le proprietaire les recoit par
   `Object.values(Permission)`. `permissions.spec.ts` verifie qu'aucun n'a glisse
   dans `ADMIN_PERMISSIONS` — l'heritage etant cumulatif, l'oubli serait
   silencieux.
+- **`STAFF` est une branche a part**, hors de la chaine VIEWER < MODERATOR <
+  ADMIN : un compte d'animation (mini-jeux, esport, concours, statut). Il
+  **n'herite pas de VIEWER**, qui lit deja fiches membres, sanctions et
+  tickets, et n'a **ni wiki** (il porte la doctrine de moderation, decision du
+  proprietaire) ni messages composes. `STAFF_PERMISSIONS` se tient a la main,
+  et `permissions.spec.ts` verifie qu'aucun droit de moderation n'y glisse.
+  Rang 0 (`ROLE_RANK`) : seuls les administrateurs creent ces comptes. La vue
+  d'ensemble n'affichant que des statistiques de moderation, `homeGuard`
+  (`webapp/src/app/core/auth/auth.guard.ts`) envoie un compte sans
+  `stats:read` sur sa premiere page permise — toujours une page qu'il peut
+  ouvrir, sinon `permissionGuard`, qui renvoie sur `/`, tournerait en boucle
+  avec lui.
 - Les permissions se declarent avec `@RequirePermissions(...)`, jamais par un
   `if` sur le role dans un service.
 - `jwt.sign` recoit `expiresIn` **en secondes** (nombre). La forme chaine
@@ -501,6 +536,25 @@ le dev avec rechargement).
   La liste blanche des types acceptes vit dans `@anubis/shared`
   (`MODERATION_ATTACHMENT_CONTENT_TYPES`) parce que trois chemins la
   verifient — API (seule a faire foi), dashboard et bot.
+- **Supervision exterieure** (`src/collectors/healthcheck.ts` cote bot,
+  `api/src/health/healthcheck-ping.service.ts` cote API, variable
+  `HEALTHCHECK_URL` dans chaque environnement) : un signal de vie toutes les
+  5 minutes vers Healthchecks.io, qui previent le proprietaire (ntfy sur son
+  telephone, webhook Discord) quand ils s'arretent. Trois points a garder :
+  - **c'est le silence qui alerte**, jamais un message « en panne » : une
+    alerte emise depuis le VPS se tairait avec lui. Le delai se regle sur
+    Healthchecks.io, sans redeployer : periode 5 min et grace 10 a 15 min, soit
+    une alerte 15 a 20 minutes apres le dernier signal (bot eteint, l'automod
+    et la quarantaine ne font plus rien). Un redeploiement normal reste bien
+    en dessous. Pour la meme raison, aucun signal d'echec (`/fail`) n'est
+    envoye : il declencherait l'alerte sans attendre le delai choisi.
+  - le signal **atteste la base** : le bot ne l'envoie qu'apres un battement
+    ecrit et connecte a Discord, l'API qu'apres un `SELECT 1`. Un process
+    vivant qui ne peut plus rien ecrire compte comme en panne.
+  - **une adresse par conteneur** : l'alerte dit lequel est tombe. Aucune
+    donnee ne part avec le signal, et un echec ne se journalise qu'au
+    changement d'etat (sinon une ligne toutes les 5 minutes pendant toute une
+    panne reseau).
 - **Synchronisation Discord** (`src/events/ready.ts`) : un seul `setInterval` a
   5s (`DISCORD_SYNC_INTERVAL_MS`, reduit de 30s) enchaine les rattrapages
   sanctions, tickets et anti-raid. Meme patron partout : une ecriture web
@@ -890,6 +944,16 @@ le dev avec rechargement).
     si elle apporte quelque chose (match non termine, ou score saisi
     different). Le bouton rappelle Liquipedia si le cache a plus de deux
     minutes et se contente du cache sinon : il ne repond jamais par un refus.
+    **« Valider les scores proposes »** fait la meme chose que « Terminer » sur
+    plusieurs matchs a la fois (`validateSuggestions`, une seule
+    resynchronisation et un seul `verifierTaille`, une entree d'audit par
+    match). Ce n'est pas une validation automatique : le dialogue liste chaque
+    score a cocher, **forfaits decoches par defaut** (le score propose n'y est
+    que le minimum pour gagner), et le client renvoie les scores **tels
+    qu'affiches** — l'API refuse le lot entier (409) si une proposition a
+    change entre-temps, parce que valider un score que personne n'a lu
+    reviendrait a publier automatiquement. Le spoiler du match n'est pas
+    touche, et une annonce deja demandee reste demandee.
   - les equipes se reconnaissent par **`liquipediaName`** (le nom de
     l'adversaire, c'est-a-dire sa page), puis par nom affiche pour relier une
     equipe saisie a la main (elle garde son emoji et son logo). **Aucun logo
@@ -910,8 +974,8 @@ le dev avec rechargement).
   identifiants des deux sources ne se correspondent pas.
 - **Ce qui n'est PAS rattrape automatiquement.** Le patron `discordSyncedAt`
   couvre sanctions, avertissements (message prive), tickets, anti-raid,
-  quarantine (etapes et levees), signalements de compte, concours et messages
-  composes. Il reste **un** reglage du dashboard sans effet automatique sur
+  quarantine (etapes et levees), signalements de compte, concours, messages
+  composes et mini-jeux. Il reste **un** reglage du dashboard sans effet automatique sur
   Discord, a savoir avant de chercher un bug : le **message de reglement de
   quarantaine** n'est publie que par `/quarantaine-message`. Modifier le texte,
   le libelle d'un bouton, ou **activer la verification Battle.net** (qui ajoute
@@ -1028,6 +1092,174 @@ le dev avec rechargement).
   est route par `interactionCreate.ts`, sans cooldown (une requete par frappe).
   Une suggestion n'engage rien cote client, d'ou `resolveOwdleHero` a la
   reception.
+  **Bonus de la semaine** (`owdle_config.weekly_bonus_days` / `_xp`,
+  `owdle_weekly_bonuses`) : un membre qui trouve au moins N jours d'une meme
+  semaine (lundi -> dimanche, heure de Paris) gagne X XP, verse a la victoire
+  qui atteint le seuil. **Desactive par defaut (0 XP)** : la migration ne
+  change rien a un serveur qui n'ouvre pas la page. Une seule fois par semaine,
+  et c'est la **cle primaire** de `owdle_weekly_bonuses` qui le garantit — la
+  ligne est creee avant le versement, un conflit dit qu'un autre passage l'a
+  deja fait. Le bonus est additionne au gain de la victoire (`cumuler`) : c'est
+  le total qui decide d'une montee de niveau. La regle (`owdleWeeklyBonusEarned`)
+  vit dans `@anubis/shared`.
+- **Calendrier des mini-jeux** (`minigame_*`, `packages/shared/src/minigames.ts`,
+  `api/src/minigames/`, `src/tasks/minigameSync.ts`,
+  `src/collectors/minigames.ts`, `/devine`, `features/minigames/`) : un jeu par
+  jour et par serveur, six types (clip, devine le heros, duel, devine la map,
+  vrai ou faux patch-note, devine le skin). Le jeu du jour J se joue de 00:00 a
+  23:59, **heure de Paris**. Six points a garder :
+  - **le verrou** : le jeu du jour J se modifie jusqu'a J-1 23:59 avec
+    `minigames:write` ; des minuit, seulement avec `minigames:manage`
+    (administrateur), pour rattraper une coquille. C'est une regle de date, pas
+    de route : elle se tranche dans `MinigamesService`, le dashboard ne fait que
+    griser. Un jour passe ne se cree plus, un jeu termine ne se modifie plus.
+  - **un jeu enregistre est toujours publiable** : `minigameEventProblem`
+    (partage) est rejoue par l'API sur le jeu complet a chaque ecriture, et les
+    champs etrangers au type sont remis a `null`. Le bot n'a jamais a decouvrir
+    a minuit qu'il manque la reponse.
+  - **quatre etapes, chacune lue sur sa date** (`minigameSync.ts`) :
+    publication a minuit **sans ping** (`publishedAt`), corrections
+    (`discordSyncedAt` remis a `null` par l'API), **ping dans un message separe**
+    a `pingTime` (`pingedAt` — une mention ajoutee en editant ne notifie
+    personne), fermeture (`closedAt`). Un jeu jamais publie de sa journee (bot
+    eteint) n'est **pas** rattrape le lendemain. Un verrou `enCours` empeche deux
+    passages du cycle de 5 s de publier deux fois. **La fermeture de la veille
+    passe avant la publication du jour** : les deux tombent dans le meme passage
+    a minuit, et dans l'ordre inverse l'annonce « C'etait… » d'hier
+    s'intercalait entre le jeu du jour et son ping.
+  - **le sondage vit dans son propre message**, sous l'embed : un sondage Discord
+    ne se modifie plus du tout une fois publie, l'embed doit rester corrigeable.
+    D'ou le refus de l'API de toucher au type ou au sondage d'un jeu publie. La
+    duree se compte en heures entieres (`minigamePollHours`, arrondie au-dessus)
+    et le bot **termine** le sondage a la fermeture. Le vrai ou faux paie
+    d'apres les votes **finaux** (on peut changer d'avis jusqu'au bout), une
+    ligne `minigame_games` par votant creee une seule fois — le conflit de cle
+    empeche de payer deux fois si la fermeture se rejoue. Le bot a besoin de la
+    permission Discord **« Creer des sondages »** dans le salon d'annonce.
+  - **meilleur des deux au jeu du skin** (`minigameXpDelta`) : le heros seul
+    rapporte la moitie du palier de son essai, trouver ensuite le skin porte le
+    total au palier de **cet** essai, jamais cumule — avec 100/60/30, heros au 1er
+    (50) puis skin au 2e donne 60 au total, pas 110. Le proprietaire l'a voulu :
+    cumuler paierait mieux en deux temps que d'emblee. `xpAwarded` retient ce
+    qui a deja ete verse ; l'essai se pose par un `updateMany` filtre sur le
+    compteur `attempts`, lu a son `count`, comme la victoire de l'OWdle.
+  - **la saisie du skin est libre et approximative** (`judgeSkinGuess`) : casse,
+    accents, ponctuation et quelques fautes toleres selon la longueur, **aucune**
+    sur un nom de quatre lettres ou moins (« Ana » a une faute pres accepterait
+    n'importe quoi). Pas d'autocompletion ce jour-la : une liste devoilerait la
+    reponse. Un heros ou une map inconnus, un doublon, le heros deja trouve ne
+    coutent **pas** d'essai.
+  Les maps sont une table commune (`minigame_maps`), comme les heros de l'OWdle,
+  pre-remplie par sa migration : une map se desactive, ne se supprime pas. Les
+  images (quatre au plus, galerie Discord par embeds de meme `url`) vivent en
+  base ; son et video se postent a la main, choix du proprietaire pour ne pas
+  charger le serveur. Supprimer un jeu depuis le dashboard ne retire rien de
+  Discord, meme regle que les messages composes.
+  **Un jour vide se pre-remplit avec le jeu du meme jour la semaine
+  precedente** (le calendrier charge donc une semaine de plus avant sa grille),
+  et a defaut avec la semaine type. Seule la presentation est reprise : type,
+  titre, message, couleur, ping, essais, question du sondage. Jamais la
+  reponse, les reponses du duel ni les images — rejouer la map de la semaine
+  derniere n'est jamais ce qu'on veut.
+  **Recette** (`docs/recette-mini-jeux.md`, `/minijeu-test`,
+  `src/collectors/minigameClock.ts`) : avec `MINIGAME_TEST_MODE=true`, le bot
+  lit l'heure des mini-jeux sur une horloge **decalable** ; la commande la fait
+  sauter a la publication, au ping ou a la fermeture d'un jour et laisse le vrai
+  cycle agir. Trois points a garder :
+  - tout ce qui lit « maintenant » cote mini-jeux passe par `maintenant()`
+    (`synchroniserMiniJeux`, `jeuDuJour`, `proposer`). Un `new Date()` ajoute
+    ailleurs dans ce chemin echapperait a la recette sans rien signaler.
+  - sans la variable, le decalage est **ignore** (pas seulement nul) et la
+    commande n'est **ni chargee ni publiee** (`Command.testOnly`, filtre dans
+    `loadCommands`, donc aussi dans `refresh.ts`). Le decalage vit en memoire :
+    un redemarrage revient a l'heure reelle.
+  - l'API et le dashboard restent a l'heure reelle — le verrou « veille 23:59 »
+    se recette sur de vrais jours.
+- **`/xp-admin ajouter|retirer`** : seule source d'XP « a la main » (le meilleur
+  clip de la semaine se recompense ainsi). Permission `Administrator` declaree
+  **et** reverifiee, une ligne `xp_adjustments` et une entree au journal de
+  moderation par ajustement, retrait borne au total. **C'est le seul chemin qui
+  fait descendre les paliers** (`applyForMember(..., { demote: true })`) :
+  ni une montee ni le rattrapage periodique ne retirent un role de palier, qu'un
+  administrateur a pu poser a la main a un membre de niveau inferieur.
+  Les ajustements se lisent dans la **chronologie de la fiche membre**
+  (`TimelineKind.XP_ADJUSTMENT`) : c'est le seul endroit du dashboard qui les
+  montre, et l'entree du salon de logs **n'existe pas** quand aucun salon
+  `MODERATION` n'est configure. `xp_adjustments` n'a pas de cle etrangere,
+  l'auteur se relit donc a part dans `discord_users` (son identifiant s'affiche
+  s'il y est inconnu).
+- **`/whois`** (`src/collectors/whois.ts`, `src/utils/whoisEmbeds.ts`) : deux
+  embeds, ce que Discord dit du compte puis ce que la base en a retenu.
+  `ModerateMembers` declaree **et** reverifiee, reponse ephemere. Trois points :
+  - la partie base se lit **sans le membre Discord** : la commande sert autant
+    pour quelqu'un qui est parti (Discord resout l'utilisateur hors serveur, le
+    bannissement se lit par `guild.bans.fetch`).
+  - Battle.net : « verifie le … » ou rien, **jamais le BattleTag** — reserve a
+    `battlenet:read` dans le dashboard, alors que tout moderateur lance
+    `/whois`. Le `select` l'exclut de la requete elle-meme.
+  - « actif » suit les predicats de `MembersService` (avertissement non revoque
+    et non expire, sanction `ACTIVE`), et la quarantaine passe par
+    `quarantineStage` : la fiche du dashboard et `/whois` doivent dire la meme
+    chose. Chaque champ passe par `joindreDansLaLimite` — un champ de plus de
+    1024 caracteres fait refuser l'embed entier, et quarante roles suffisent.
+- **Apercu des liens de messages** (`src/collectors/messageLinks.ts`, appele par
+  `messageCreate` apres l'automod et sans etre attendu) : un lien
+  `discord.com/channels/<serveur>/<salon>/<message>` (`ptb.`, `canary.`,
+  `discordapp.com`) recoit en reponse un embed du message cite, relu a la
+  demande et jamais stocke. Trois liens au plus, aucune mention
+  (`parse: []`). Le point sensible est la **fuite de salons prives**, et
+  l'auteur du lien n'est pas le seul a lire la reponse :
+  - **deux verifications, pas une.** `auteurPeutVoir` (`ViewChannel` et
+    `ReadMessageHistory`, plus l'appartenance a un fil prive) ne suffit pas :
+    un moderateur qui colle dans #general le lien d'un message staff le
+    publierait pour tout le serveur, et d'un ticket a l'autre l'ouvreur du
+    second lirait le premier. `audienceIncluse` exige donc que **tous ceux qui
+    voient la destination lisent la source** — role par role, puis membre par
+    membre pour les surcharges nominatives (c'est ainsi qu'un ticket s'ouvre a
+    son ouvreur). Un membre introuvable fait refuser.
+  - `permissionsDuRole` est ecrit a la main : `permissionsFor(role)` de
+    discord.js part des seules permissions du role, sans celles de
+    `@everyone`. La plupart des roles n'en ont aucune en propre, et un salon
+    public paraissait alors invisible au staff.
+  - un fil prive n'est cite que dans lui-meme (son public ne se lit pas dans
+    les roles) ; un salon NSFW jamais hors d'un salon NSFW. Un lien entre
+    chevrons, sous spoiler ou dans du code n'est pas cite — l'auteur l'a
+    masque expres. Un refus est **muet** : l'expliquer confirmerait que le
+    salon existe.
+  `automod.processMessage` rend desormais `true` quand il a fait supprimer le
+  message : l'apercu repondrait sinon a un message disparu.
+- **Menus contextuels** (clic droit > Applications) : `MessageContextMenuCommand`
+  (`types.ts`, marqueur `contextMenu: true`) se depose dans `commands/` comme une
+  commande slash, et `loadCommands`/`refresh.ts` les publient ensemble — Discord
+  les range dans le meme espace de noms. `interactionCreate` les route a part
+  (`estMenuContextuel`) : une commande slash et un menu ne recoivent pas la meme
+  interaction.
+- **Signaler un message** (« Signaler au staff », `src/collectors/reports.ts`,
+  `src/handlers/reportInteractions.ts`, salon `LOG_CHANNEL_REPORTS` cree par
+  `/create_logs`) : le message, l'auteur et la personne qui signale partent
+  dans le salon des signalements, avec deux boutons qui ouvrent la fiche
+  `/whois` de chacun. Quatre points a garder :
+  - le message est **capture au clic**, avant la modale du motif : l'auteur
+    peut le supprimer pendant qu'on ecrit, le signalement doit quand meme dire
+    ce qui etait ecrit. La capture vit en memoire 15 minutes, jamais en base —
+    le contenu ne fait que passer d'un salon a l'autre, comme l'apercu des liens.
+  - les boutons « Fiche » **reverifient `ModerateMembers`** : un bouton se
+    clique de partout ou le message aurait ete transfere. La fiche est
+    `ficheWhois`, la meme fonction que `/whois`.
+  - un signalement par message et par personne (24 h), 30 s entre deux, ni son
+    propre message ni ceux du bot. La mention du role d'alerte suit la meme
+    regle que les tickets (dans `content`, seul role autorise a sonner).
+  - sans salon configure, le membre **est prevenu** que rien n'est parti : lui
+    laisser croire que le staff a ete averti serait pire que l'echec.
+  Les pieces jointes sont citees par leur lien CDN, qui expire : le staff doit
+  ouvrir un signalement le jour meme pour voir une image.
+- **`/lfg`** (`src/collectors/lfg.ts`) : annonce de recherche de groupe dans le
+  salon courant, roles recherches avec les emojis du sujet des vocaux, lien
+  « Rejoindre le vocal » si l'auteur y est deja. **Rien n'est stocke** : l'etat
+  est l'embed, et « Groupe complet » le corrige (auteur ou `ModerateMembers`,
+  l'auteur lu dans l'identifiant du bouton — donc survit a un redemarrage). Les
+  salons ou elle est permise se reglent dans les parametres d'integration de
+  Discord, pas dans le code.
 - **`/clear`** : `bulkDelete` refuse les messages de plus de 14 jours, la
   commande le dit plutot que de laisser remonter une erreur opaque. Avec
   l'option `membre`, elle relit 100 messages pour en trouver N de cette
@@ -1209,6 +1441,65 @@ le dev avec rechargement).
   - la densite Material est a **`-1`**, pas `-2`. Le cran le plus serre mettait
     les boutons a 32 px et les lignes de table a 44 px. C'est le seul reglage
     qui agit sur toutes les pages a la fois — le changer se voit partout.
+- **Cadre et verre** (`layout/shell/`, `styles.scss`). Sur ordinateur, la barre
+  laterale est une **colonne de grille** (`--nav-width`), pas un `mat-sidenav` :
+  le conteneur de Material fige la marge du contenu et ne suit ni le glissement
+  de la poignee ni la transition de repli. Largeur et repli sont retenus dans
+  `localStorage`, en simple confort. Le telephone garde le tiroir de Material.
+  Quatre consequences :
+  - **le document defile**, plus `mat-sidenav-content`. C'est aussi ce qui rend
+    son effet a `scrollPositionRestoration: 'top'`. Un element colle se range
+    sous l'en-tete : `top: calc(var(--topbar-height) + ...)`, sinon il glisse
+    sous la barre floutee.
+  - **les halos** (`body::before`, z-index negatif) ne se voient que si **rien
+    d'opaque ne couvre la page** : le fond est porte par `html` et `body` reste
+    transparent. Une page plein ecran ne pose pas de fond (connexion, mot de
+    passe) — c'est ainsi qu'elle masquait les halos.
+  - les surfaces passent par les jetons `--anubis-glass*` (cartes, panneaux,
+    dialogues, en-tete), jamais par une couleur opaque : une carte en
+    `--anubis-surface-1` ferait un trou net dans le verre.
+  - une seule courbe et une seule duree (`--anubis-ease`,
+    `--anubis-ease-duration`) pour tout ce qui se replie ou apparait, et
+    `prefers-reduced-motion` coupe tout.
+- **Bloc-notes** (`layout/notepad/`) : en pied de barre laterale (pastille
+  flottante sur telephone), **stocke dans le navigateur et jamais en base**,
+  sous la cle `anubis-notes:<id du compte>`. Trois choix a garder :
+  - la cle porte l'identifiant du compte : deux comptes sur le meme poste ne
+    lisent pas les notes l'un de l'autre dans l'interface. Ce n'est pas une
+    protection — rien n'est chiffre, et le panneau le dit.
+  - la deconnexion **n'efface pas** les notes : les retrouver en revenant est
+    tout l'interet. Le texte est relu par un `linkedSignal` sur l'identifiant,
+    et l'enregistrement differe retient le compte au moment de la frappe, pour
+    qu'une deconnexion pendant le delai n'ecrive pas sous la cle d'un autre.
+  - une note partagee avec l'equipe appartient au wiki, pas ici : rien ne part
+    au serveur, rien ne suit le compte sur un autre appareil.
+- **Les champs ne reservent aucune place sous eux** (`subscriptSizing:
+  'dynamic'`, reglage global de `app.config.ts`). Consequence : deux
+  `mat-form-field` empiles **se touchent** tant que leur conteneur ne pose pas
+  d'ecart. Un formulaire vertical se monte donc en `flex-direction: column;
+  gap: var(--space-4)`, jamais avec des `margin-top` poses champ par champ — la
+  connexion, le changement de mot de passe et trois dialogues collaient leurs
+  champs pour cette raison. C'est aussi ce qui permet a `.filters` de centrer
+  verticalement ses boutons sur les champs (`align-items: center`) : la hauteur
+  d'un champ est celle de sa zone de saisie.
+- **Un composant affiche comme un bloc declare `:host { display: block }`.**
+  Un element personnalise est en ligne par defaut, et un element en ligne
+  ignore les marges verticales : `.page > * + *` ne l'ecartait pas, et la carte
+  Battle.net se collait aux vignettes de la fiche membre. Dans une grille ou un
+  flex le probleme ne se voit pas (les enfants y sont convertis en blocs), d'ou
+  sa discretion.
+- **« A traiter »** (`features/inbox/`, `api/src/inbox/`) : ce qui attend
+  quelqu'un du staff, toutes pages confondues — sanctions web pas appliquees
+  apres 5 min (le bot ne tourne pas), tickets sans premiere reponse, comptes
+  signales non examines, quarantaines bloquees depuis plus d'un jour, scores
+  esport proposes, publications refusees par Discord, jours sans mini-jeu dans
+  la semaine. **La route n'a pas de permission** : chaque section verifie
+  celle de la page qu'elle resume, et n'est meme pas lue sinon — un compte
+  d'animation n'y voit que les mini-jeux et l'esport. **Rien n'est stocke** :
+  tout se relit dans les tables qui portent deja l'etat, une ligne traitee
+  ailleurs disparait d'ici sans synchronisation. C'est aussi la seule entree de
+  barre laterale a `permissions: []`, que le filtre du `Shell` traite comme
+  « ouverte a tous ».
 - **Les listes d'identifiants se saisissent par `shared/validators/snowflake-list.ts`.**
   Le dashboard n'a pas de selecteur de roles ni de salons — simplification
   assumee. Ce qui manquait, c'est de **dire ce qui ne va pas** : une faute de
@@ -1264,7 +1555,12 @@ le dev avec rechargement).
   un **fond sombre fixe dans les deux themes** du dashboard — un apercu qui
   change de couleur avec le theme mentirait sur ce que verra le serveur. Le
   formulaire vit hors du graphe de signaux : `toSignal(form.valueChanges)` est
-  ce qui redessine l'apercu en `OnPush`, sans quoi il resterait fige. Le
+  ce qui redessine l'apercu en `OnPush`, sans quoi il resterait fige. Piege
+  associe : **`valueChanges` omet les controles desactives**. La boite des
+  mini-jeux lisait son type la ; une fois le jeu publie (type desactive), il
+  retombait sur « clip » et la reponse a deviner disparaissait du formulaire.
+  Un champ qui peut etre desactive se lit par `getRawValue()`, le signal ne
+  servant qu'a s'abonner. Le
   decompte de caracteres n'est pas decoratif : la limite de 6000 de Discord
   porte sur la **somme** de tous les champs, et un embed dont chaque champ tient
   dans sa propre limite peut malgre tout etre refuse

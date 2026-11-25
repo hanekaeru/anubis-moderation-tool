@@ -1,0 +1,258 @@
+:host {
+	display: block;
+}
+
+/* --- Bouton ----------------------------------------------------------------- */
+
+.trigger {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	width: 100%;
+	padding: var(--space-2) var(--space-2) var(--space-2) 8px;
+	border: 0;
+	border-radius: 12px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: background-color 150ms ease;
+
+	&:hover,
+	&.open {
+		background: var(--anubis-hover);
+	}
+
+	&:focus-visible {
+		outline: 1.5px solid var(--anubis-accent);
+		outline-offset: -1.5px;
+	}
+}
+
+/* Meme pastille que la marque du haut, en plus sourd : le bouton signe le bas
+   de la barre sans lui disputer l'attention. */
+.mark {
+	position: relative;
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 36px;
+	height: 36px;
+	border-radius: 10px;
+	background: linear-gradient(140deg, var(--anubis-accent-soft), var(--anubis-accent-ring));
+	box-shadow: 0 0 0 1px var(--anubis-accent-ring) inset;
+	color: var(--anubis-accent-text);
+	transition: box-shadow 200ms ease;
+
+	mat-icon {
+		width: 20px;
+		height: 20px;
+		font-size: 20px;
+	}
+}
+
+.trigger:hover .mark,
+.trigger.open .mark {
+	box-shadow:
+		0 0 0 1px var(--anubis-accent-ring) inset,
+		0 6px 20px -6px var(--anubis-accent-glow);
+}
+
+/* Les notes ne sont pas vides : un point le dit sans ouvrir le panneau. */
+.dot {
+	position: absolute;
+	top: -2px;
+	right: -2px;
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: var(--anubis-accent);
+	box-shadow:
+		0 0 0 2px var(--anubis-surface-0),
+		0 0 8px var(--anubis-accent);
+}
+
+.trigger-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	transition: opacity var(--anubis-ease-duration) var(--anubis-ease);
+}
+
+.trigger-title {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--anubis-text-1);
+	line-height: var(--line-tight);
+}
+
+.trigger-sub {
+	font-size: 0.72rem;
+	color: var(--anubis-text-3);
+	line-height: var(--line-tight);
+}
+
+/* Replie : le libelle reste lisible par un lecteur d'ecran, l'infobulle prend
+   le relais pour la souris. */
+.trigger.compact .trigger-text {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	opacity: 0;
+}
+
+/* Telephone : une pastille flottante, en verre, au-dessus de la page. */
+.trigger.floating {
+	width: auto;
+	padding: 6px;
+	border-radius: 14px;
+	background: var(--anubis-glass-strong);
+	backdrop-filter: blur(18px) saturate(140%);
+	box-shadow:
+		0 0 0 1px var(--anubis-glass-border) inset,
+		0 10px 28px -10px rgb(0 0 0 / 50%);
+}
+
+/* --- Panneau ----------------------------------------------------------------- */
+
+.panel {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	width: min(380px, calc(100vw - 24px));
+	padding: var(--space-4);
+	border: 1px solid var(--anubis-glass-border);
+	border-radius: 16px;
+	background: var(--anubis-glass-strong);
+	backdrop-filter: blur(24px) saturate(140%);
+	box-shadow:
+		0 1px 0 0 rgb(255 255 255 / 5%) inset,
+		0 24px 64px -12px rgb(0 0 0 / 50%);
+	color: var(--anubis-text-1);
+	animation: notepad-in 180ms var(--anubis-ease);
+}
+
+@keyframes notepad-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px) scale(0.98);
+	}
+}
+
+.panel-header {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.panel-icon {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 9px;
+	background: linear-gradient(140deg, var(--anubis-accent), var(--anubis-accent-2));
+	color: #fff;
+
+	mat-icon {
+		width: 18px;
+		height: 18px;
+		font-size: 18px;
+	}
+}
+
+.panel-heading {
+	flex: 1;
+	min-width: 0;
+
+	h2 {
+		margin: 0;
+		font-size: 0.95rem;
+		font-weight: 600;
+		line-height: var(--line-tight);
+	}
+
+	p {
+		margin: 2px 0 0;
+		font-size: 0.75rem;
+		color: var(--anubis-text-3);
+	}
+}
+
+.area {
+	display: block;
+	width: 100%;
+	height: min(320px, 45vh);
+	min-height: 140px;
+	padding: var(--space-3);
+	box-sizing: border-box;
+	resize: vertical;
+	border: 1px solid var(--anubis-glass-border);
+	border-radius: 10px;
+	background: var(--anubis-hover);
+	color: var(--anubis-text-1);
+	font: inherit;
+	font-size: 0.875rem;
+	line-height: 1.55;
+	transition:
+		border-color 150ms ease,
+		box-shadow 150ms ease;
+
+	&::placeholder {
+		color: var(--anubis-text-3);
+	}
+
+	&:focus {
+		outline: none;
+		border-color: var(--anubis-accent);
+		box-shadow: 0 0 0 3px var(--anubis-accent-ring);
+	}
+}
+
+.panel-footer {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	font-size: 0.75rem;
+	color: var(--anubis-text-3);
+}
+
+.status {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+
+	mat-icon {
+		width: 14px;
+		height: 14px;
+		font-size: 14px;
+	}
+
+	&.error {
+		color: var(--anubis-danger-text, var(--mat-sys-error));
+	}
+}
+
+.count {
+	font-variant-numeric: tabular-nums;
+}
+
+.privacy {
+	margin: 0;
+	font-size: 0.72rem;
+	line-height: 1.45;
+	color: var(--anubis-text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.panel {
+		animation: none;
+	}
+}

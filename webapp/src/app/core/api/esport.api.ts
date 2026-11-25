@@ -7,6 +7,7 @@ import type {
 	EsportResultRequest,
 	EsportTeamDto,
 	EsportTeamPayload,
+	EsportValidateSuggestionsRequest,
 	EsportWeekDto,
 	EsportWeekSummaryDto,
 	LiquipediaScoresDto,
@@ -119,6 +120,11 @@ export class EsportApi {
 	/** Pose les scores de Liquipedia en propositions ; rien n'est publie. */
 	fetchScores(weekId: string): Observable<LiquipediaScoresDto> {
 		return this.http.post<LiquipediaScoresDto>(`/api/esport/semaines/${weekId}/liquipedia/scores`, {});
+	}
+
+	/** Valide d'un coup les scores proposes coches ; refuse tout si l'un a change. */
+	validateSuggestions(weekId: string, request: EsportValidateSuggestionsRequest): Observable<EsportWeekDto> {
+		return this.http.post<EsportWeekDto>(`/api/esport/semaines/${weekId}/liquipedia/validation`, request);
 	}
 
 	dismissSuggestion(matchId: string): Observable<EsportWeekDto> {

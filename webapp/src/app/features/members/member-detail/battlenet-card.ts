@@ -87,6 +87,13 @@ import { FrDatePipe } from '../../../shared/pipes/format.pipes';
 		}
 	`,
 	styles: `
+		/* Un element personnalise est en ligne par defaut, et un element en ligne
+		   ignore les marges verticales : l'ecart de \`.page > * + *\` ne
+		   s'appliquait pas, et la carte se collait aux vignettes du dessus. */
+		:host {
+			display: block;
+		}
+
 		.head {
 			display: flex;
 			gap: var(--space-3);

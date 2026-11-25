@@ -3,6 +3,7 @@ import {
 	OWNER_ONLY_PERMISSIONS,
 	Permission,
 	ROLE_RANK,
+	STAFF_PERMISSIONS,
 	permissionsForRole,
 	roleHasPermission,
 } from "./permissions";
@@ -42,6 +43,45 @@ describe("permissionsForRole", () => {
 		for (const permission of OWNER_ONLY_PERMISSIONS) {
 			expect(admin).not.toContain(permission);
 		}
+	});
+});
+
+// STAFF est une branche a part : rien ne l'ajoute automatiquement a la chaine
+// VIEWER < MODERATOR < ADMIN, donc rien ne previent qu'une permission de
+// moderation y glisse — sauf ce test.
+describe("STAFF", () => {
+	it("ne lit rien de la moderation, ni le wiki", () => {
+		const interdites: Permission[] = [
+			Permission.MEMBERS_READ,
+			Permission.NOTES_READ,
+			Permission.WARNINGS_READ,
+			Permission.SANCTIONS_READ,
+			Permission.TICKETS_READ,
+			Permission.LOGS_READ,
+			Permission.AUTOMOD_READ,
+			Permission.RAID_READ,
+			Permission.QUARANTINE_READ,
+			Permission.ACCOUNT_FLAGS_READ,
+			Permission.WIKI_READ,
+			Permission.STATS_READ,
+			Permission.EMBEDS_WRITE,
+		];
+		for (const permission of interdites) {
+			expect(STAFF_PERMISSIONS).not.toContain(permission);
+		}
+	});
+
+	it("anime : mini-jeux, esport, concours, statut", () => {
+		const staff = permissionsForRole(AppUserRole.STAFF);
+		expect(staff).toContain(Permission.MINIGAMES_WRITE);
+		expect(staff).toContain(Permission.ESPORT_WRITE);
+		expect(staff).toContain(Permission.GIVEAWAY_WRITE);
+		expect(staff).toContain(Permission.STATUS_READ);
+		expect(staff).not.toContain(Permission.MINIGAMES_MANAGE);
+	});
+
+	it("est au rang de la lecture seule", () => {
+		expect(ROLE_RANK.STAFF).toBe(ROLE_RANK.VIEWER);
 	});
 });
 

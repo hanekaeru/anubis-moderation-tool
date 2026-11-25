@@ -1,14 +1,52 @@
 import {
 	Collection,
+	DiscordAPIError,
 	Events,
 	type Interaction,
 	MessageFlags,
+	RESTJSONErrorCodes,
 } from "discord.js";
+
+/**
+ * Discord ne laisse que **trois secondes** pour accuser reception d'une
+ * commande. Passe ce delai, il repond « Unknown interaction » (10062) au
+ * `deferReply` — et la reponse d'erreur echoue de la meme facon, ce qui
+ * remontait en second plantage dans « Erreur du client ».
+ *
+ * Le message dit lequel des deux cas s'est produit, parce qu'ils ne se
+ * corrigent pas pareil : une interaction **recue** deja vieille signale un bot
+ * occupe (demarrage, synchronisation complete) ; une interaction recue a temps
+ * mais refusee quand meme signale une autre instance du bot sur le meme jeton,
+ * qui a repondu la premiere.
+ */
+function interactionPerdue(error: unknown): boolean {
+	return (
+		error instanceof DiscordAPIError &&
+		(error.code === RESTJSONErrorCodes.UnknownInteraction ||
+			error.code === RESTJSONErrorCodes.InteractionHasAlreadyBeenAcknowledged)
+	);
+}
+
+function signalerInteractionPerdue(interaction: Interaction, recueA: number, error: DiscordAPIError): void {
+	const ageALaReception = recueA - interaction.createdTimestamp;
+	const cause =
+		ageALaReception > 2_500
+			? "le bot l'a reçue trop tard : il était occupé (démarrage, synchronisation complète ?)."
+			: "reçue à temps, donc une autre instance du bot tourne probablement avec le même jeton et a répondu la première.";
+	console.error(
+		`[Interaction] '${"commandName" in interaction ? interaction.commandName : interaction.id}' expirée (code ${error.code}) : ` +
+			`reçue ${ageALaReception} ms après sa création, refusée ${Date.now() - recueA} ms plus tard — ${cause}`,
+	);
+}
 import {
 	EVIDENCE_MODAL_PREFIX,
 	handleEvidenceModal,
 } from "../handlers/evidenceInteractions";
 import { handleLeaderboardButton } from "../handlers/leaderboardInteractions";
+import { handleReportModal, handleReportWhoisButton } from "../handlers/reportInteractions";
+import { handleLfgClose } from "../handlers/lfgInteractions";
+import { LFG_CLOSE_PREFIX } from "../collectors/lfg";
+import { REPORT_MODAL_PREFIX, REPORT_WHOIS_PREFIX } from "../collectors/reports";
 import {
 	QUARANTINE_ACCEPT_ID,
 	QUARANTINE_BATTLENET_ID,
@@ -27,7 +65,7 @@ import {
 	handleVoiceModal,
 	handleVoicePanelButton,
 } from "../handlers/voiceInteractions";
-import type { BotEvent } from "../types";
+import { estMenuContextuel, type BotEvent } from "../types";
 import {
 	VOICE_KICK_SELECT,
 	VOICE_PANEL_PREFIX,
@@ -91,6 +129,21 @@ const ROUTES: readonly Route[] = [
 		(i) => i.isModalSubmit() && i.customId.startsWith(EVIDENCE_MODAL_PREFIX),
 		handleEvidenceModal,
 		"[Preuves] Dépôt depuis la modale échoué :",
+	),
+	route(
+		(i) => i.isModalSubmit() && i.customId.startsWith(REPORT_MODAL_PREFIX),
+		handleReportModal,
+		"[Signalements] Envoi du signalement échoué :",
+	),
+	route(
+		(i) => i.isButton() && i.customId.startsWith(REPORT_WHOIS_PREFIX),
+		handleReportWhoisButton,
+		"[Signalements] Ouverture d'une fiche échouée :",
+	),
+	route(
+		(i) => i.isButton() && i.customId.startsWith(LFG_CLOSE_PREFIX),
+		handleLfgClose,
+		"[LFG] Fermeture de l'annonce échouée :",
 	),
 	route(
 		(i) => i.isStringSelectMenu() && i.customId === VOICE_KICK_SELECT,
@@ -158,6 +211,8 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 	name: Events.InteractionCreate,
 	once: false,
 	async execute(interaction) {
+		// Avant tout `await` : c'est l'heure d'arrivee qui dit si le bot etait en retard.
+		const recueA = Date.now();
 		for (const route of ROUTES) {
 			if (!route.accepte(interaction)) continue;
 			try {
@@ -171,10 +226,29 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 		if (interaction.isAutocomplete()) {
 			// Pas de cooldown ici : Discord envoie une requete a chaque frappe.
 			const command = interaction.client.commands.get(interaction.commandName);
+			if (!command || estMenuContextuel(command)) return;
 			try {
-				await command?.autocomplete?.(interaction);
+				await command.autocomplete?.(interaction);
 			} catch (err) {
 				console.error(`[Interaction] Autocomplétion de '${interaction.commandName}' échouée :`, err);
+			}
+			return;
+		}
+
+		if (interaction.isMessageContextMenuCommand()) {
+			const command = interaction.client.commands.get(interaction.commandName);
+			if (!command || !estMenuContextuel(command)) {
+				console.error(`[Interaction] Aucun menu contextuel ne correspond à '${interaction.commandName}'.`);
+				return;
+			}
+			try {
+				await command.execute(interaction);
+			} catch (error) {
+				if (interactionPerdue(error)) {
+					signalerInteractionPerdue(interaction, recueA, error as DiscordAPIError);
+					return;
+				}
+				console.error(`[Interaction] Menu contextuel '${interaction.commandName}' échoué :`, error);
 			}
 			return;
 		}
@@ -182,7 +256,9 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 		if (!interaction.isChatInputCommand()) return;
 		if (interaction.replied || interaction.deferred) return;
 
-		const command = interaction.client.commands.get(interaction.commandName);
+		const found = interaction.client.commands.get(interaction.commandName);
+		// Un menu contextuel ne partage que son nom avec les commandes slash.
+		const command = found && !estMenuContextuel(found) ? found : undefined;
 		console.log(
 			`[Interaction] <${interaction.user.id}> a lancé '${interaction.commandName}' sur le serveur ${interaction.guildId}.`,
 		);
@@ -212,6 +288,12 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 		try {
 			await command.execute(interaction);
 		} catch (error) {
+			// Rien a repondre : l'interaction n'existe plus pour Discord, et la
+			// reponse d'erreur echouerait a son tour.
+			if (interactionPerdue(error)) {
+				signalerInteractionPerdue(interaction, recueA, error as DiscordAPIError);
+				return;
+			}
 			console.error(
 				`[Interaction] '${interaction.commandName}' a échoué :`,
 				error,

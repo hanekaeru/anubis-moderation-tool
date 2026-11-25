@@ -89,7 +89,7 @@ export type TeamDialogData = EsportTeamDto | null;
 		.form {
 			display: flex;
 			flex-direction: column;
-			gap: var(--space-3);
+			gap: var(--space-4);
 			min-width: 380px;
 			padding-top: 4px;
 		}

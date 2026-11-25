@@ -18,6 +18,7 @@ import { loadConfiguration } from "./config/configuration";
 import { GiveawayModule } from "./giveaway/giveaway.module";
 import { GuildConfigModule } from "./guild-config/guild-config.module";
 import { HealthModule } from "./health/health.module";
+import { InboxModule } from "./inbox/inbox.module";
 import { MembersModule } from "./members/members.module";
 import { ModerationModule } from "./moderation/moderation.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -34,6 +35,7 @@ import { VoiceModule } from "./voice/voice.module";
 import { WelcomeModule } from "./welcome/welcome.module";
 import { WikiModule } from "./wiki/wiki.module";
 import { OwdleModule } from "./owdle/owdle.module";
+import { MinigamesModule } from "./minigames/minigames.module";
 import { XpModule } from "./xp/xp.module";
 
 @Module({
@@ -65,6 +67,7 @@ import { XpModule } from "./xp/xp.module";
 		RaidModule,
 		QuarantineModule,
 		AccountFlagsModule,
+		InboxModule,
 		AccountModule,
 		StatusModule,
 		VerificationModule,
@@ -77,6 +80,7 @@ import { XpModule } from "./xp/xp.module";
 		OwdleModule,
 		WelcomeModule,
 		EsportModule,
+		MinigamesModule,
 	],
 	providers: [
 		// L'ordre compte : on limite le debit, puis on authentifie, puis on

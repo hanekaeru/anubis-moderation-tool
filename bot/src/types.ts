@@ -4,6 +4,8 @@ import type {
 	Client,
 	ClientEvents,
 	Collection,
+	ContextMenuCommandBuilder,
+	MessageContextMenuCommandInteraction,
 	SlashCommandBuilder,
 	SlashCommandOptionsOnlyBuilder,
 	SlashCommandSubcommandsOnlyBuilder,
@@ -25,6 +27,32 @@ export interface Command {
 	 */
 	autocomplete?(interaction: AutocompleteInteraction): Promise<void>;
 	cooldown?: number;
+	/**
+	 * Commande de recette : ni chargee ni publiee aupres de Discord sans
+	 * `MINIGAME_TEST_MODE=true`. Elle n'existe donc pas du tout en production,
+	 * pas meme masquee derriere une permission.
+	 */
+	testOnly?: boolean;
+}
+
+/**
+ * Commande de menu contextuel (clic droit > Applications), sur un message.
+ *
+ * Decouverte et publiee comme les commandes slash (`loadCommands`,
+ * `refresh.ts`) ; `contextMenu` la distingue au routage, parce que Discord
+ * range les deux dans le meme espace de noms mais pas avec la meme interaction.
+ */
+export interface MessageContextMenuCommand {
+	contextMenu: true;
+	data: ContextMenuCommandBuilder;
+	execute(interaction: MessageContextMenuCommandInteraction): Promise<void>;
+	testOnly?: boolean;
+}
+
+export type AnyCommand = Command | MessageContextMenuCommand;
+
+export function estMenuContextuel(command: AnyCommand): command is MessageContextMenuCommand {
+	return "contextMenu" in command && command.contextMenu === true;
 }
 
 /**
@@ -41,6 +69,6 @@ export interface BotEvent<Key extends keyof ClientEvents = keyof ClientEvents> {
 
 declare module "discord.js" {
 	interface Client {
-		commands: Collection<string, Command>;
+		commands: Collection<string, AnyCommand>;
 	}
 }

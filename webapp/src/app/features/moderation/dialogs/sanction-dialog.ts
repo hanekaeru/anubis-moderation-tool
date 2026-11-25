@@ -68,7 +68,7 @@ export interface SanctionDialogData {
 				</mat-form-field>
 
 				@if (needsDuration()) {
-					<mat-form-field class="full" style="margin-top: 8px">
+					<mat-form-field class="full">
 						<mat-label>Durée</mat-label>
 						<mat-select formControlName="durationSeconds">
 							@for (preset of durations(); track preset.label) {
@@ -80,13 +80,13 @@ export interface SanctionDialogData {
 						}
 					</mat-form-field>
 				} @else {
-					<p class="note" style="margin-top: 16px">
+					<p class="note">
 						Une sanction de type «&nbsp;{{ typeLabels[selectedType()] }}&nbsp;» prend effet
 						immédiatement et n'a pas de durée.
 					</p>
 				}
 
-				<mat-form-field class="full" style="margin-top: 8px">
+				<mat-form-field class="full">
 					<mat-label>Motif</mat-label>
 					<textarea matInput rows="3" formControlName="reason" maxlength="1000"></textarea>
 					@if (form.controls.reason.touched && form.controls.reason.invalid) {
@@ -94,13 +94,13 @@ export interface SanctionDialogData {
 					}
 				</mat-form-field>
 
-				<mat-form-field class="full" style="margin-top: 8px">
+				<mat-form-field class="full">
 					<mat-label>Points</mat-label>
 					<input matInput type="number" formControlName="points" min="0" max="100" />
 					<mat-hint>Poids dans le score du membre, pré-rempli par le barème du serveur.</mat-hint>
 				</mat-form-field>
 
-				<mat-form-field class="full" style="margin-top: 8px">
+				<mat-form-field class="full">
 					<mat-label>Lien de preuve (facultatif)</mat-label>
 					<input matInput formControlName="evidenceUrl" placeholder="https://..." type="url" />
 					<mat-hint>Permalien vers le message Discord incriminé.</mat-hint>
@@ -131,6 +131,7 @@ export interface SanctionDialogData {
 		.form {
 			display: flex;
 			flex-direction: column;
+			gap: var(--space-4);
 			min-width: 400px;
 		}
 
@@ -139,7 +140,7 @@ export interface SanctionDialogData {
 		}
 
 		.note {
-			margin: 0 0 16px;
+			margin: 0;
 			padding: 10px 12px;
 			border-radius: 8px;
 			background: var(--mat-sys-surface-container-high);
@@ -157,11 +158,17 @@ export interface SanctionDialogData {
 		}
 
 		.attachments {
-			margin-top: 12px;
+			margin: 0;
+		}
+
+		/* Hors du formulaire : son ecart ne vient pas du gap. */
+		.warning,
+		.error {
+			margin-top: var(--space-4);
 		}
 
 		.warning {
-			margin: 8px 0 0;
+			margin-bottom: 0;
 			padding: 10px 12px;
 			border-radius: 8px;
 			background: var(--mat-sys-surface-container-high);

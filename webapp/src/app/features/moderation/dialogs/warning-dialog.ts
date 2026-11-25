@@ -53,7 +53,7 @@ export interface WarningDialogData {
 					}
 				</mat-form-field>
 
-				<div class="row" style="margin-top: 16px">
+				<div class="row">
 					<mat-form-field>
 						<mat-label>Gravité</mat-label>
 						<mat-select formControlName="severity">
@@ -93,6 +93,7 @@ export interface WarningDialogData {
 		.form {
 			display: flex;
 			flex-direction: column;
+			gap: var(--space-4);
 			min-width: 380px;
 		}
 
@@ -102,7 +103,7 @@ export interface WarningDialogData {
 
 		.row {
 			display: flex;
-			gap: 12px;
+			gap: var(--space-4);
 
 			mat-form-field {
 				flex: 1;
@@ -119,11 +120,16 @@ export interface WarningDialogData {
 		}
 
 		.attachments {
-			margin-top: 4px;
+			margin: 0;
+		}
+
+		/* Hors du formulaire : son ecart ne vient pas du gap. */
+		.error {
+			margin-top: var(--space-4);
 		}
 
 		.warning {
-			margin: 8px 0 0;
+			margin: var(--space-4) 0 0;
 			padding: 10px 12px;
 			border-radius: 8px;
 			background: var(--mat-sys-surface-container-high);

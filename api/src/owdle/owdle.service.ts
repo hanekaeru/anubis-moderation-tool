@@ -7,6 +7,8 @@ import {
 import type { OwdleConfig, Prisma } from "@anubis/shared/prisma";
 import {
 	MAX_OWDLE_HERO_KEY_LENGTH,
+	OWDLE_DEFAULT_WEEKLY_BONUS_DAYS,
+	OWDLE_DEFAULT_WEEKLY_BONUS_XP,
 	OWDLE_DEFAULT_XP_BY_GUESSES,
 	OWDLE_ROLE_LABELS,
 	OWDLE_SUB_ROLE_LABELS,
@@ -78,11 +80,15 @@ export class OwdleService {
 			update: {
 				...(dto.channelId !== undefined ? { channelId: dto.channelId } : {}),
 				...(dto.xpByGuesses !== undefined ? { xpByGuesses: dto.xpByGuesses } : {}),
+				...(dto.weeklyBonusDays !== undefined ? { weeklyBonusDays: dto.weeklyBonusDays } : {}),
+				...(dto.weeklyBonusXp !== undefined ? { weeklyBonusXp: dto.weeklyBonusXp } : {}),
 			},
 			create: {
 				guildId,
 				channelId: dto.channelId ?? null,
 				xpByGuesses: dto.xpByGuesses ?? [...OWDLE_DEFAULT_XP_BY_GUESSES],
+				weeklyBonusDays: dto.weeklyBonusDays ?? OWDLE_DEFAULT_WEEKLY_BONUS_DAYS,
+				weeklyBonusXp: dto.weeklyBonusXp ?? OWDLE_DEFAULT_WEEKLY_BONUS_XP,
 			},
 		});
 
@@ -92,7 +98,12 @@ export class OwdleService {
 			entityType: "owdle_config",
 			entityId: guildId,
 			before: existing
-				? { channelId: existing.channelId, xpByGuesses: existing.xpByGuesses }
+				? {
+						channelId: existing.channelId,
+						xpByGuesses: existing.xpByGuesses,
+						weeklyBonusDays: existing.weeklyBonusDays,
+						weeklyBonusXp: existing.weeklyBonusXp,
+					}
 				: undefined,
 			after: { ...dto },
 		});
@@ -366,6 +377,8 @@ function toConfigDto(guildId: string, row: OwdleConfig | null): OwdleConfigDto {
 			guildId,
 			channelId: null,
 			xpByGuesses: [...OWDLE_DEFAULT_XP_BY_GUESSES],
+			weeklyBonusDays: OWDLE_DEFAULT_WEEKLY_BONUS_DAYS,
+			weeklyBonusXp: OWDLE_DEFAULT_WEEKLY_BONUS_XP,
 			// Aucune ligne : rien n'a jamais ete regle. Meme convention que l'XP.
 			updatedAt: new Date(0).toISOString(),
 		};
@@ -374,6 +387,8 @@ function toConfigDto(guildId: string, row: OwdleConfig | null): OwdleConfigDto {
 		guildId: row.guildId,
 		channelId: row.channelId,
 		xpByGuesses: row.xpByGuesses,
+		weeklyBonusDays: row.weeklyBonusDays,
+		weeklyBonusXp: row.weeklyBonusXp,
 		updatedAt: row.updatedAt.toISOString(),
 	};
 }

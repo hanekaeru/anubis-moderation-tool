@@ -1,0 +1,97 @@
+<div class="page">
+	<header class="page-header">
+		<div>
+			<h1>Mini-jeux</h1>
+			<p class="subtitle">
+				Un jeu par jour, publié à minuit et jouable jusqu'à 23h59 (heure de Paris). Le jeu d'un jour se
+				prépare jusqu'à la veille 23h59 ; ensuite, seul un administrateur peut le corriger.
+			</p>
+		</div>
+		<div class="header-actions" *appHasPermission="Permission.MINIGAMES_MANAGE">
+			<button matButton (click)="openMaps()">
+				<mat-icon>map</mat-icon>
+				Maps
+			</button>
+			<button matButton="tonal" (click)="openConfig()">
+				<mat-icon>tune</mat-icon>
+				Réglages
+			</button>
+		</div>
+	</header>
+
+	@if (loading()) {
+		<mat-progress-bar mode="indeterminate" />
+	}
+
+	@if (missingAnnounceChannel()) {
+		<p class="banner" role="alert">
+			<mat-icon>error</mat-icon>
+			Aucun salon d'annonce n'est réglé : aucun mini-jeu ne sera publié tant qu'il manque.
+		</p>
+	}
+
+	<mat-card appearance="outlined">
+		<mat-card-content>
+			<div class="month-nav">
+				<button matIconButton matTooltip="Mois précédent" aria-label="Mois précédent" (click)="previous()">
+					<mat-icon>chevron_left</mat-icon>
+				</button>
+				<h2>{{ monthLabel() }}</h2>
+				<button matIconButton matTooltip="Mois suivant" aria-label="Mois suivant" (click)="next()">
+					<mat-icon>chevron_right</mat-icon>
+				</button>
+				<button matButton class="today" (click)="thisMonth()">Aujourd'hui</button>
+			</div>
+
+			<div class="grid">
+				@for (day of weekdays; track day) {
+					<span class="weekday">{{ day }}</span>
+				}
+
+				@for (cell of cells(); track cell.key) {
+					<button
+						type="button"
+						class="cell"
+						[class.out]="!cell.inMonth"
+						[class.today]="cell.isToday"
+						[class.filled]="!!cell.event"
+						[attr.data-state]="cell.state"
+						[disabled]="!cell.clickable"
+						[attr.aria-label]="cellLabel(cell)"
+						(click)="open(cell)"
+					>
+						<span class="day">
+							{{ cell.day }}
+							@if (cell.event?.locked && !cell.event?.closedAt) {
+								<mat-icon class="lock" aria-hidden="true">lock</mat-icon>
+							}
+						</span>
+
+						@if (cell.event; as event) {
+							<span class="type">
+								<span class="emoji" aria-hidden="true">{{ emojis[event.type] }}</span>
+								<span class="label">{{ typeLabels[event.type] }}</span>
+							</span>
+							<span class="title">{{ event.title }}</span>
+							<span class="state">{{ stateLabels[cell.state!] }}</span>
+						} @else if (cell.clickable) {
+							<span class="ghost">
+								<mat-icon aria-hidden="true">add</mat-icon>
+								@if (cell.suggested; as type) {
+									<span class="label">{{ typeLabels[type] }}</span>
+								}
+							</span>
+						}
+					</button>
+				}
+			</div>
+
+			<ul class="legend">
+				<li data-state="SCHEDULED">Prêt</li>
+				<li data-state="LIVE">En cours</li>
+				<li data-state="ENDED">Terminé</li>
+				<li data-state="FAILED">Échec ou non publié</li>
+			</ul>
+		</mat-card-content>
+	</mat-card>
+</div>

@@ -142,7 +142,7 @@ const toHex = (color: number) => `#${color.toString(16).padStart(6, '0')}`;
 		.form {
 			display: flex;
 			flex-direction: column;
-			gap: var(--space-3);
+			gap: var(--space-4);
 			min-width: 440px;
 			padding-top: 4px;
 		}

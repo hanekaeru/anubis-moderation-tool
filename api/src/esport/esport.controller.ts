@@ -29,6 +29,7 @@ import {
 	EsportMatchDtoIn,
 	EsportResultDtoIn,
 	EsportTeamDtoIn,
+	EsportValidateSuggestionsDtoIn,
 	UpdateEsportConfigDto,
 	UpdateEsportWeekDto,
 } from "./dto/esport.dto";
@@ -209,6 +210,21 @@ export class EsportController {
 		@CurrentUser() actor: AuthenticatedUser,
 	): Promise<EsportWeekDto> {
 		return this.imports.import(id, dto.ids, actor);
+	}
+
+	/**
+	 * Valide d'un coup les scores proposes que le staff a coches. Meme effet
+	 * que « Terminer » match par match, en une seule correction du
+	 * recapitulatif.
+	 */
+	@Post("semaines/:id/liquipedia/validation")
+	@RequirePermissions(Permission.ESPORT_WRITE)
+	validateSuggestions(
+		@Param("id", ParseUUIDPipe) id: string,
+		@Body() dto: EsportValidateSuggestionsDtoIn,
+		@CurrentUser() actor: AuthenticatedUser,
+	): Promise<EsportWeekDto> {
+		return this.imports.validateSuggestions(id, dto, actor);
 	}
 
 	/** Ecarte le score propose par Liquipedia, sans toucher au match. */

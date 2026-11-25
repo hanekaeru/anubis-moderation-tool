@@ -262,7 +262,7 @@ describe("OwdleService.updateConfig", () => {
 
 		expect(prisma.owdleConfig.upsert).toHaveBeenCalledWith(
 			expect.objectContaining({
-				create: { guildId: GUILD_ID, channelId: null, xpByGuesses: [50, 0] },
+				create: { guildId: GUILD_ID, channelId: null, xpByGuesses: [50, 0], weeklyBonusDays: 7, weeklyBonusXp: 0 },
 			}),
 		);
 	});

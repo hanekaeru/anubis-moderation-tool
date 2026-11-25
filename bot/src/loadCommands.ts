@@ -1,11 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Collection } from "discord.js";
-import type { Command } from "./types";
+import { modeTestActif } from "./collectors/minigameClock";
+import type { AnyCommand } from "./types";
 
 const COMMANDS_DIR = path.join(__dirname, "commands");
 
-function isCommandModule(value: unknown): value is Command {
+function isCommandModule(value: unknown): value is AnyCommand {
 	return (
 		typeof value === "object" &&
 		value !== null &&
@@ -20,8 +21,8 @@ function isCommandModule(value: unknown): value is Command {
  * `refresh.ts` (publication aupres de l'API Discord) — les deux devaient
  * dupliquer cette boucle avant.
  */
-export function loadCommands(): Collection<string, Command> {
-	const commands = new Collection<string, Command>();
+export function loadCommands(): Collection<string, AnyCommand> {
+	const commands = new Collection<string, AnyCommand>();
 	const commandFolders = fs.readdirSync(COMMANDS_DIR);
 
 	for (const folder of commandFolders) {
@@ -35,6 +36,9 @@ export function loadCommands(): Collection<string, Command> {
 			const command: unknown = require(filePath);
 
 			if (isCommandModule(command)) {
+				// Une commande de recette n'est ni enregistree ni publiee hors mode
+				// test : `refresh.ts` passe par ici lui aussi.
+				if (command.testOnly && !modeTestActif()) continue;
 				commands.set(command.data.name, command);
 			} else {
 				console.log(

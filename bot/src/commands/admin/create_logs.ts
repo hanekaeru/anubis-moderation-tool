@@ -31,6 +31,10 @@ const LOG_CHANNELS: { key: LogChannelKey; channelName: string, topic: string }[]
 		key: LogChannelKey.VOICE,
 		channelName: "🔊・logs-vocaux",
 		topic: "Ce channel permet de répertorier la vie des salons vocaux temporaires (création, arrivées, départs, propriétaire, signalements)."
+	}, {
+		key: LogChannelKey.REPORTS,
+		channelName: "🚩・signalements",
+		topic: "Messages signalés par les membres (clic droit sur un message > Applications > Signaler au staff)."
 	},
 ];
 

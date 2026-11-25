@@ -103,6 +103,11 @@ export const AppUserRole = {
 	MODERATOR: "MODERATOR",
 	ADMIN: "ADMIN",
 	OWNER: "OWNER",
+	/**
+	 * Animation du serveur. Branche a part : n'herite pas de VIEWER, qui lit
+	 * deja de la moderation. Voir `STAFF_PERMISSIONS`.
+	 */
+	STAFF: "STAFF",
 } as const;
 export type AppUserRole = (typeof AppUserRole)[keyof typeof AppUserRole];
 
@@ -212,6 +217,17 @@ export const OwdleRegion = {
 } as const;
 export type OwdleRegion = (typeof OwdleRegion)[keyof typeof OwdleRegion];
 
+/** Type d'un mini-jeu du calendrier. Ordre = celui de la semaine type. */
+export const MinigameType = {
+	CLIP: "CLIP",
+	GUESS_HERO: "GUESS_HERO",
+	DUEL: "DUEL",
+	GUESS_MAP: "GUESS_MAP",
+	TRUE_FALSE: "TRUE_FALSE",
+	GUESS_SKIN: "GUESS_SKIN",
+} as const;
+export type MinigameType = (typeof MinigameType)[keyof typeof MinigameType];
+
 export const VoicePlacementMode = {
 	FIXED_CATEGORY: "FIXED_CATEGORY",
 	RANK_CATEGORY: "RANK_CATEGORY",
@@ -273,6 +289,7 @@ export const APP_USER_ROLE_LABELS: Record<AppUserRole, string> = {
 	MODERATOR: "Modérateur",
 	ADMIN: "Administrateur",
 	OWNER: "Propriétaire",
+	STAFF: "Staff (animation)",
 };
 
 export const MEMBER_STATUS_LABELS: Record<MemberStatus, string> = {
@@ -415,6 +432,8 @@ export const LogChannelKey = {
 	MESSAGES: "LOG_CHANNEL_MESSAGES",
 	SERVER: "LOG_CHANNEL_SERVER",
 	VOICE: "LOG_CHANNEL_VOICE",
+	/** Messages signales par les membres (clic droit > « Signaler au staff »). */
+	REPORTS: "LOG_CHANNEL_REPORTS",
 } as const;
 export type LogChannelKey = (typeof LogChannelKey)[keyof typeof LogChannelKey];
 
@@ -424,6 +443,7 @@ export const LOG_CHANNEL_LABELS: Record<LogChannelKey, string> = {
 	LOG_CHANNEL_MESSAGES: "Journal des messages",
 	LOG_CHANNEL_SERVER: "Journal du serveur",
 	LOG_CHANNEL_VOICE: "Journal des vocaux",
+	LOG_CHANNEL_REPORTS: "Signalements",
 };
 
 export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
@@ -434,6 +454,8 @@ export const LOG_CHANNEL_DESCRIPTIONS: Record<LogChannelKey, string> = {
 	LOG_CHANNEL_SERVER: "Salons et rôles créés, modifiés ou supprimés.",
 	LOG_CHANNEL_VOICE:
 		"Salons vocaux temporaires : créations, arrivées, départs, propriété et signalements.",
+	LOG_CHANNEL_REPORTS:
+		"Messages signalés par les membres, avec l'auteur et la personne qui signale.",
 };
 
 /**

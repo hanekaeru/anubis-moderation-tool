@@ -65,6 +65,30 @@
 				</button>
 			</div>
 
+			<h3 class="sous-titre">Bonus de la semaine</h3>
+			<p class="aide">
+				Versé une fois par semaine (lundi → dimanche) au membre qui trouve l'OWdle le nombre de jours
+				demandé. 0 XP le désactive.
+			</p>
+			<div class="bonus">
+				<mat-form-field>
+					<mat-label>Jours à trouver</mat-label>
+					<input matInput type="number" formControlName="weeklyBonusDays" min="1" max="7" />
+					<span matTextSuffix>/ 7</span>
+					@if (configForm.controls.weeklyBonusDays.invalid) {
+						<mat-error>Entre 1 et 7.</mat-error>
+					}
+				</mat-form-field>
+				<mat-form-field>
+					<mat-label>Bonus</mat-label>
+					<input matInput type="number" formControlName="weeklyBonusXp" min="0" [max]="maxWeeklyBonus" />
+					<span matTextSuffix>XP</span>
+					@if (configForm.controls.weeklyBonusXp.invalid) {
+						<mat-error>Entre 0 et {{ maxWeeklyBonus }}.</mat-error>
+					}
+				</mat-form-field>
+			</div>
+
 			<h3 class="sous-titre">Annonce des victoires</h3>
 			<mat-form-field class="channel">
 				<mat-label>Identifiant du salon</mat-label>

@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { Permission } from '@anubis/shared';
-import { authGuard, guestGuard, permissionGuard } from './core/auth/auth.guard';
+import { authGuard, guestGuard, homeGuard, permissionGuard } from './core/auth/auth.guard';
 
 /**
  * Toutes les pages sont chargees a la demande.
@@ -29,8 +29,16 @@ export const routes: Routes = [
 		children: [
 			{
 				path: '',
+				// Un compte sans statistiques (Staff) atterrit sur sa premiere page.
+				canActivate: [homeGuard],
 				loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.DashboardPage),
 				title: "Vue d'ensemble — Anubis",
+			},
+			{
+				// Ouverte a tout compte : l'API ne calcule que les sections permises.
+				path: 'a-traiter',
+				loadComponent: () => import('./features/inbox/inbox').then((m) => m.InboxPage),
+				title: 'À traiter — Anubis',
 			},
 			{
 				path: 'mon-compte/discord',
@@ -243,6 +251,12 @@ export const routes: Routes = [
 				canActivate: [permissionGuard(Permission.OWDLE_READ)],
 				loadComponent: () => import('./features/owdle/owdle').then((m) => m.OwdlePage),
 				title: 'OWdle — Anubis',
+			},
+			{
+				path: 'mini-jeux',
+				canActivate: [permissionGuard(Permission.MINIGAMES_READ)],
+				loadComponent: () => import('./features/minigames/minigames').then((m) => m.MinigamesPage),
+				title: 'Mini-jeux — Anubis',
 			},
 			{
 				path: 'sessions',

@@ -75,6 +75,22 @@
         }
       </mat-menu>
       }
+      <ng-container *appHasPermission="Permission.MEMBER_DATA_MANAGE">
+        <button matButton="outlined" [matMenuTriggerFor]="dataMenu" [disabled]="exporting()">
+          <mat-icon>privacy_tip</mat-icon>
+          Données (RGPD)
+        </button>
+        <mat-menu #dataMenu="matMenu">
+          <button mat-menu-item (click)="exportData()">
+            <mat-icon>download</mat-icon>
+            Exporter (JSON)
+          </button>
+          <button mat-menu-item (click)="openEraseDialog()">
+            <mat-icon>delete_forever</mat-icon>
+            Effacer…
+          </button>
+        </mat-menu>
+      </ng-container>
       <button matButton="outlined" *appHasPermission="Permission.WARNINGS_WRITE" (click)="openWarningDialog()">
         <mat-icon>flag</mat-icon>
         Avertir
